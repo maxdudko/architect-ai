@@ -1,26 +1,29 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: architectai-postgres
+    container_name: architect-ai-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-architectai}
-      POSTGRES_USER: ${POSTGRES_USER:-architectai}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-architectai}
+      POSTGRES_DB: ${POSTGRES_DB:-architect-ai-db}
+      POSTGRES_USER: ${POSTGRES_USER:-architect-ai-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-architect-ai-password}
     ports:
       - '${POSTGRES_PORT:-5433}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
       test:
-        ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-architectai} -d ${POSTGRES_DB:-architectai}']
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-architect-ai-user} -d ${POSTGRES_DB:-architect-ai-db}',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: architectai-redis
+    container_name: architect-ai-redis
     restart: unless-stopped
     ports:
       - '${REDIS_PORT:-6380}:6379'
@@ -34,7 +37,7 @@ services:
 
   qdrant:
     image: qdrant/qdrant:v1.13.6
-    container_name: architectai-qdrant
+    container_name: architect-ai-qdrant
     restart: unless-stopped
     ports:
       - '${QDRANT_HTTP_PORT:-6335}:6333'
@@ -46,13 +49,13 @@ services:
     build:
       context: .
       dockerfile: infrastructure/docker/api.Dockerfile
-    container_name: architectai-api
+    container_name: architect-ai-api
     restart: unless-stopped
     working_dir: /workspace
     environment:
       NODE_ENV: development
       PORT: ${API_PORT:-5000}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://architectai:architectai@postgres:5432/architectai}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://architect-ai-user:architect-ai-password@postgres:5432/architect-ai-db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
     ports:
@@ -78,7 +81,7 @@ services:
     build:
       context: .
       dockerfile: infrastructure/docker/web.Dockerfile
-    container_name: architectai-web
+    container_name: architect-ai-web
     restart: unless-stopped
     working_dir: /workspace
     environment:

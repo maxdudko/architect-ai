@@ -1,6 +1,6 @@
 {
   "name": "api",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "",
   "author": "",
   "private": true,
@@ -22,7 +22,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@architectai/shared": "workspace:*",
+    "@architect-ai/shared": "workspace:*",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",

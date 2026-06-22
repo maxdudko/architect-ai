@@ -1,4 +1,4 @@
-import { StatusCard } from '@architectai/ui';
+import { StatusCard } from '@architect-ai/ui';
 import { buildApiHealthUrl } from '@/lib/health';
 
 export default function Home() {
