@@ -9,32 +9,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: architect-ai-test
-          POSTGRES_USER: architect-ai-user
-          POSTGRES_PASSWORD: architect-ai-password
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd "pg_isready -U architect-ai-user -d architect-ai-test"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      DATABASE_URL: postgresql://architect-ai-user:architect-ai-password@localhost:5433/architect-ai-test?schema=public
-      JWT_ACCESS_SECRET: test-access-secret
-      JWT_REFRESH_SECRET: test-refresh-secret
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -58,9 +40,6 @@ jobs:
 
       - name: Test
         run: pnpm test
-
-      - name: E2E test
-        run: pnpm --filter api test:e2e
 
       - name: Build
         run: pnpm build

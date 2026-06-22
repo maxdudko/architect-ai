@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { AppProviders } from '@/providers/app-providers';
 
 export const metadata: Metadata = {
   title: 'ArchitectAI',
-  description: 'ArchitectAI frontend workspace',
+  description: 'ArchitectAI frontend application',
 };
 
 export default function RootLayout({
@@ -13,10 +12,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <AppProviders>{children}</AppProviders>
-      </body>
+    <html lang="en" className="h-full antialiased">
+      <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
 }
