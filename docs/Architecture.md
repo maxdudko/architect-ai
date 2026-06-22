@@ -4,18 +4,18 @@
 
 Build an MVP that:
 
-* Helps developers understand unfamiliar codebases.
-* Reduces onboarding time.
-* Can be implemented by a small team (or solo founder).
-* Provides a solid foundation for future phases.
-* Avoids expensive rewrites as the product evolves.
+- Helps developers understand unfamiliar codebases.
+- Reduces onboarding time.
+- Can be implemented by a small team (or solo founder).
+- Provides a solid foundation for future phases.
+- Avoids expensive rewrites as the product evolves.
 
 The architecture should support future expansion into:
 
-* Architecture Explorer
-* Decision Memory
-* Impact Analysis
-* AI Staff Engineer
+- Architecture Explorer
+- Decision Memory
+- Impact Analysis
+- AI Staff Engineer
 
 ---
 
@@ -147,10 +147,10 @@ Separate it early.
 
 Responsibilities:
 
-* Authentication
-* Request routing
-* Rate limiting
-* Session management
+- Authentication
+- Request routing
+- Rate limiting
+- Session management
 
 Technology:
 
@@ -164,9 +164,9 @@ NestJS
 
 Responsibilities:
 
-* User accounts
-* Organizations
-* Repository permissions
+- User accounts
+- Organizations
+- Repository permissions
 
 Database:
 
@@ -179,13 +179,13 @@ PostgreSQL
 Entities:
 
 ```typescript
-User
+User;
 
-Organization
+Organization;
 
-Membership
+Membership;
 
-RepositoryAccess
+RepositoryAccess;
 ```
 
 ---
@@ -194,15 +194,15 @@ RepositoryAccess
 
 Responsibilities:
 
-* GitHub OAuth
-* Repository connection
-* Repository metadata
+- GitHub OAuth
+- Repository connection
+- Repository metadata
 
 Future expansion:
 
-* GitLab
-* Bitbucket
-* Azure DevOps
+- GitLab
+- Bitbucket
+- Azure DevOps
 
 ---
 
@@ -317,19 +317,19 @@ Tree-sitter
 Outputs:
 
 ```typescript
-File
+File;
 
-Class
+Class;
 
-Function
+Function;
 
-Method
+Method;
 
-Interface
+Interface;
 
-Import
+Import;
 
-Export
+Export;
 ```
 
 ---
@@ -502,10 +502,10 @@ Payload:
 
 Why Qdrant?
 
-* Open source
-* Metadata filtering
-* Hybrid search support
-* Self-hostable
+- Open source
+- Metadata filtering
+- Hybrid search support
+- Self-hostable
 
 ---
 
@@ -667,19 +667,19 @@ Coordinate conversations.
 
 Responsibilities:
 
-* Manage chat sessions
-* Invoke retrieval
-* Invoke LLMs
-* Stream responses
+- Manage chat sessions
+- Invoke retrieval
+- Invoke LLMs
+- Stream responses
 
 ---
 
 Database:
 
 ```typescript
-Conversation
+Conversation;
 
-Message
+Message;
 ```
 
 ---
@@ -921,4 +921,3 @@ User experience
 Each component can evolve independently without forcing a platform rewrite.
 
 That flexibility is what will allow Architect AI to evolve from a simple onboarding assistant into a true engineering memory platform.
-

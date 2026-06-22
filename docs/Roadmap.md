@@ -20,12 +20,12 @@ Our mission is simple:
 
 Growing engineering teams face several recurring challenges:
 
-* New developers require weeks or months to understand the system.
-* Architectural decisions are poorly documented.
-* Critical knowledge exists only in senior engineers' heads.
-* Teams repeatedly revisit previously solved problems.
-* Impact analysis is slow and unreliable.
-* Existing AI coding assistants generate code but do not understand organizational context.
+- New developers require weeks or months to understand the system.
+- Architectural decisions are poorly documented.
+- Critical knowledge exists only in senior engineers' heads.
+- Teams repeatedly revisit previously solved problems.
+- Impact analysis is slow and unreliable.
+- Existing AI coding assistants generate code but do not understand organizational context.
 
 Current tools answer:
 
@@ -64,8 +64,8 @@ New team members struggle to understand unfamiliar codebases.
 
 ### Integrations
 
-* GitHub
-* GitLab (later)
+- GitHub
+- GitLab (later)
 
 ### Features
 
@@ -73,17 +73,17 @@ New team members struggle to understand unfamiliar codebases.
 
 Example questions:
 
-* How does authentication work?
-* Where is payment processing implemented?
-* Which services use Redis?
+- How does authentication work?
+- Where is payment processing implemented?
+- Which services use Redis?
 
 #### Documentation Generation
 
 Generate:
 
-* README files
-* Module summaries
-* Service descriptions
+- README files
+- Module summaries
+- Service descriptions
 
 #### Developer FAQ
 
@@ -91,9 +91,9 @@ Automatically create onboarding guides.
 
 ### Success Metrics
 
-* 50% reduction in onboarding time
-* Weekly active usage by engineering teams
-* Positive feedback from technical leads
+- 50% reduction in onboarding time
+- Weekly active usage by engineering teams
+- Positive feedback from technical leads
 
 ---
 
@@ -113,17 +113,17 @@ Developers cannot easily visualize large systems.
 
 Visualize:
 
-* module dependencies
-* package relationships
-* service interactions
+- module dependencies
+- package relationships
+- service interactions
 
 #### Architecture Search
 
 Example questions:
 
-* What depends on Auth?
-* Which components communicate with Billing?
-* Show all Kafka consumers.
+- What depends on Auth?
+- Which components communicate with Billing?
+- Show all Kafka consumers.
 
 #### System Overview
 
@@ -131,14 +131,14 @@ Generate architecture summaries automatically.
 
 ### Technical Additions
 
-* Tree-sitter parsing
-* Dependency graph generation
-* Architecture indexing
+- Tree-sitter parsing
+- Dependency graph generation
+- Architecture indexing
 
 ### Success Metrics
 
-* Engineers actively use architecture exploration
-* Reduced time spent investigating unfamiliar systems
+- Engineers actively use architecture exploration
+- Reduced time spent investigating unfamiliar systems
 
 ---
 
@@ -154,10 +154,10 @@ Teams forget why decisions were made.
 
 ### Integrations
 
-* Jira
-* Linear
-* Notion
-* Confluence
+- Jira
+- Linear
+- Notion
+- Confluence
 
 ### Features
 
@@ -165,8 +165,8 @@ Teams forget why decisions were made.
 
 Example questions:
 
-* Why did we choose PostgreSQL?
-* Why was Billing extracted into its own service?
+- Why did we choose PostgreSQL?
+- Why was Billing extracted into its own service?
 
 #### ADR Generation
 
@@ -178,9 +178,9 @@ Search historical decisions by topic.
 
 Examples:
 
-* Scaling decisions
-* Security decisions
-* Infrastructure decisions
+- Scaling decisions
+- Security decisions
+- Infrastructure decisions
 
 ### Knowledge Model
 
@@ -190,8 +190,8 @@ Code → PR → Ticket → Documentation → Decision
 
 ### Success Metrics
 
-* Teams adopt ADR workflows
-* Organizations rely on Architect AI during planning discussions
+- Teams adopt ADR workflows
+- Organizations rely on Architect AI during planning discussions
 
 ---
 
@@ -211,37 +211,37 @@ Developers struggle to estimate system-wide impact.
 
 Example questions:
 
-* What will break if this endpoint changes?
-* Which services depend on this module?
+- What will break if this endpoint changes?
+- Which services depend on this module?
 
 #### Test Recommendations
 
 Recommend:
 
-* integration tests
-* regression suites
-* affected areas
+- integration tests
+- regression suites
+- affected areas
 
 #### Team Awareness
 
 Identify:
 
-* affected teams
-* ownership boundaries
-* potential coordination requirements
+- affected teams
+- ownership boundaries
+- potential coordination requirements
 
 ### Technical Additions
 
-* Call graph analysis
-* Ownership mapping
-* Service dependency analysis
-* Knowledge graph enrichment
+- Call graph analysis
+- Ownership mapping
+- Service dependency analysis
+- Knowledge graph enrichment
 
 ### Success Metrics
 
-* Reduction in production incidents
-* Faster release planning
-* Improved confidence in large refactors
+- Reduction in production incidents
+- Faster release planning
+- Improved confidence in large refactors
 
 ---
 
@@ -261,17 +261,17 @@ Engineering leaders need support evaluating trade-offs.
 
 Example questions:
 
-* Should Search become a separate service?
-* Is this microservice extraction justified?
+- Should Search become a separate service?
+- Is this microservice extraction justified?
 
 #### ADR Recommendations
 
 Generate proposed decisions with:
 
-* rationale
-* alternatives
-* risks
-* trade-offs
+- rationale
+- alternatives
+- risks
+- trade-offs
 
 #### Architecture Compliance
 
@@ -283,8 +283,8 @@ Provide architectural feedback during reviews.
 
 ### Success Metrics
 
-* Used during technical planning sessions
-* Trusted by staff engineers and technical leads
+- Used during technical planning sessions
+- Trusted by staff engineers and technical leads
 
 ---
 
@@ -298,25 +298,25 @@ Support large organizations with security and governance requirements.
 
 #### Self-Hosted Deployment
 
-* Kubernetes support
-* Air-gapped environments
+- Kubernetes support
+- Air-gapped environments
 
 #### Security
 
-* SSO
-* RBAC
-* Audit logs
+- SSO
+- RBAC
+- Audit logs
 
 #### Governance
 
-* Data residency controls
-* Compliance reporting
-* Approval workflows
+- Data residency controls
+- Compliance reporting
+- Approval workflows
 
 ### Success Metrics
 
-* Enterprise adoption
-* Expansion within existing customers
+- Enterprise adoption
+- Expansion within existing customers
 
 ---
 
@@ -357,35 +357,35 @@ Become the Engineering Memory Layer
 
 ## Frontend
 
-* Next.js
-* TypeScript
+- Next.js
+- TypeScript
 
 ## Backend
 
-* NestJS
-* Node.js
+- NestJS
+- Node.js
 
 ## AI Layer
 
-* OpenAI / Anthropic
-* Agent framework
+- OpenAI / Anthropic
+- Agent framework
 
 ## Retrieval
 
-* Qdrant
-* Hybrid search
+- Qdrant
+- Hybrid search
 
 ## Code Intelligence
 
-* Tree-sitter
-* Dependency analysis
-* Call graph generation
+- Tree-sitter
+- Dependency analysis
+- Call graph generation
 
 ## Knowledge Layer
 
-* Knowledge Graph
-* Decision Graph
-* Architectural metadata store
+- Knowledge Graph
+- Decision Graph
+- Architectural metadata store
 
 ---
 
@@ -395,25 +395,25 @@ Become the Engineering Memory Layer
 
 Teams with:
 
-* 5–30 engineers
-* multiple repositories
-* growing technical complexity
+- 5–30 engineers
+- multiple repositories
+- growing technical complexity
 
 ### Expansion Market
 
 Organizations with:
 
-* 50–500 engineers
-* multiple teams
-* significant onboarding costs
+- 50–500 engineers
+- multiple teams
+- significant onboarding costs
 
 ### Enterprise
 
 Large organizations requiring:
 
-* self-hosted deployment
-* compliance controls
-* advanced governance capabilities
+- self-hosted deployment
+- compliance controls
+- advanced governance capabilities
 
 ---
 
@@ -425,7 +425,6 @@ Architect AI succeeds when engineering teams say:
 
 The product should become the first place engineers go to answer questions about:
 
-* how the system works,
-* why it was built this way,
-* and what happens if they change it.
-
+- how the system works,
+- why it was built this way,
+- and what happens if they change it.
