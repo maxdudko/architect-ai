@@ -1,0 +1,22 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build artifacts
+.turbo/
+dist/
+coverage/
+.next/
+out/
+
+# env files
+.env
+.env.local
+.env.*.local
+
+# logs
+*.log
+
+# IDE
+.idea/
+.cursor/

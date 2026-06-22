@@ -28,11 +28,11 @@ Today's AI tools help developers write code faster.
 
 Architect AI helps teams answer much harder questions:
 
-* How does this system work?
-* Why was it designed this way?
-* What will break if we change this?
-* Where should new functionality be implemented?
-* Why was this architectural decision made?
+- How does this system work?
+- Why was it designed this way?
+- What will break if we change this?
+- Where should new functionality be implemented?
+- Why was this architectural decision made?
 
 The goal is not replacing engineers.
 
@@ -48,18 +48,18 @@ Accelerate onboarding by allowing developers to ask questions about an existing 
 
 Example questions:
 
-* How does authentication work?
-* Where is payment processing implemented?
-* Which services use Redis?
-* Where should I add a new API endpoint?
+- How does authentication work?
+- Where is payment processing implemented?
+- Which services use Redis?
+- Where should I add a new API endpoint?
 
 Features:
 
-* GitHub integration
-* Repository indexing
-* AI-powered codebase chat
-* Source references
-* Automatic onboarding guides
+- GitHub integration
+- Repository indexing
+- AI-powered codebase chat
+- Source references
+- Automatic onboarding guides
 
 ---
 
@@ -69,10 +69,10 @@ Understand system structure.
 
 Features:
 
-* Dependency visualization
-* Module relationships
-* Service mapping
-* Architecture search
+- Dependency visualization
+- Module relationships
+- Service mapping
+- Architecture search
 
 ---
 
@@ -82,11 +82,11 @@ Preserve engineering decisions.
 
 Features:
 
-* ADR generation
-* Decision search
-* Jira integration
-* Notion integration
-* Architectural history
+- ADR generation
+- Decision search
+- Jira integration
+- Notion integration
+- Architectural history
 
 ---
 
@@ -96,10 +96,10 @@ Predict consequences before making changes.
 
 Features:
 
-* Change impact analysis
-* Dependency analysis
-* Test recommendations
-* Team ownership mapping
+- Change impact analysis
+- Dependency analysis
+- Test recommendations
+- Team ownership mapping
 
 ---
 
@@ -109,11 +109,11 @@ Support engineering leaders during technical decision making.
 
 Features:
 
-* Design reviews
-* Architecture validation
-* ADR recommendations
-* Pull request guidance
-* Technical planning assistance
+- Design reviews
+- Architecture validation
+- ADR recommendations
+- Pull request guidance
+- Technical planning assistance
 
 ---
 
@@ -197,38 +197,38 @@ Every subsystem is independently scalable.
 
 ## Frontend
 
-* Next.js
-* React
-* TypeScript
-* Tailwind CSS
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
 
 ## Backend
 
-* NestJS
-* Node.js
+- NestJS
+- Node.js
 
 ## Database
 
-* PostgreSQL
+- PostgreSQL
 
 ## Vector Database
 
-* Qdrant
+- Qdrant
 
 ## Queue
 
-* BullMQ
-* Redis
+- BullMQ
+- Redis
 
 ## Code Intelligence
 
-* Tree-sitter
+- Tree-sitter
 
 ## AI
 
-* Anthropic Claude
-* OpenAI GPT
-* Provider abstraction layer
+- Anthropic Claude
+- OpenAI GPT
+- Provider abstraction layer
 
 ---
 
@@ -248,6 +248,9 @@ packages/
 infrastructure/
     docker/
 
+.github/
+    workflows/
+
 docs/
 ```
 
@@ -257,10 +260,10 @@ docs/
 
 ## Requirements
 
-* Node.js
-* pnpm
-* Docker
-* Docker Compose
+- Node.js
+- pnpm
+- Docker
+- Docker Compose
 
 ---
 
@@ -272,29 +275,67 @@ git clone <repository>
 cd architect-ai
 
 pnpm install
+
+cp .env.example .env
 ```
 
 ---
 
-## Start Infrastructure
+## Local Infrastructure and Containers
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
 This starts:
 
-* PostgreSQL
-* Redis
-* Qdrant
+- PostgreSQL
+- Redis
+- Qdrant
+- API container
+- Web container
+
+Default host ports:
+
+- Web: `3000`
+- API: `5000`
+- PostgreSQL: `5433`
+- Redis: `6380`
+- Qdrant: `6335` (HTTP), `6336` (gRPC)
 
 ---
 
-## Start Development
+## Start Development (Host Apps)
 
 ```bash
 pnpm dev
 ```
+
+This runs workspace `dev` tasks for both `apps/web` and `apps/api`.
+
+---
+
+## Quality Checks
+
+```bash
+pnpm lint
+pnpm test
+pnpm build
+```
+
+These are the same checks executed in CI on pull requests.
+
+---
+
+## CI
+
+GitHub Actions workflow: `.github/workflows/ci.yml`
+
+Checks on pull requests:
+
+- Lint
+- Test
+- Build
 
 ---
 
@@ -389,14 +430,14 @@ The architecture is intentionally built for long-term scalability.
 
 Future integrations include:
 
-* GitLab
-* Bitbucket
-* Azure DevOps
-* Jira
-* Linear
-* Notion
-* Confluence
-* Slack
+- GitLab
+- Bitbucket
+- Azure DevOps
+- Jira
+- Linear
+- Notion
+- Confluence
+- Slack
 
 No major architectural changes should be required as the platform evolves.
 
