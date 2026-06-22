@@ -29,7 +29,7 @@ importers:
 
   apps/api:
     dependencies:
-      '@architectai/shared':
+      '@architect-ai/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@nestjs/common':
@@ -120,7 +120,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@architectai/ui':
+      '@architect-ai/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       next:
