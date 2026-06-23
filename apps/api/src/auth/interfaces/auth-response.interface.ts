@@ -10,7 +10,6 @@ export interface AuthResponse {
     lastName: string;
     avatarUrl: string | null;
     emailVerified: boolean;
-    lastLoginAt: Date | null;
   };
   workspaces: Array<{
     id: string;

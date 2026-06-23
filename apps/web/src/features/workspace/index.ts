@@ -1,10 +1,8 @@
 export * from './components/create-workspace-form';
 export * from './components/invitation-form';
-export * from './components/invitations-list';
 export * from './components/members-list';
 export * from './components/workspace-list';
 export * from './components/workspace-settings-form';
-export * from './components/workspace-management-sections';
 export * from './components/workspace-switcher';
 export * from './hooks/use-create-invitation-form';
 export * from './hooks/use-create-workspace-form';
@@ -13,4 +11,3 @@ export * from './hooks/use-workspace-switcher';
 export * from './schemas/workspace.schema';
 export * from './services/workspace.service';
 export * from './types/workspace.types';
-export * from './utils/workspace-permissions';

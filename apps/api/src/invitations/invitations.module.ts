@@ -1,8 +1,4 @@
 import { Module } from '@nestjs/common';
-import { AuthModule } from '../auth/auth.module';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { WorkspaceParamGuard } from '../common/guards/workspace-param.guard';
-import { MailModule } from '../mail/mail.module';
 import { MembershipsModule } from '../memberships/memberships.module';
 import { UsersModule } from '../users/users.module';
 import { InvitationsController } from './invitations.controller';
@@ -10,14 +6,9 @@ import { InvitationsRepository } from './invitations.repository';
 import { InvitationsService } from './invitations.service';
 
 @Module({
-  imports: [MembershipsModule, UsersModule, AuthModule, MailModule],
+  imports: [MembershipsModule, UsersModule],
   controllers: [InvitationsController],
-  providers: [
-    InvitationsRepository,
-    InvitationsService,
-    WorkspaceParamGuard,
-    RolesGuard,
-  ],
+  providers: [InvitationsRepository, InvitationsService],
   exports: [InvitationsService],
 })
 export class InvitationsModule {}

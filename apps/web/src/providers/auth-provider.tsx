@@ -10,10 +10,8 @@ import {
   signIn as signInRequest,
   signUp as signUpRequest,
   switchWorkspace as switchWorkspaceRequest,
-  acceptInvitation as acceptInvitationRequest,
   registerApiRefreshHandler,
 } from '@/lib/api';
-import type { AcceptInvitationPayload } from '@/lib/api';
 import {
   type AuthStorageState,
   clearAuthState,
@@ -35,7 +33,6 @@ interface AuthContextValue {
     email: string;
     password: string;
   }) => Promise<void>;
-  acceptInvitation: (token: string, payload?: AcceptInvitationPayload) => Promise<void>;
   logout: () => Promise<void>;
   switchWorkspace: (workspaceId: string) => Promise<void>;
 }
@@ -44,10 +41,13 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [initialAuthState] = useState(() => loadAuthState());
+  const [initialAuthState] = useState<AuthStorageState | null>(() => loadAuthState());
   const [isReady, setIsReady] = useState<boolean>(() => initialAuthState === null);
   const [accessToken, setAccessToken] = useState<string | null>(
     () => initialAuthState?.accessToken ?? null,
+  );
+  const [refreshToken, setRefreshToken] = useState<string | null>(
+    () => initialAuthState?.refreshToken ?? null,
   );
   const [user, setUser] = useState<User | null>(() => initialAuthState?.user ?? null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>(
@@ -60,16 +60,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const persistState = useCallback(
     (params: {
       nextAccessToken: string;
+      nextRefreshToken: string;
       nextUser: User;
       nextWorkspaces: Workspace[];
       nextActiveWorkspace: Workspace;
     }) => {
       setAccessToken(params.nextAccessToken);
+      setRefreshToken(params.nextRefreshToken);
       setUser(params.nextUser);
       setWorkspaces(params.nextWorkspaces);
       setActiveWorkspace(params.nextActiveWorkspace);
       saveAuthState({
         accessToken: params.nextAccessToken,
+        refreshToken: params.nextRefreshToken,
         user: params.nextUser,
         workspaces: params.nextWorkspaces,
         activeWorkspace: params.nextActiveWorkspace,
@@ -80,6 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resetState = useCallback(() => {
     setAccessToken(null);
+    setRefreshToken(null);
     setUser(null);
     setWorkspaces([]);
     setActiveWorkspace(null);
@@ -87,25 +91,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshAccessToken = useCallback(async (): Promise<string | null> => {
+    if (!refreshToken) {
+      return null;
+    }
     try {
-      const data = await refreshTokens(activeWorkspace?.id);
+      const data = await refreshTokens(refreshToken, activeWorkspace?.id);
       if (user && activeWorkspace) {
         persistState({
           nextAccessToken: data.accessToken,
+          nextRefreshToken: data.refreshToken,
           nextUser: user,
           nextWorkspaces: workspaces,
           nextActiveWorkspace: activeWorkspace,
         });
-      } else {
-        setAccessToken(data.accessToken);
-        setAccessTokenCookie(data.accessToken);
       }
       return data.accessToken;
     } catch {
       resetState();
       return null;
     }
-  }, [activeWorkspace, persistState, resetState, user, workspaces]);
+  }, [activeWorkspace, persistState, refreshToken, resetState, user, workspaces]);
 
   useEffect(() => {
     registerApiRefreshHandler(refreshAccessToken);
@@ -118,29 +123,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setAccessTokenCookie(initialAuthState.accessToken);
 
-    const bootstrapSession = async () => {
-      let accessToken = initialAuthState.accessToken;
-
-      if (initialAuthState.legacyRefreshToken) {
-        try {
-          const refreshed = await refreshTokens(
-            initialAuthState.activeWorkspace.id,
-            initialAuthState.legacyRefreshToken,
-          );
-          accessToken = refreshed.accessToken;
-          setAccessToken(accessToken);
-          setAccessTokenCookie(accessToken);
-        } catch {
-          resetState();
-          setIsReady(true);
-          return;
-        }
-      }
-
-      try {
-        const session = await fetchCurrentSession();
+    fetchCurrentSession()
+      .then((session) => {
         saveAuthState({
-          accessToken,
+          accessToken: initialAuthState.accessToken,
+          refreshToken: initialAuthState.refreshToken,
           user: session.user,
           workspaces: session.workspaces,
           activeWorkspace: session.activeWorkspace,
@@ -148,14 +135,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session.user);
         setWorkspaces(session.workspaces);
         setActiveWorkspace(session.activeWorkspace);
-      } catch {
+      })
+      .catch(() => {
         resetState();
-      } finally {
+      })
+      .finally(() => {
         setIsReady(true);
-      }
-    };
-
-    void bootstrapSession();
+      });
   }, [initialAuthState, resetState]);
 
   const signIn = useCallback(
@@ -163,6 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await signInRequest(payload);
       persistState({
         nextAccessToken: response.accessToken,
+        nextRefreshToken: response.refreshToken,
         nextUser: response.user,
         nextWorkspaces: response.workspaces,
         nextActiveWorkspace: response.activeWorkspace,
@@ -177,20 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await signUpRequest(payload);
       persistState({
         nextAccessToken: response.accessToken,
-        nextUser: response.user,
-        nextWorkspaces: response.workspaces,
-        nextActiveWorkspace: response.activeWorkspace,
-      });
-      router.push('/dashboard');
-    },
-    [persistState, router],
-  );
-
-  const acceptInvitation = useCallback(
-    async (token: string, payload?: AcceptInvitationPayload) => {
-      const response = await acceptInvitationRequest(token, payload ?? {});
-      persistState({
-        nextAccessToken: response.accessToken,
+        nextRefreshToken: response.refreshToken,
         nextUser: response.user,
         nextWorkspaces: response.workspaces,
         nextActiveWorkspace: response.activeWorkspace,
@@ -201,28 +175,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    await logoutRequest().catch(() => undefined);
+    if (refreshToken) {
+      await logoutRequest({ refreshToken }).catch(() => undefined);
+    }
     resetState();
     router.push('/sign-in');
-  }, [resetState, router]);
+  }, [refreshToken, resetState, router]);
 
   const switchWorkspace = useCallback(
     async (workspaceId: string) => {
-      if (!user) {
+      if (!refreshToken || !user) {
         return;
       }
-      const data = await switchWorkspaceRequest(workspaceId);
+      const data = await switchWorkspaceRequest(workspaceId, refreshToken);
       const nextWorkspaces = workspaces.map((item) =>
         item.id === data.activeWorkspace.id ? data.activeWorkspace : item,
       );
       persistState({
         nextAccessToken: data.accessToken,
+        nextRefreshToken: data.refreshToken,
         nextUser: user,
         nextWorkspaces,
         nextActiveWorkspace: data.activeWorkspace,
       });
     },
-    [persistState, user, workspaces],
+    [persistState, refreshToken, user, workspaces],
   );
 
   const value = useMemo<AuthContextValue>(
@@ -234,13 +211,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       activeWorkspace,
       signIn,
       signUp,
-      acceptInvitation,
       logout,
       switchWorkspace,
     }),
     [
       accessToken,
-      acceptInvitation,
       activeWorkspace,
       isReady,
       logout,

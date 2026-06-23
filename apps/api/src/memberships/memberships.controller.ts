@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Delete, Get, Param, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { WorkspaceRole } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -16,7 +8,6 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { WorkspaceParamGuard } from '../common/guards/workspace-param.guard';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
 import { MembershipsService } from './memberships.service';
-import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 
 @ApiTags('Membership')
 @ApiBearerAuth()
@@ -38,23 +29,6 @@ export class MembershipsController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.membershipsService.listMembers(workspaceId, user.sub);
-  }
-
-  @Patch(':memberId')
-  @ApiOperation({ summary: 'Update a workspace member role' })
-  @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
-  updateMemberRole(
-    @Param('id') workspaceId: string,
-    @Param('memberId') memberId: string,
-    @CurrentUser() user: RequestUser,
-    @Body() dto: UpdateMemberRoleDto,
-  ) {
-    return this.membershipsService.updateMemberRole(
-      workspaceId,
-      memberId,
-      user.sub,
-      dto.role,
-    );
   }
 
   @Delete(':memberId')

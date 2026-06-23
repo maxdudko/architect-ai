@@ -1,20 +1,8 @@
-import type { Membership, WorkspaceRole } from '@/entities';
+import type { Membership } from '@/entities';
 import { apiClient } from './axios';
 
 export async function listMembers(workspaceId: string): Promise<Membership[]> {
   const { data } = await apiClient.get<Membership[]>(`/workspaces/${workspaceId}/members`);
-  return data;
-}
-
-export async function updateMemberRole(
-  workspaceId: string,
-  memberId: string,
-  role: WorkspaceRole,
-): Promise<Membership> {
-  const { data } = await apiClient.patch<Membership>(
-    `/workspaces/${workspaceId}/members/${memberId}`,
-    { role },
-  );
   return data;
 }
 

@@ -58,10 +58,12 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://architect-ai-user:architect-ai-password@postgres:5432/architect-ai-db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
     ports:
       - '${API_PORT:-5000}:5000'
     volumes:
       - .:/workspace
+      - api-node-modules:/workspace/node_modules
       - pnpm-store:/pnpm/store
     depends_on:
       postgres:
@@ -92,6 +94,7 @@ services:
       - '${WEB_PORT:-3000}:3000'
     volumes:
       - .:/workspace
+      - web-node-modules:/workspace/node_modules
       - pnpm-store:/pnpm/store
     depends_on:
       api:
@@ -108,3 +111,5 @@ volumes:
   redis-data:
   qdrant-data:
   pnpm-store:
+  api-node-modules:
+  web-node-modules:

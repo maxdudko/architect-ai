@@ -5,5 +5,4 @@ export interface User {
   lastName: string;
   avatarUrl: string | null;
   emailVerified: boolean;
-  lastLoginAt: string | null;
 }

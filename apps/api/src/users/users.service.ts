@@ -17,8 +17,4 @@ export class UsersService {
   findById(id: string): Promise<User | null> {
     return this.usersRepository.findById(id);
   }
-
-  touchLastLoginAt(userId: string): Promise<User> {
-    return this.usersRepository.touchLastLoginAt(userId);
-  }
 }

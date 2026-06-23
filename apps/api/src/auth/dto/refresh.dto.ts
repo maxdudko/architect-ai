@@ -1,14 +1,12 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class RefreshDto {
-  @ApiPropertyOptional({
-    description:
-      'Deprecated: refresh token is read from an httpOnly cookie. Body value is accepted only as a fallback.',
+  @ApiProperty({
+    description: 'Refresh token issued at sign-in or prior refresh',
   })
-  @IsOptional()
   @IsString()
-  refreshToken?: string;
+  refreshToken!: string;
 
   @ApiPropertyOptional({
     description:

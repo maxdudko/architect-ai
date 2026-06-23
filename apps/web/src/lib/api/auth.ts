@@ -11,6 +11,10 @@ export interface SignUpPayload extends SignInPayload {
   lastName: string;
 }
 
+export interface LogoutPayload {
+  refreshToken?: string;
+}
+
 export async function signIn(payload: SignInPayload): Promise<AuthResponse> {
   const { data } = await apiClient.post<AuthResponse>('/auth/signin', payload);
   return data;
@@ -29,20 +33,21 @@ export async function fetchCurrentSession(): Promise<
   return data;
 }
 
-export async function logout(): Promise<{ success: boolean }> {
-  const { data } = await apiClient.post<{ success: boolean }>('/auth/logout', {});
+export async function logout(payload: LogoutPayload): Promise<{ success: boolean }> {
+  const { data } = await apiClient.post<{ success: boolean }>('/auth/logout', payload);
   return data;
 }
 
 export async function refreshTokens(
+  refreshToken: string,
   activeWorkspaceId?: string,
-  legacyRefreshToken?: string,
 ): Promise<{
   accessToken: string;
+  refreshToken: string;
 }> {
-  const { data } = await apiClient.post<{ accessToken: string }>('/auth/refresh', {
-    ...(legacyRefreshToken ? { refreshToken: legacyRefreshToken } : {}),
-    activeWorkspaceId,
-  });
+  const { data } = await apiClient.post<{ accessToken: string; refreshToken: string }>(
+    '/auth/refresh',
+    { refreshToken, activeWorkspaceId },
+  );
   return data;
 }

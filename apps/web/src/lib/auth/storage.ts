@@ -5,13 +5,10 @@ const AUTH_STORAGE_KEY = 'architect.auth.session.v1';
 
 export interface AuthStorageState {
   accessToken: string;
+  refreshToken: string;
   user: User;
   workspaces: Workspace[];
   activeWorkspace: Workspace;
-}
-
-interface LegacyAuthStorageState extends AuthStorageState {
-  refreshToken?: string;
 }
 
 function isBrowser(): boolean {
@@ -40,11 +37,7 @@ export function saveAuthState(state: AuthStorageState): void {
   setAccessTokenCookie(state.accessToken);
 }
 
-export function loadAuthState():
-  | (AuthStorageState & {
-      legacyRefreshToken?: string;
-    })
-  | null {
+export function loadAuthState(): AuthStorageState | null {
   if (!isBrowser()) {
     return null;
   }
@@ -53,16 +46,7 @@ export function loadAuthState():
     return null;
   }
   try {
-    const parsed = JSON.parse(value) as LegacyAuthStorageState;
-    const { refreshToken, ...state } = parsed;
-    if (!state.accessToken || !state.user || !state.activeWorkspace) {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-      return null;
-    }
-    return {
-      ...state,
-      ...(refreshToken ? { legacyRefreshToken: refreshToken } : {}),
-    };
+    return JSON.parse(value) as AuthStorageState;
   } catch {
     localStorage.removeItem(AUTH_STORAGE_KEY);
     return null;

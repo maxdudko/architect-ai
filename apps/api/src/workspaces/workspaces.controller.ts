@@ -5,13 +5,9 @@ import {
   Param,
   Patch,
   Post,
-  Req,
-  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { Request, Response } from 'express';
-import { AuthCookieService } from '../auth/auth-cookie.service';
 import { AuthService } from '../auth/auth.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -29,7 +25,6 @@ export class WorkspacesController {
   constructor(
     private readonly workspacesService: WorkspacesService,
     private readonly authService: AuthService,
-    private readonly authCookieService: AuthCookieService,
   ) {}
 
   @Get()
@@ -62,27 +57,16 @@ export class WorkspacesController {
     summary:
       'Switch active workspace and receive rotated access and refresh tokens',
   })
-  async switchWorkspace(
+  switchWorkspace(
     @Param('id') workspaceId: string,
     @CurrentUser() user: RequestUser,
     @Body() dto: SwitchWorkspaceDto,
-    @Req() request: Request,
-    @Res({ passthrough: true }) response: Response,
   ) {
-    const refreshToken = this.authCookieService.resolveRefreshToken(
-      request,
-      dto.refreshToken,
-    );
-    const result = await this.authService.switchActiveWorkspace(
+    return this.authService.switchActiveWorkspace(
       user.sub,
       user.email,
       workspaceId,
-      refreshToken,
+      dto.refreshToken,
     );
-    this.authCookieService.setRefreshTokenCookie(response, result.refreshToken);
-    return {
-      accessToken: result.accessToken,
-      activeWorkspace: result.activeWorkspace,
-    };
   }
 }

@@ -76,7 +76,7 @@ export class MembershipsRepository {
     role: WorkspaceRole,
     status: MembershipStatus,
   ): Promise<Membership> {
-    return await this.prisma.membership.upsert({
+    return this.prisma.membership.upsert({
       where: { workspaceId_userId: { workspaceId, userId } },
       update: {
         role,
@@ -101,31 +101,5 @@ export class MembershipsRepository {
     });
 
     return result.count;
-  }
-
-  async updateRole(
-    workspaceId: string,
-    membershipId: string,
-    role: WorkspaceRole,
-  ): Promise<number> {
-    const result = await this.prisma.membership.updateMany({
-      where: {
-        id: membershipId,
-        workspaceId,
-        status: MembershipStatus.ACTIVE,
-      },
-      data: { role },
-    });
-
-    return result.count;
-  }
-
-  findById(
-    workspaceId: string,
-    membershipId: string,
-  ): Promise<Membership | null> {
-    return this.prisma.membership.findFirst({
-      where: { id: membershipId, workspaceId },
-    });
   }
 }
