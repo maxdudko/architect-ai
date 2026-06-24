@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { WorkspaceRole } from '@prisma/client';
+import { InvitationStatus, WorkspaceRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { MembershipsService } from '../memberships/memberships.service';
 import { UsersService } from '../users/users.service';
@@ -54,10 +54,14 @@ export class InvitationsService {
         email,
       );
 
-    if (existing && existing.expiresAt > new Date()) {
-      throw new ForbiddenException(
-        'An active invitation already exists for this email',
-      );
+    if (existing) {
+      if (existing.expiresAt > new Date()) {
+        throw new ForbiddenException(
+          'An active invitation already exists for this email',
+        );
+      }
+
+      await this.invitationsRepository.markExpired(existing.id);
     }
 
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
@@ -66,6 +70,7 @@ export class InvitationsService {
       email,
       role,
       token: randomUUID(),
+      status: InvitationStatus.PENDING,
       expiresAt,
     });
 
@@ -86,11 +91,12 @@ export class InvitationsService {
     userId: string;
   }> {
     const invitation =
-      await this.invitationsRepository.findActiveByToken(token);
+      await this.invitationsRepository.findPendingByToken(token);
     if (!invitation) {
       throw new NotFoundException('Invitation not found');
     }
     if (invitation.expiresAt <= new Date()) {
+      await this.invitationsRepository.markExpired(invitation.id);
       throw new BadRequestException('Invitation has expired');
     }
     if (

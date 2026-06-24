@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { Invitation, Prisma } from '@prisma/client';
+import { Invitation, InvitationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+
+const OPEN_INVITATION_WHERE = {
+  status: InvitationStatus.PENDING,
+  deletedAt: null,
+} satisfies Prisma.InvitationWhereInput;
 
 @Injectable()
 export class InvitationsRepository {
@@ -10,12 +15,11 @@ export class InvitationsRepository {
     return this.prisma.invitation.create({ data });
   }
 
-  findActiveByToken(token: string): Promise<Invitation | null> {
+  findPendingByToken(token: string): Promise<Invitation | null> {
     return this.prisma.invitation.findFirst({
       where: {
         token,
-        deletedAt: null,
-        acceptedAt: null,
+        ...OPEN_INVITATION_WHERE,
       },
     });
   }
@@ -28,8 +32,7 @@ export class InvitationsRepository {
       where: {
         workspaceId,
         email,
-        acceptedAt: null,
-        deletedAt: null,
+        ...OPEN_INVITATION_WHERE,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -38,7 +41,17 @@ export class InvitationsRepository {
   markAccepted(id: string): Promise<Invitation> {
     return this.prisma.invitation.update({
       where: { id },
-      data: { acceptedAt: new Date() },
+      data: {
+        status: InvitationStatus.ACCEPTED,
+        acceptedAt: new Date(),
+      },
+    });
+  }
+
+  markExpired(id: string): Promise<Invitation> {
+    return this.prisma.invitation.update({
+      where: { id },
+      data: { status: InvitationStatus.EXPIRED },
     });
   }
 }

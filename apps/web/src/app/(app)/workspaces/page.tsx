@@ -48,7 +48,7 @@ export default function WorkspacesPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">{section.description}</p>
-              <Button asChild variant="outline" size="sm">
+              <Button asChild variant="outline" size="lg">
                 <Link href={section.href}>Open</Link>
               </Button>
             </CardContent>
