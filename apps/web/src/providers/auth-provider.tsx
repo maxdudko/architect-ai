@@ -10,8 +10,10 @@ import {
   signIn as signInRequest,
   signUp as signUpRequest,
   switchWorkspace as switchWorkspaceRequest,
+  acceptInvitation as acceptInvitationRequest,
   registerApiRefreshHandler,
 } from '@/lib/api';
+import type { AcceptInvitationPayload } from '@/lib/api';
 import {
   type AuthStorageState,
   clearAuthState,
@@ -33,6 +35,7 @@ interface AuthContextValue {
     email: string;
     password: string;
   }) => Promise<void>;
+  acceptInvitation: (token: string, payload?: AcceptInvitationPayload) => Promise<void>;
   logout: () => Promise<void>;
   switchWorkspace: (workspaceId: string) => Promise<void>;
 }
@@ -174,6 +177,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [persistState, router],
   );
 
+  const acceptInvitation = useCallback(
+    async (token: string, payload?: AcceptInvitationPayload) => {
+      const response = await acceptInvitationRequest(token, payload ?? {});
+      persistState({
+        nextAccessToken: response.accessToken,
+        nextRefreshToken: response.refreshToken,
+        nextUser: response.user,
+        nextWorkspaces: response.workspaces,
+        nextActiveWorkspace: response.activeWorkspace,
+      });
+      router.push('/dashboard');
+    },
+    [persistState, router],
+  );
+
   const logout = useCallback(async () => {
     if (refreshToken) {
       await logoutRequest({ refreshToken }).catch(() => undefined);
@@ -211,11 +229,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       activeWorkspace,
       signIn,
       signUp,
+      acceptInvitation,
       logout,
       switchWorkspace,
     }),
     [
       accessToken,
+      acceptInvitation,
       activeWorkspace,
       isReady,
       logout,

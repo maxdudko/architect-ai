@@ -184,6 +184,19 @@ export class AuthService {
     return { success: true };
   }
 
+  async createSessionForUser(
+    userId: string,
+    activeWorkspaceId: string,
+  ): Promise<AuthResponse> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const authenticatedUser = await this.usersService.touchLastLoginAt(user.id);
+    return this.buildAuthResponse(authenticatedUser, activeWorkspaceId);
+  }
+
   async me(
     user: RequestUser,
   ): Promise<Pick<AuthResponse, 'user' | 'workspaces' | 'activeWorkspace'>> {

@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { InvitationsModule } from './invitations/invitations.module';
+import { MailModule } from './mail/mail.module';
 import { MembershipsModule } from './memberships/memberships.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
@@ -18,6 +19,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     MembershipsModule,
     WorkspacesModule,
     InvitationsModule,
+    MailModule,
     AuthModule,
   ],
   controllers: [AppController],
