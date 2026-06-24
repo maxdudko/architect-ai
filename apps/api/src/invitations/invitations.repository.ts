@@ -24,6 +24,27 @@ export class InvitationsRepository {
     });
   }
 
+  findPendingByTokenWithWorkspace(token: string): Promise<
+    | (Invitation & {
+        workspace: {
+          name: string;
+        };
+      })
+    | null
+  > {
+    return this.prisma.invitation.findFirst({
+      where: {
+        token,
+        ...OPEN_INVITATION_WHERE,
+      },
+      include: {
+        workspace: {
+          select: { name: true },
+        },
+      },
+    });
+  }
+
   findPendingByWorkspaceAndEmail(
     workspaceId: string,
     email: string,

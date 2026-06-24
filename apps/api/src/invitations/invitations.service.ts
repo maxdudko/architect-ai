@@ -1,15 +1,20 @@
 import {
   BadRequestException,
   ForbiddenException,
+  GoneException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { InvitationStatus, WorkspaceRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { AuthService } from '../auth/auth.service';
+import { AuthResponse } from '../auth/interfaces/auth-response.interface';
+import { MailService } from '../mail/mail.service';
 import { MembershipsService } from '../memberships/memberships.service';
 import { UsersService } from '../users/users.service';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
+import { InvitationPreviewDto } from './dto/invitation-preview.dto';
 import { InvitationsRepository } from './invitations.repository';
 
 @Injectable()
@@ -18,6 +23,8 @@ export class InvitationsService {
     private readonly invitationsRepository: InvitationsRepository,
     private readonly membershipsService: MembershipsService,
     private readonly usersService: UsersService,
+    private readonly authService: AuthService,
+    private readonly mailService: MailService,
   ) {}
 
   async createInvitation(
@@ -29,9 +36,10 @@ export class InvitationsService {
     id: string;
     email: string;
     role: WorkspaceRole;
-    token: string;
     expiresAt: Date;
   }> {
+    const normalizedEmail = email.toLowerCase();
+
     const actorMembership =
       await this.membershipsService.resolveActiveMembership(
         workspaceId,
@@ -51,7 +59,7 @@ export class InvitationsService {
     const existing =
       await this.invitationsRepository.findPendingByWorkspaceAndEmail(
         workspaceId,
-        email,
+        normalizedEmail,
       );
 
     if (existing) {
@@ -67,29 +75,64 @@ export class InvitationsService {
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
     const invitation = await this.invitationsRepository.create({
       workspaceId,
-      email,
+      email: normalizedEmail,
       role,
       token: randomUUID(),
       status: InvitationStatus.PENDING,
       expiresAt,
     });
 
+    const invitationWithWorkspace =
+      await this.invitationsRepository.findPendingByTokenWithWorkspace(
+        invitation.token,
+      );
+    if (!invitationWithWorkspace) {
+      throw new NotFoundException('Invitation not found');
+    }
+
+    const inviteUrl = this.mailService.buildInviteUrl(invitation.token);
+    await this.mailService.sendWorkspaceInvitation({
+      to: normalizedEmail,
+      workspaceName: invitationWithWorkspace.workspace.name,
+      role: invitation.role,
+      inviteUrl,
+      expiresAt: invitation.expiresAt,
+    });
+
     return {
       id: invitation.id,
       email: invitation.email,
       role: invitation.role,
-      token: invitation.token,
       expiresAt: invitation.expiresAt,
+    };
+  }
+
+  async getInvitationPreview(token: string): Promise<InvitationPreviewDto> {
+    const invitation =
+      await this.invitationsRepository.findPendingByTokenWithWorkspace(token);
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found');
+    }
+    if (invitation.expiresAt <= new Date()) {
+      await this.invitationsRepository.markExpired(invitation.id);
+      throw new GoneException('Invitation has expired');
+    }
+
+    const existingUser = await this.usersService.findByEmail(invitation.email);
+
+    return {
+      email: invitation.email,
+      role: invitation.role,
+      workspaceName: invitation.workspace.name,
+      expiresAt: invitation.expiresAt.toISOString(),
+      requiresSignUp: !existingUser,
     };
   }
 
   async acceptInvitation(
     token: string,
     dto: AcceptInvitationDto,
-  ): Promise<{
-    workspaceId: string;
-    userId: string;
-  }> {
+  ): Promise<AuthResponse> {
     const invitation =
       await this.invitationsRepository.findPendingByToken(token);
     if (!invitation) {
@@ -131,6 +174,9 @@ export class InvitationsService {
     );
     await this.invitationsRepository.markAccepted(invitation.id);
 
-    return { workspaceId: invitation.workspaceId, userId: user.id };
+    return this.authService.createSessionForUser(
+      user.id,
+      invitation.workspaceId,
+    );
   }
 }

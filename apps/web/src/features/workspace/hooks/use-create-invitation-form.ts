@@ -25,7 +25,7 @@ export function useCreateInvitationForm(workspaceId: string) {
     setSuccessMessage(null);
     try {
       const invitation = await mutation.mutateAsync(values);
-      setSuccessMessage(`Invitation created. Token: ${invitation.token.slice(0, 8)}...`);
+      setSuccessMessage(`Invitation sent to ${invitation.email}.`);
       form.reset();
     } catch {
       setErrorMessage('Failed to create invitation.');

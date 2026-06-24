@@ -4,6 +4,13 @@ export interface Invitation {
   id: string;
   email: string;
   role: WorkspaceRole;
-  token: string;
   expiresAt: string;
+}
+
+export interface InvitationPreview {
+  email: string;
+  role: WorkspaceRole;
+  workspaceName: string;
+  expiresAt: string;
+  requiresSignUp: boolean;
 }

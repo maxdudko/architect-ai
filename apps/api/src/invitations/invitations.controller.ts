@@ -1,10 +1,11 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
 import { CreateInvitationDto } from '../memberships/dto/create-invitation.dto';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
+import { InvitationPreviewDto } from './dto/invitation-preview.dto';
 import { InvitationsService } from './invitations.service';
 
 @ApiTags('Invitation')
@@ -27,6 +28,14 @@ export class InvitationsController {
       dto.email,
       dto.role,
     );
+  }
+
+  @Get('invitations/:token')
+  @ApiOperation({ summary: 'Preview a workspace invitation' })
+  getInvitationPreview(
+    @Param('token') token: string,
+  ): Promise<InvitationPreviewDto> {
+    return this.invitationsService.getInvitationPreview(token);
   }
 
   @Post('invitations/:token/accept')

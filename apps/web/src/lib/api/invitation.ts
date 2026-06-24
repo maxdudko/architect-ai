@@ -1,9 +1,10 @@
-import type { Invitation, WorkspaceRole } from '@/entities';
+import type { Invitation, InvitationPreview } from '@/entities';
+import type { AuthResponse } from './types';
 import { apiClient } from './axios';
 
 export interface CreateInvitationPayload {
   email: string;
-  role: WorkspaceRole;
+  role: Invitation['role'];
 }
 
 export interface AcceptInvitationPayload {
@@ -24,11 +25,16 @@ export async function createInvitation(
   return data;
 }
 
+export async function getInvitationPreview(token: string): Promise<InvitationPreview> {
+  const { data } = await apiClient.get<InvitationPreview>(`/invitations/${token}`);
+  return data;
+}
+
 export async function acceptInvitation(
   token: string,
-  payload: AcceptInvitationPayload,
-): Promise<{ workspaceId: string; userId: string }> {
-  const { data } = await apiClient.post<{ workspaceId: string; userId: string }>(
+  payload: AcceptInvitationPayload = {},
+): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>(
     `/invitations/${token}/accept`,
     payload,
   );
