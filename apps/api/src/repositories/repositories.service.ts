@@ -15,7 +15,9 @@ export class RepositoriesService {
     private readonly repositoriesRepository: RepositoriesRepository,
   ) {}
 
-  async listRepositories(workspaceId: string): Promise<RepositoryResponseDto[]> {
+  async listRepositories(
+    workspaceId: string,
+  ): Promise<RepositoryResponseDto[]> {
     const repositories =
       await this.repositoriesRepository.listByWorkspace(workspaceId);
     return repositories.map((repository) => this.toResponse(repository));
