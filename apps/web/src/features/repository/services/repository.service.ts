@@ -1,11 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RepositoryProvider } from '@/entities';
-import {
-  createRepository,
-  deleteRepository,
-  listRepositories,
-  updateRepository,
-} from '@/lib/api';
+import { createRepository, deleteRepository, listRepositories, updateRepository } from '@/lib/api';
 
 export const REPOSITORY_QUERY_KEYS = {
   list: (workspaceId: string) => ['workspaces', workspaceId, 'repositories'] as const,
