@@ -76,7 +76,7 @@ export class MembershipsRepository {
     role: WorkspaceRole,
     status: MembershipStatus,
   ): Promise<Membership> {
-    return this.prisma.membership.upsert({
+    return await this.prisma.membership.upsert({
       where: { workspaceId_userId: { workspaceId, userId } },
       update: {
         role,
