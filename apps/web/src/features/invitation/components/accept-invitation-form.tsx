@@ -68,16 +68,14 @@ export function AcceptInvitationForm({ token }: { token: string }) {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Join {preview.workspaceName}</CardTitle>
-          <CardDescription>
-            You have been invited as a {formatRole(preview.role)}.
-          </CardDescription>
+          <CardDescription>You have been invited as a {formatRole(preview.role)}.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {emailMismatch ? (
             <div className="space-y-4">
               <p className="text-sm text-destructive">
-                You are signed in with a different account. Sign out and open this link again
-                using {preview.email}.
+                You are signed in with a different account. Sign out and open this link again using{' '}
+                {preview.email}.
               </p>
               <Button type="button" variant="outline" onClick={() => void logout()}>
                 Sign out
@@ -96,11 +94,7 @@ export function AcceptInvitationForm({ token }: { token: string }) {
                   <label htmlFor="firstName" className="text-sm font-medium">
                     First name
                   </label>
-                  <Input
-                    id="firstName"
-                    autoComplete="given-name"
-                    {...register('firstName')}
-                  />
+                  <Input id="firstName" autoComplete="given-name" {...register('firstName')} />
                   {errors.firstName ? (
                     <p className="text-xs text-destructive">{errors.firstName.message}</p>
                   ) : null}

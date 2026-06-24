@@ -57,19 +57,25 @@ export function useAcceptInvitation(token: string) {
     },
   });
 
-  const loadPreview = useCallback(async () => {
-    setPreviewState({ status: 'loading' });
-    try {
-      const preview = await getInvitationPreview(token);
-      setPreviewState({ status: 'ready', preview });
-    } catch (error) {
-      setPreviewState({ status: 'error', message: getPreviewErrorMessage(error) });
-    }
-  }, [token]);
-
   useEffect(() => {
-    void loadPreview();
-  }, [loadPreview]);
+    let cancelled = false;
+
+    getInvitationPreview(token)
+      .then((preview) => {
+        if (!cancelled) {
+          setPreviewState({ status: 'ready', preview });
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setPreviewState({ status: 'error', message: getPreviewErrorMessage(error) });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const handleAccept = useCallback(
     async (payload: AcceptInvitationFormValues | Record<string, never> = {}) => {

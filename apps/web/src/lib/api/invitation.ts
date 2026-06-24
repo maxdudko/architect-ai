@@ -25,6 +25,21 @@ export async function createInvitation(
   return data;
 }
 
+export async function listInvitations(workspaceId: string): Promise<Invitation[]> {
+  const { data } = await apiClient.get<Invitation[]>(`/workspaces/${workspaceId}/invitations`);
+  return data;
+}
+
+export async function resendInvitation(
+  workspaceId: string,
+  invitationId: string,
+): Promise<Invitation> {
+  const { data } = await apiClient.post<Invitation>(
+    `/workspaces/${workspaceId}/invitations/${invitationId}/resend`,
+  );
+  return data;
+}
+
 export async function getInvitationPreview(token: string): Promise<InvitationPreview> {
   const { data } = await apiClient.get<InvitationPreview>(`/invitations/${token}`);
   return data;
@@ -34,9 +49,6 @@ export async function acceptInvitation(
   token: string,
   payload: AcceptInvitationPayload = {},
 ): Promise<AuthResponse> {
-  const { data } = await apiClient.post<AuthResponse>(
-    `/invitations/${token}/accept`,
-    payload,
-  );
+  const { data } = await apiClient.post<AuthResponse>(`/invitations/${token}/accept`, payload);
   return data;
 }
