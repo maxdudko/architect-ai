@@ -9,7 +9,6 @@ import {
   assertTokenPair,
   authHeader,
   buildSignUpPayload,
-  createAuthSession,
   signUp,
   TEST_PASSWORD,
 } from './helpers/factories';
@@ -114,22 +113,24 @@ describeE2e('Auth (e2e)', () => {
   });
 
   it('rotates tokens on refresh and preserves the active workspace', async () => {
-    const { auth: signUpAuth, agent } = await createAuthSession(app);
+    const signUpAuth = await signUp(app);
 
     await new Promise((resolve) => setTimeout(resolve, 1100));
 
-    const { body: refreshBody } = await agent
+    const { body: refreshBody } = await request(app.getHttpServer())
       .post('/auth/refresh')
       .send({
+        refreshToken: signUpAuth.refreshToken,
         activeWorkspaceId: signUpAuth.activeWorkspace.id,
       })
       .expect(201);
 
     assertTokenPair(refreshBody);
+    expect(refreshBody.refreshToken).not.toBe(signUpAuth.refreshToken);
 
     await request(app.getHttpServer())
       .post('/auth/refresh')
-      .send({})
+      .send({ refreshToken: signUpAuth.refreshToken })
       .expect(401);
 
     const { body: meBody } = await request(app.getHttpServer())
@@ -142,15 +143,18 @@ describeE2e('Auth (e2e)', () => {
   });
 
   it('logs out and revokes the refresh token', async () => {
-    const { auth: signUpAuth, agent } = await createAuthSession(app);
+    const signUpAuth = await signUp(app);
 
-    await agent
+    await request(app.getHttpServer())
       .post('/auth/logout')
       .set(authHeader(signUpAuth.accessToken))
-      .send({})
+      .send({ refreshToken: signUpAuth.refreshToken })
       .expect(201);
 
-    await agent.post('/auth/refresh').send({}).expect(401);
+    await request(app.getHttpServer())
+      .post('/auth/refresh')
+      .send({ refreshToken: signUpAuth.refreshToken })
+      .expect(401);
   });
 
   it('rejects sign-in for a soft-deleted user', async () => {
