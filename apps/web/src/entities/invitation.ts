@@ -5,6 +5,7 @@ export interface Invitation {
   email: string;
   role: WorkspaceRole;
   expiresAt: string;
+  createdAt: string;
 }
 
 export interface InvitationPreview {

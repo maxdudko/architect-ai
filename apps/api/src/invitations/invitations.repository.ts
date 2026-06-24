@@ -59,6 +59,36 @@ export class InvitationsRepository {
     });
   }
 
+  findPendingByIdAndWorkspace(
+    invitationId: string,
+    workspaceId: string,
+  ): Promise<Invitation | null> {
+    return this.prisma.invitation.findFirst({
+      where: {
+        id: invitationId,
+        workspaceId,
+        ...OPEN_INVITATION_WHERE,
+      },
+    });
+  }
+
+  listPendingByWorkspace(workspaceId: string): Promise<Invitation[]> {
+    return this.prisma.invitation.findMany({
+      where: {
+        workspaceId,
+        ...OPEN_INVITATION_WHERE,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  updateExpiresAt(id: string, expiresAt: Date): Promise<Invitation> {
+    return this.prisma.invitation.update({
+      where: { id },
+      data: { expiresAt },
+    });
+  }
+
   markAccepted(id: string): Promise<Invitation> {
     return this.prisma.invitation.update({
       where: { id },

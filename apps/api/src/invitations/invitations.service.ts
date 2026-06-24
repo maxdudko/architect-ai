@@ -17,6 +17,8 @@ import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { InvitationPreviewDto } from './dto/invitation-preview.dto';
 import { InvitationsRepository } from './invitations.repository';
 
+const INVITATION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+
 @Injectable()
 export class InvitationsService {
   constructor(
@@ -26,6 +28,69 @@ export class InvitationsService {
     private readonly authService: AuthService,
     private readonly mailService: MailService,
   ) {}
+
+  async listInvitations(
+    workspaceId: string,
+    actorUserId: string,
+  ): Promise<
+    Array<{
+      id: string;
+      email: string;
+      role: WorkspaceRole;
+      expiresAt: string;
+      createdAt: string;
+    }>
+  > {
+    await this.assertCanManageInvitations(workspaceId, actorUserId);
+
+    const invitations =
+      await this.invitationsRepository.listPendingByWorkspace(workspaceId);
+
+    return invitations.map((invitation) => ({
+      id: invitation.id,
+      email: invitation.email,
+      role: invitation.role,
+      expiresAt: invitation.expiresAt.toISOString(),
+      createdAt: invitation.createdAt.toISOString(),
+    }));
+  }
+
+  async resendInvitation(
+    workspaceId: string,
+    actorUserId: string,
+    invitationId: string,
+  ): Promise<{
+    id: string;
+    email: string;
+    role: WorkspaceRole;
+    expiresAt: Date;
+  }> {
+    await this.assertCanManageInvitations(workspaceId, actorUserId);
+
+    const invitation =
+      await this.invitationsRepository.findPendingByIdAndWorkspace(
+        invitationId,
+        workspaceId,
+      );
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found');
+    }
+
+    const expiresAt = new Date(Date.now() + INVITATION_TTL_MS);
+    const updatedInvitation = await this.invitationsRepository.updateExpiresAt(
+      invitation.id,
+      expiresAt,
+    );
+
+    await this.deliverInvitationEmail(updatedInvitation.token);
+
+    return {
+      id: updatedInvitation.id,
+      email: updatedInvitation.email,
+      role: updatedInvitation.role,
+      expiresAt: updatedInvitation.expiresAt,
+    };
+  }
 
   async createInvitation(
     workspaceId: string,
@@ -40,21 +105,7 @@ export class InvitationsService {
   }> {
     const normalizedEmail = email.toLowerCase();
 
-    const actorMembership =
-      await this.membershipsService.resolveActiveMembership(
-        workspaceId,
-        actorUserId,
-      );
-    if (
-      !(
-        actorMembership.role === WorkspaceRole.OWNER ||
-        actorMembership.role === WorkspaceRole.ADMIN
-      )
-    ) {
-      throw new ForbiddenException(
-        'Only workspace owners or admins can create invitations',
-      );
-    }
+    await this.assertCanManageInvitations(workspaceId, actorUserId);
 
     const existing =
       await this.invitationsRepository.findPendingByWorkspaceAndEmail(
@@ -72,7 +123,7 @@ export class InvitationsService {
       await this.invitationsRepository.markExpired(existing.id);
     }
 
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
+    const expiresAt = new Date(Date.now() + INVITATION_TTL_MS);
     const invitation = await this.invitationsRepository.create({
       workspaceId,
       email: normalizedEmail,
@@ -82,22 +133,7 @@ export class InvitationsService {
       expiresAt,
     });
 
-    const invitationWithWorkspace =
-      await this.invitationsRepository.findPendingByTokenWithWorkspace(
-        invitation.token,
-      );
-    if (!invitationWithWorkspace) {
-      throw new NotFoundException('Invitation not found');
-    }
-
-    const inviteUrl = this.mailService.buildInviteUrl(invitation.token);
-    await this.mailService.sendWorkspaceInvitation({
-      to: normalizedEmail,
-      workspaceName: invitationWithWorkspace.workspace.name,
-      role: invitation.role,
-      inviteUrl,
-      expiresAt: invitation.expiresAt,
-    });
+    await this.deliverInvitationEmail(invitation.token);
 
     return {
       id: invitation.id,
@@ -178,5 +214,43 @@ export class InvitationsService {
       user.id,
       invitation.workspaceId,
     );
+  }
+
+  private async assertCanManageInvitations(
+    workspaceId: string,
+    actorUserId: string,
+  ): Promise<void> {
+    const actorMembership =
+      await this.membershipsService.resolveActiveMembership(
+        workspaceId,
+        actorUserId,
+      );
+    if (
+      !(
+        actorMembership.role === WorkspaceRole.OWNER ||
+        actorMembership.role === WorkspaceRole.ADMIN
+      )
+    ) {
+      throw new ForbiddenException(
+        'Only workspace owners or admins can manage invitations',
+      );
+    }
+  }
+
+  private async deliverInvitationEmail(token: string): Promise<void> {
+    const invitation =
+      await this.invitationsRepository.findPendingByTokenWithWorkspace(token);
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found');
+    }
+
+    const inviteUrl = this.mailService.buildInviteUrl(invitation.token);
+    await this.mailService.sendWorkspaceInvitation({
+      to: invitation.email,
+      workspaceName: invitation.workspace.name,
+      role: invitation.role,
+      inviteUrl,
+      expiresAt: invitation.expiresAt,
+    });
   }
 }
