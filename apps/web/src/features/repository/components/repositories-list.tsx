@@ -83,8 +83,8 @@ export function RepositoriesList() {
           <CardHeader>
             <CardTitle>Connect Repository</CardTitle>
             <CardDescription>
-              Register a repository for this workspace. GitHub OAuth integration will replace manual
-              entry later.
+              Register a repository for this workspace. GitHub OAuth integration will replace
+              manual entry later.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -99,7 +99,9 @@ export function RepositoriesList() {
                 <Button type="submit" disabled={createMutation.isPending}>
                   Connect repository
                 </Button>
-                {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
+                {errorMessage ? (
+                  <p className="text-sm text-destructive">{errorMessage}</p>
+                ) : null}
               </div>
             </form>
           </CardContent>
@@ -114,7 +116,9 @@ export function RepositoriesList() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {query.isLoading ? <Skeleton className="h-16 w-full" /> : null}
+          {query.isLoading ? (
+            <Skeleton className="h-16 w-full" />
+          ) : null}
           {!query.isLoading && !query.data?.length ? (
             <p className="text-sm text-muted-foreground">No repositories connected yet.</p>
           ) : null}

@@ -41,7 +41,7 @@ async function bootstrap() {
 
   const config = new DocumentBuilder()
     .setTitle('Architect AI API')
-    .setDescription('Authentication and workspace management API')
+    .setDescription('Authentication, workspace, and repository management API')
     .setVersion('1.0.0')
     .addBearerAuth()
     .build();

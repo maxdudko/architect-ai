@@ -15,7 +15,9 @@ export interface UpdateRepositoryPayload {
 }
 
 export async function listRepositories(workspaceId: string): Promise<Repository[]> {
-  const { data } = await apiClient.get<Repository[]>(`/workspaces/${workspaceId}/repositories`);
+  const { data } = await apiClient.get<Repository[]>(
+    `/workspaces/${workspaceId}/repositories`,
+  );
   return data;
 }
 

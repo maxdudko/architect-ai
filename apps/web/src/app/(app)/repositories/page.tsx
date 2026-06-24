@@ -1,4 +1,4 @@
-import { RepositoryPlaceholder } from '@/features/repository';
+import { RepositoriesList } from '@/features/repository';
 import { PageHeader } from '@/shared/components';
 
 export default function RepositoriesPage() {
@@ -6,9 +6,9 @@ export default function RepositoriesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Repositories"
-        description="Repository connectivity and indexing will ship in Phase 2."
+        description="Connect and manage repositories for your active workspace."
       />
-      <RepositoryPlaceholder />
+      <RepositoriesList />
     </div>
   );
 }

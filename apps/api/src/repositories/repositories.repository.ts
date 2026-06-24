@@ -36,10 +36,7 @@ export class RepositoriesRepository {
     });
   }
 
-  findById(
-    workspaceId: string,
-    repositoryId: string,
-  ): Promise<Repository | null> {
+  findById(workspaceId: string, repositoryId: string): Promise<Repository | null> {
     return this.prisma.repository.findFirst({
       where: {
         id: repositoryId,
