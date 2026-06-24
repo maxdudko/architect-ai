@@ -44,6 +44,7 @@ export class AuthService {
       firstName: dto.firstName,
       lastName: dto.lastName,
       emailVerified: false,
+      lastLoginAt: new Date(),
     });
 
     const personalWorkspace =
@@ -57,7 +58,7 @@ export class AuthService {
 
   async signIn(dto: SignInDto): Promise<AuthResponse> {
     const user = await this.usersService.findByEmail(dto.email.toLowerCase());
-    if (!user) {
+    if (!user || user.deletedAt) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -69,14 +70,18 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const workspaces = await this.workspacesService.listForUser(user.id);
+    const authenticatedUser = await this.usersService.touchLastLoginAt(user.id);
+
+    const workspaces = await this.workspacesService.listForUser(
+      authenticatedUser.id,
+    );
     if (workspaces.length === 0) {
       throw new NotFoundException(
         'No workspace memberships found for this user',
       );
     }
 
-    return this.buildAuthResponse(user, workspaces[0].id);
+    return this.buildAuthResponse(authenticatedUser, workspaces[0].id);
   }
 
   async switchActiveWorkspace(
@@ -275,6 +280,7 @@ export class AuthService {
       lastName: user.lastName,
       avatarUrl: user.avatarUrl,
       emailVerified: user.emailVerified,
+      lastLoginAt: user.lastLoginAt,
     };
   }
 

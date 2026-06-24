@@ -41,7 +41,7 @@ export function CreateWorkspaceForm() {
           </div>
           {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
           {successMessage ? <p className="text-sm text-emerald-600">{successMessage}</p> : null}
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting} size="lg">
             {isSubmitting ? <Loader className="mr-2 h-4 w-4" /> : null}
             Create
           </Button>
