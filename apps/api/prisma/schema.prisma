@@ -26,6 +26,34 @@ enum MembershipStatus {
   REMOVED
 }
 
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum RepositoryProvider {
+  GITHUB
+  GITLAB
+  BITBUCKET
+}
+
+enum RepositoryStatus {
+  PENDING
+  CLONING
+  PARSING
+  EMBEDDING
+  READY
+  FAILED
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
 model User {
   id            String       @id @default(uuid()) @db.Uuid
   email         String       @unique
@@ -38,24 +66,27 @@ model User {
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
   deletedAt     DateTime?    @map("deleted_at")
+  lastLoginAt   DateTime?    @map("last_login_at")
 
-  @@map("users")
   @@index([createdAt], map: "users_created_at_idx")
+  @@map("users")
 }
 
 model Workspace {
-  id          String       @id @default(uuid()) @db.Uuid
-  name        String
-  slug        String       @unique
-  plan        WorkspacePlan @default(FREE)
-  memberships Membership[]
-  invitations Invitation[]
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-  deletedAt   DateTime?    @map("deleted_at")
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String
+  slug          String         @unique
+  plan          WorkspacePlan  @default(FREE)
+  memberships   Membership[]
+  invitations   Invitation[]
+  repositories  Repository[]
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  deletedAt     DateTime?      @map("deleted_at")
+  conversations Conversation[]
 
-  @@map("workspaces")
   @@index([createdAt], map: "workspaces_created_at_idx")
+  @@map("workspaces")
 }
 
 model Membership {
@@ -68,28 +99,85 @@ model Membership {
   lastSeenAt  DateTime?        @map("last_seen_at")
   createdAt   DateTime         @default(now()) @map("created_at")
   updatedAt   DateTime         @updatedAt @map("updated_at")
+  deletedAt   DateTime?        @map("deleted_at")
   workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("memberships")
   @@unique([workspaceId, userId], map: "memberships_workspace_id_user_id_key")
   @@index([userId], map: "memberships_user_id_idx")
   @@index([workspaceId, status], map: "memberships_workspace_id_status_idx")
+  @@map("memberships")
 }
 
 model Invitation {
-  id          String        @id @default(uuid()) @db.Uuid
-  workspaceId String        @map("workspace_id") @db.Uuid
+  id          String           @id @default(uuid()) @db.Uuid
+  workspaceId String           @map("workspace_id") @db.Uuid
   email       String
   role        WorkspaceRole
-  token       String        @unique
-  expiresAt   DateTime      @map("expires_at")
-  acceptedAt  DateTime?     @map("accepted_at")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
-  deletedAt   DateTime?     @map("deleted_at")
-  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  token       String           @unique
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime         @map("expires_at")
+  acceptedAt  DateTime?        @map("accepted_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  deletedAt   DateTime?        @map("deleted_at")
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  @@map("invitations")
   @@index([workspaceId, email], map: "invitations_workspace_id_email_idx")
+  @@map("invitations")
+}
+
+model Repository {
+  id            String             @id @default(uuid()) @db.Uuid
+  workspaceId   String             @db.Uuid
+  provider      RepositoryProvider
+  externalId    String
+  owner         String
+  name          String
+  fullName      String
+  defaultBranch String
+  status        RepositoryStatus
+  lastIndexedAt DateTime?
+  indexingError String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  deletedAt     DateTime?
+  workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@unique([provider, externalId])
+  @@index([workspaceId])
+  @@map("repositories")
+}
+
+model Conversation {
+  id           String      @id @default(uuid()) @db.Uuid
+  workspaceId  String      @db.Uuid
+  repositoryId String?     @db.Uuid
+  createdById  String      @db.Uuid
+  title        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?
+  workspace    Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  repository   Repository? @relation(fields: [repositoryId], references: [id], onDelete: SetNull)
+  // createdBy User @relation(fields: [createdById], references: id[])
+  messages     Message[]
+
+  @@index([workspaceId])
+  @@index([repositoryId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(uuid()) @db.Uuid
+  conversationId String       @db.Uuid
+  role           MessageRole
+  content        String       @db.Text
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("messages")
 }
