@@ -1,0 +1,108 @@
+import { Injectable } from '@nestjs/common';
+import { Invitation, InvitationStatus, Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+
+const OPEN_INVITATION_WHERE = {
+  status: InvitationStatus.PENDING,
+  deletedAt: null,
+} satisfies Prisma.InvitationWhereInput;
+
+@Injectable()
+export class InvitationsRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  create(data: Prisma.InvitationUncheckedCreateInput): Promise<Invitation> {
+    return this.prisma.invitation.create({ data });
+  }
+
+  findPendingByToken(token: string): Promise<Invitation | null> {
+    return this.prisma.invitation.findFirst({
+      where: {
+        token,
+        ...OPEN_INVITATION_WHERE,
+      },
+    });
+  }
+
+  findPendingByTokenWithWorkspace(token: string): Promise<
+    | (Invitation & {
+        workspace: {
+          name: string;
+        };
+      })
+    | null
+  > {
+    return this.prisma.invitation.findFirst({
+      where: {
+        token,
+        ...OPEN_INVITATION_WHERE,
+      },
+      include: {
+        workspace: {
+          select: { name: true },
+        },
+      },
+    });
+  }
+
+  findPendingByWorkspaceAndEmail(
+    workspaceId: string,
+    email: string,
+  ): Promise<Invitation | null> {
+    return this.prisma.invitation.findFirst({
+      where: {
+        workspaceId,
+        email,
+        ...OPEN_INVITATION_WHERE,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  findPendingByIdAndWorkspace(
+    invitationId: string,
+    workspaceId: string,
+  ): Promise<Invitation | null> {
+    return this.prisma.invitation.findFirst({
+      where: {
+        id: invitationId,
+        workspaceId,
+        ...OPEN_INVITATION_WHERE,
+      },
+    });
+  }
+
+  listPendingByWorkspace(workspaceId: string): Promise<Invitation[]> {
+    return this.prisma.invitation.findMany({
+      where: {
+        workspaceId,
+        ...OPEN_INVITATION_WHERE,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  updateExpiresAt(id: string, expiresAt: Date): Promise<Invitation> {
+    return this.prisma.invitation.update({
+      where: { id },
+      data: { expiresAt },
+    });
+  }
+
+  markAccepted(id: string): Promise<Invitation> {
+    return this.prisma.invitation.update({
+      where: { id },
+      data: {
+        status: InvitationStatus.ACCEPTED,
+        acceptedAt: new Date(),
+      },
+    });
+  }
+
+  markExpired(id: string): Promise<Invitation> {
+    return this.prisma.invitation.update({
+      where: { id },
+      data: { status: InvitationStatus.EXPIRED },
+    });
+  }
+}
