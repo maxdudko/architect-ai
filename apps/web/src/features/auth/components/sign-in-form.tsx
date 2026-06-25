@@ -1,7 +1,7 @@
 'use client';
 
 import { Loader } from '@/shared/components';
-import { Button, Input } from '@/shared/components';
+import { Button, Input, PasswordInput } from '@/shared/components';
 import { useSignInForm } from '../hooks/use-sign-in-form';
 
 export function SignInForm() {
@@ -24,9 +24,8 @@ export function SignInForm() {
         <label htmlFor="password" className="text-sm font-medium">
           Password
         </label>
-        <Input
+        <PasswordInput
           id="password"
-          type="password"
           autoComplete="current-password"
           {...register('password')}
         />

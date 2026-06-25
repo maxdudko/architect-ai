@@ -1,7 +1,7 @@
 'use client';
 
 import { Loader } from '@/shared/components';
-import { Button, Input } from '@/shared/components';
+import { Button, Input, PasswordInput } from '@/shared/components';
 import { useSignUpForm } from '../hooks/use-sign-up-form';
 
 export function SignUpForm() {
@@ -44,12 +44,7 @@ export function SignUpForm() {
         <label htmlFor="password" className="text-sm font-medium">
           Password
         </label>
-        <Input
-          id="password"
-          type="password"
-          autoComplete="new-password"
-          {...register('password')}
-        />
+        <PasswordInput id="password" autoComplete="new-password" {...register('password')} />
         {errors.password ? (
           <p className="text-xs text-destructive">{errors.password.message}</p>
         ) : null}

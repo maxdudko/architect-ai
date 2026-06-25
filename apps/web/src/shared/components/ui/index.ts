@@ -5,6 +5,7 @@ export * from './card';
 export * from './dialog';
 export * from './dropdown';
 export * from './input';
+export * from './password-input';
 export * from './loader';
 export * from './skeleton';
 export * from './textarea';
