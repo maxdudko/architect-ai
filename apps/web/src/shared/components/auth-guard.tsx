@@ -21,7 +21,7 @@ export function AuthGuard({ children, requireAuth }: AuthGuardProps) {
     }
 
     if (requireAuth && !isAuthenticated) {
-      router.replace(`/unauthorized?next=${encodeURIComponent(pathname)}`);
+      router.replace(`/sign-in?next=${encodeURIComponent(pathname)}`);
       return;
     }
 

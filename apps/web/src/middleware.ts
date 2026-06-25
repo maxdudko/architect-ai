@@ -17,7 +17,7 @@ export function middleware(request: NextRequest) {
   const hasToken = Boolean(request.cookies.get(ACCESS_TOKEN_COOKIE)?.value);
 
   if (PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix)) && !hasToken) {
-    const url = new URL('/unauthorized', request.url);
+    const url = new URL('/sign-in', request.url);
     url.searchParams.set('next', pathname);
     return NextResponse.redirect(url);
   }
