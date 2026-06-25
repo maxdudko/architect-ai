@@ -29,18 +29,13 @@ export async function updateWorkspace(
   return data;
 }
 
-export async function switchWorkspace(
-  workspaceId: string,
-  refreshToken: string,
-): Promise<{
+export async function switchWorkspace(workspaceId: string): Promise<{
   accessToken: string;
-  refreshToken: string;
   activeWorkspace: Workspace;
 }> {
   const { data } = await apiClient.post<{
     accessToken: string;
-    refreshToken: string;
     activeWorkspace: Workspace;
-  }>(`/workspaces/${workspaceId}/switch`, { refreshToken });
+  }>(`/workspaces/${workspaceId}/switch`, {});
   return data;
 }

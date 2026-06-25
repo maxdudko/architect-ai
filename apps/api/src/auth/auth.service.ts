@@ -137,6 +137,10 @@ export class AuthService {
   }
 
   async refresh(dto: RefreshDto): Promise<TokenPair> {
+    if (!dto.refreshToken) {
+      throw new UnauthorizedException('Refresh token is required');
+    }
+
     const payload = await this.verifyRefreshToken(dto.refreshToken);
 
     const isStored = await this.sessionStoreService.hasRefreshToken(

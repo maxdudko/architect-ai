@@ -1,6 +1,17 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { WorkspaceRole } from '@prisma/client';
+import { AuthCookieService } from '../auth/auth-cookie.service';
+import { toPublicAuthResponse } from '../auth/interfaces/public-auth-response.interface';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -16,7 +27,10 @@ import { InvitationsService } from './invitations.service';
 @ApiTags('Invitation')
 @Controller()
 export class InvitationsController {
-  constructor(private readonly invitationsService: InvitationsService) {}
+  constructor(
+    private readonly invitationsService: InvitationsService,
+    private readonly authCookieService: AuthCookieService,
+  ) {}
 
   @Get('workspaces/:id/invitations')
   @ApiBearerAuth()
@@ -75,10 +89,13 @@ export class InvitationsController {
 
   @Post('invitations/:token/accept')
   @ApiOperation({ summary: 'Accept a workspace invitation' })
-  acceptInvitation(
+  async acceptInvitation(
     @Param('token') token: string,
     @Body() dto: AcceptInvitationDto,
+    @Res({ passthrough: true }) response: Response,
   ) {
-    return this.invitationsService.acceptInvitation(token, dto);
+    const result = await this.invitationsService.acceptInvitation(token, dto);
+    this.authCookieService.setRefreshTokenCookie(response, result.refreshToken);
+    return toPublicAuthResponse(result);
   }
 }
