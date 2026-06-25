@@ -86,6 +86,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearAuthState();
   }, []);
 
+  const handleSessionExpired = useCallback(() => {
+    resetState();
+    const next =
+      typeof window !== 'undefined'
+        ? `${window.location.pathname}${window.location.search}`
+        : '/dashboard';
+    router.replace(`/sign-in?next=${encodeURIComponent(next)}`);
+  }, [resetState, router]);
+
   const refreshAccessToken = useCallback(async (): Promise<string | null> => {
     try {
       const data = await refreshTokens(activeWorkspace?.id);
@@ -102,10 +111,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return data.accessToken;
     } catch {
-      resetState();
+      handleSessionExpired();
       return null;
     }
-  }, [activeWorkspace, persistState, resetState, user, workspaces]);
+  }, [activeWorkspace, handleSessionExpired, persistState, user, workspaces]);
 
   useEffect(() => {
     registerApiRefreshHandler(refreshAccessToken);
@@ -131,7 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setAccessToken(accessToken);
           setAccessTokenCookie(accessToken);
         } catch {
-          resetState();
+          handleSessionExpired();
           setIsReady(true);
           return;
         }
@@ -149,14 +158,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setWorkspaces(session.workspaces);
         setActiveWorkspace(session.activeWorkspace);
       } catch {
-        resetState();
+        handleSessionExpired();
       } finally {
         setIsReady(true);
       }
     };
 
     void bootstrapSession();
-  }, [initialAuthState, resetState]);
+  }, [handleSessionExpired, initialAuthState]);
 
   const signIn = useCallback(
     async (payload: { email: string; password: string }) => {
