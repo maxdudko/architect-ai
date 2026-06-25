@@ -2,6 +2,9 @@ import { WorkspaceRole } from '@prisma/client';
 import request from 'supertest';
 import { INestApplication } from '@nestjs/common';
 import type { AuthResponse } from '../../src/auth/interfaces/auth-response.interface';
+import type { PublicAuthResponse } from '../../src/auth/interfaces/public-auth-response.interface';
+
+type AuthAgent = ReturnType<typeof request.agent>;
 
 export const TEST_PASSWORD = 'Password123!';
 
@@ -20,6 +23,11 @@ export interface HttpExceptionBody {
   };
   path: string;
   timestamp: string;
+}
+
+export interface AuthSessionContext {
+  auth: PublicAuthResponse;
+  agent: AuthAgent;
 }
 
 export function uniqueEmail(prefix = 'user'): string {
@@ -47,30 +55,34 @@ export type AuthSession = Pick<
   'user' | 'workspaces' | 'activeWorkspace'
 >;
 
-export function assertTokenPair(body: unknown): asserts body is {
+export function assertAccessToken(body: unknown): asserts body is {
   accessToken: string;
-  refreshToken: string;
 } {
   if (!body || typeof body !== 'object') {
-    throw new Error('Expected token pair body');
+    throw new Error('Expected access token body');
   }
 
-  const tokens = body as { accessToken: unknown; refreshToken: unknown };
+  const tokens = body as { accessToken: unknown };
   expect(typeof tokens.accessToken).toBe('string');
-  expect(typeof tokens.refreshToken).toBe('string');
+}
+
+export function assertTokenPair(body: unknown): asserts body is {
+  accessToken: string;
+} {
+  assertAccessToken(body);
 }
 
 export function assertAuthResponse(
   body: unknown,
-): asserts body is AuthResponse {
+): asserts body is PublicAuthResponse {
   if (!body || typeof body !== 'object') {
     throw new Error('Expected auth response body');
   }
 
-  const response = body as AuthResponse;
+  const response = body as PublicAuthResponse;
 
   expect(typeof response.accessToken).toBe('string');
-  expect(typeof response.refreshToken).toBe('string');
+  expect(response).not.toHaveProperty('refreshToken');
   expect(response.user).toMatchObject({
     id: expect.any(String),
     email: expect.any(String),
@@ -110,7 +122,7 @@ export function assertAuthSession(body: unknown): asserts body is AuthSession {
   });
 }
 
-export function assertOwnerWorkspace(body: AuthResponse): void {
+export function assertOwnerWorkspace(body: PublicAuthResponse): void {
   expect(body.activeWorkspace.role).toBe(WorkspaceRole.OWNER);
   expect(body.workspaces[0].role).toBe(WorkspaceRole.OWNER);
 }
@@ -127,17 +139,23 @@ export function assertErrorMessageContains(
   expect(error.message).toContain(substring);
 }
 
+export async function createAuthSession(
+  app: INestApplication,
+  payload = buildSignUpPayload(),
+): Promise<AuthSessionContext> {
+  const agent = request.agent(app.getHttpServer());
+  const { body } = await agent.post('/auth/signup').send(payload).expect(201);
+
+  assertAuthResponse(body);
+  return { auth: body, agent };
+}
+
 export async function signUp(
   app: INestApplication,
   payload = buildSignUpPayload(),
-): Promise<AuthResponse> {
-  const { body } = await request(app.getHttpServer())
-    .post('/auth/signup')
-    .send(payload)
-    .expect(201);
-
-  assertAuthResponse(body);
-  return body;
+): Promise<PublicAuthResponse> {
+  const { auth } = await createAuthSession(app, payload);
+  return auth;
 }
 
 export interface RepositoryPayload {
@@ -206,19 +224,17 @@ export async function connectRepository(
 }
 
 export async function switchActiveWorkspace(
-  app: INestApplication,
+  agent: AuthAgent,
   accessToken: string,
   workspaceId: string,
-  refreshToken: string,
 ): Promise<{
   accessToken: string;
-  refreshToken: string;
   activeWorkspace: AuthResponse['activeWorkspace'];
 }> {
-  const { body } = await request(app.getHttpServer())
+  const { body } = await agent
     .post(`/workspaces/${workspaceId}/switch`)
     .set(authHeader(accessToken))
-    .send({ refreshToken })
+    .send({})
     .expect(201);
 
   if (!body || typeof body !== 'object') {
@@ -227,11 +243,10 @@ export async function switchActiveWorkspace(
 
   const response = body as {
     accessToken: unknown;
-    refreshToken: unknown;
     activeWorkspace: unknown;
   };
 
-  assertTokenPair(response);
+  assertAccessToken(response);
   if (
     !response.activeWorkspace ||
     typeof response.activeWorkspace !== 'object'
@@ -241,7 +256,6 @@ export async function switchActiveWorkspace(
 
   return response as {
     accessToken: string;
-    refreshToken: string;
     activeWorkspace: AuthResponse['activeWorkspace'];
   };
 }

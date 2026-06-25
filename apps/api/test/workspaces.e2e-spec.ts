@@ -6,6 +6,7 @@ import {
   assertAuthSession,
   assertOwnerWorkspace,
   authHeader,
+  createAuthSession,
   signUp,
   switchActiveWorkspace,
 } from './helpers/factories';
@@ -96,7 +97,7 @@ describeE2e('Workspaces (e2e)', () => {
   });
 
   it('switches active workspace and reflects it in /auth/me', async () => {
-    const auth = await signUp(app);
+    const { auth, agent } = await createAuthSession(app);
 
     const { body: teamWorkspace } = await request(app.getHttpServer())
       .post('/workspaces')
@@ -105,10 +106,9 @@ describeE2e('Workspaces (e2e)', () => {
       .expect(201);
 
     const switched = await switchActiveWorkspace(
-      app,
+      agent,
       auth.accessToken,
       teamWorkspace.id,
-      auth.refreshToken,
     );
 
     expect(switched.activeWorkspace.id).toBe(teamWorkspace.id);
@@ -126,12 +126,12 @@ describeE2e('Workspaces (e2e)', () => {
 
   it('rejects switching to a workspace the user does not belong to', async () => {
     const owner = await signUp(app);
-    const outsider = await signUp(app);
+    const { auth: outsider, agent } = await createAuthSession(app);
 
-    await request(app.getHttpServer())
+    await agent
       .post(`/workspaces/${owner.activeWorkspace.id}/switch`)
       .set(authHeader(outsider.accessToken))
-      .send({ refreshToken: outsider.refreshToken })
+      .send({})
       .expect(403);
   });
 
