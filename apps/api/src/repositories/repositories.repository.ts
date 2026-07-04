@@ -72,6 +72,21 @@ export class RepositoriesRepository {
     });
   }
 
+  async listExternalIdsByProvider(
+    provider: RepositoryProvider,
+  ): Promise<string[]> {
+    const repositories = await this.prisma.repository.findMany({
+      where: {
+        provider,
+        deletedAt: null,
+      },
+      select: {
+        externalId: true,
+      },
+    });
+    return repositories.map((repository) => repository.externalId);
+  }
+
   async update(
     workspaceId: string,
     repositoryId: string,
@@ -106,5 +121,34 @@ export class RepositoriesRepository {
     });
 
     return result.count;
+  }
+
+  async updateStatus(
+    workspaceId: string,
+    repositoryId: string,
+    params: {
+      status: RepositoryStatus;
+      indexingError?: string | null;
+      lastIndexedAt?: Date | null;
+    },
+  ): Promise<Repository | null> {
+    const result = await this.prisma.repository.updateMany({
+      where: {
+        id: repositoryId,
+        workspaceId,
+        deletedAt: null,
+      },
+      data: {
+        status: params.status,
+        indexingError: params.indexingError,
+        lastIndexedAt: params.lastIndexedAt,
+      },
+    });
+
+    if (result.count === 0) {
+      return null;
+    }
+
+    return this.findById(workspaceId, repositoryId);
   }
 }
