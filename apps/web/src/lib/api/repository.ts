@@ -61,3 +61,14 @@ export async function deleteRepository(
   );
   return data;
 }
+
+export async function retryRepositoryIndexing(
+  workspaceId: string,
+  repositoryId: string,
+): Promise<Repository> {
+  const { data } = await apiClient.post<Repository>(
+    `/workspaces/${workspaceId}/repositories/${repositoryId}/retry`,
+    {},
+  );
+  return data;
+}

@@ -89,4 +89,14 @@ export class RepositoriesController {
   ): Promise<{ success: boolean }> {
     return this.repositoriesService.deleteRepository(workspaceId, repositoryId);
   }
+
+  @Post(':repositoryId/retry')
+  @ApiOperation({ summary: 'Retry repository indexing pipeline' })
+  @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.MEMBER)
+  retryIndexing(
+    @Param('id') workspaceId: string,
+    @Param('repositoryId') repositoryId: string,
+  ): Promise<RepositoryResponseDto> {
+    return this.repositoriesService.retryIndexing(workspaceId, repositoryId);
+  }
 }

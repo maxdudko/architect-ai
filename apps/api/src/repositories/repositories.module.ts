@@ -3,6 +3,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { WorkspaceParamGuard } from '../common/guards/workspace-param.guard';
 import { MembershipsModule } from '../memberships/memberships.module';
 import { RepositoriesController } from './repositories.controller';
+import { RepositoryIndexingQueueService } from './repository-indexing.queue.service';
 import { RepositoriesRepository } from './repositories.repository';
 import { RepositoriesService } from './repositories.service';
 
@@ -12,9 +13,14 @@ import { RepositoriesService } from './repositories.service';
   providers: [
     RepositoriesRepository,
     RepositoriesService,
+    RepositoryIndexingQueueService,
     WorkspaceParamGuard,
     RolesGuard,
   ],
-  exports: [RepositoriesService, RepositoriesRepository],
+  exports: [
+    RepositoriesService,
+    RepositoriesRepository,
+    RepositoryIndexingQueueService,
+  ],
 })
 export class RepositoriesModule {}

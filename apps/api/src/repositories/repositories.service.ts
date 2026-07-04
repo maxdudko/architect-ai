@@ -3,16 +3,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Repository } from '@prisma/client';
+import { Repository, RepositoryStatus } from '@prisma/client';
 import { CreateRepositoryDto } from './dto/create-repository.dto';
 import { RepositoryResponseDto } from './dto/repository-response.dto';
 import { UpdateRepositoryDto } from './dto/update-repository.dto';
+import { RepositoryIndexingQueueService } from './repository-indexing.queue.service';
 import { RepositoriesRepository } from './repositories.repository';
 
 @Injectable()
 export class RepositoriesService {
   constructor(
     private readonly repositoriesRepository: RepositoriesRepository,
+    private readonly repositoryIndexingQueueService: RepositoryIndexingQueueService,
   ) {}
 
   async listRepositories(
@@ -64,6 +66,11 @@ export class RepositoriesService {
       defaultBranch: dto.defaultBranch ?? 'main',
     });
 
+    await this.repositoryIndexingQueueService.enqueueIndexing(
+      workspaceId,
+      repository.id,
+    );
+
     return this.toResponse(repository);
   }
 
@@ -108,6 +115,35 @@ export class RepositoriesService {
     }
 
     return { success: true };
+  }
+
+  async retryIndexing(
+    workspaceId: string,
+    repositoryId: string,
+  ): Promise<RepositoryResponseDto> {
+    const repository = await this.findRepositoryInWorkspace(
+      workspaceId,
+      repositoryId,
+    );
+
+    const updated = await this.repositoriesRepository.updateStatus(
+      workspaceId,
+      repository.id,
+      {
+        status: RepositoryStatus.PENDING,
+        indexingError: null,
+      },
+    );
+    if (!updated) {
+      throw new NotFoundException('Repository not found in this workspace');
+    }
+
+    await this.repositoryIndexingQueueService.enqueueIndexing(
+      workspaceId,
+      repository.id,
+    );
+
+    return this.toResponse(updated);
   }
 
   private async findRepositoryInWorkspace(

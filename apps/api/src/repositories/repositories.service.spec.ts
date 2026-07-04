@@ -1,5 +1,6 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { RepositoryProvider, RepositoryStatus } from '@prisma/client';
+import { RepositoryIndexingQueueService } from './repository-indexing.queue.service';
 import { RepositoriesService } from './repositories.service';
 import { RepositoriesRepository } from './repositories.repository';
 
@@ -26,6 +27,7 @@ describe('RepositoriesService', () => {
   };
 
   let repositoriesRepository: jest.Mocked<RepositoriesRepository>;
+  let repositoryIndexingQueueService: jest.Mocked<RepositoryIndexingQueueService>;
   let service: RepositoriesService;
 
   beforeEach(() => {
@@ -36,9 +38,20 @@ describe('RepositoriesService', () => {
       listByWorkspace: jest.fn(),
       update: jest.fn(),
       softDelete: jest.fn(),
+      listExternalIdsByProvider: jest.fn(),
+      updateStatus: jest.fn(),
     } as unknown as jest.Mocked<RepositoriesRepository>;
 
-    service = new RepositoriesService(repositoriesRepository);
+    repositoryIndexingQueueService = {
+      enqueueIndexing: jest.fn(),
+      onModuleInit: jest.fn(),
+      onModuleDestroy: jest.fn(),
+    } as unknown as jest.Mocked<RepositoryIndexingQueueService>;
+
+    service = new RepositoriesService(
+      repositoriesRepository,
+      repositoryIndexingQueueService,
+    );
   });
 
   it('lists repositories scoped to a workspace', async () => {
@@ -79,6 +92,24 @@ describe('RepositoriesService', () => {
         fullName: 'acme/platform-api',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('queues indexing after connecting a repository', async () => {
+    repositoriesRepository.findByProviderAndExternalId.mockResolvedValue(null);
+    repositoriesRepository.create.mockResolvedValue(repository);
+
+    await service.createRepository(workspaceA, {
+      provider: RepositoryProvider.GITHUB,
+      externalId: '123',
+      owner: 'acme',
+      name: 'platform-api',
+      fullName: 'acme/platform-api',
+    });
+
+    expect(repositoryIndexingQueueService.enqueueIndexing).toHaveBeenCalledWith(
+      workspaceA,
+      repository.id,
+    );
   });
 
   it('soft deletes only within the requested workspace', async () => {
