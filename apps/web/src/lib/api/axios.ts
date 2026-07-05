@@ -25,13 +25,25 @@ function withAuthHeader(config: InternalAxiosRequestConfig): InternalAxiosReques
 
 apiClient.interceptors.request.use(withAuthHeader);
 
+const AUTH_ENDPOINTS_WITHOUT_REFRESH = ['/auth/signin', '/auth/signup', '/auth/refresh'];
+
+function shouldAttemptTokenRefresh(config: InternalAxiosRequestConfig): boolean {
+  const url = config.url ?? '';
+  return !AUTH_ENDPOINTS_WITHOUT_REFRESH.some((endpoint) => url.includes(endpoint));
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config;
     const isUnauthorized = error.response?.status === 401;
 
-    if (!isUnauthorized || !originalRequest || !refreshHandler) {
+    if (
+      !isUnauthorized ||
+      !originalRequest ||
+      !refreshHandler ||
+      !shouldAttemptTokenRefresh(originalRequest)
+    ) {
       return Promise.reject(error);
     }
 

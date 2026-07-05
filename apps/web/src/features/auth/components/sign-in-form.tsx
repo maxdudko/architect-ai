@@ -5,7 +5,7 @@ import { Button, Input, PasswordInput } from '@/shared/components';
 import { useSignInForm } from '../hooks/use-sign-in-form';
 
 export function SignInForm() {
-  const { form, onSubmit, errorMessage, successMessage } = useSignInForm();
+  const { form, onSubmit } = useSignInForm();
   const {
     register,
     formState: { errors, isSubmitting },
@@ -24,17 +24,11 @@ export function SignInForm() {
         <label htmlFor="password" className="text-sm font-medium">
           Password
         </label>
-        <PasswordInput
-          id="password"
-          autoComplete="current-password"
-          {...register('password')}
-        />
+        <PasswordInput id="password" autoComplete="current-password" {...register('password')} />
         {errors.password ? (
           <p className="text-xs text-destructive">{errors.password.message}</p>
         ) : null}
       </div>
-      {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
-      {successMessage ? <p className="text-sm text-emerald-600">{successMessage}</p> : null}
       <Button type="submit" className="w-full" disabled={isSubmitting}>
         {isSubmitting ? <Loader className="mr-2 h-4 w-4" /> : null}
         Sign in

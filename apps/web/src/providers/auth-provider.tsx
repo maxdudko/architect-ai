@@ -15,7 +15,6 @@ import {
 } from '@/lib/api';
 import type { AcceptInvitationPayload } from '@/lib/api';
 import {
-  type AuthStorageState,
   clearAuthState,
   loadAuthState,
   saveAuthState,
@@ -45,7 +44,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [initialAuthState] = useState(() => loadAuthState());
-  const [isReady, setIsReady] = useState<boolean>(() => initialAuthState === null);
+  const [isReady, setIsReady] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(
     () => initialAuthState?.accessToken ?? null,
   );
@@ -122,12 +121,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshAccessToken]);
 
   useEffect(() => {
-    if (!initialAuthState) {
-      return;
-    }
-    setAccessTokenCookie(initialAuthState.accessToken);
-
     const bootstrapSession = async () => {
+      if (!initialAuthState) {
+        setIsReady(true);
+        return;
+      }
+
+      setAccessTokenCookie(initialAuthState.accessToken);
       let accessToken = initialAuthState.accessToken;
 
       if (initialAuthState.legacyRefreshToken) {

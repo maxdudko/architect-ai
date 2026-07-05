@@ -1,9 +1,16 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Repository, RepositoryStatus } from '@prisma/client';
+import {
+  Repository,
+  RepositoryProvider,
+  RepositoryStatus,
+} from '@prisma/client';
+import { GithubAccessTokenService } from '../integrations/github/github-access-token.service';
+import { GithubHttpService } from '../integrations/github/github-http.service';
 import { CreateRepositoryDto } from './dto/create-repository.dto';
 import { RepositoryResponseDto } from './dto/repository-response.dto';
 import { UpdateRepositoryDto } from './dto/update-repository.dto';
@@ -15,6 +22,8 @@ export class RepositoriesService {
   constructor(
     private readonly repositoriesRepository: RepositoriesRepository,
     private readonly repositoryIndexingQueueService: RepositoryIndexingQueueService,
+    private readonly githubAccessTokenService: GithubAccessTokenService,
+    private readonly githubHttpService: GithubHttpService,
   ) {}
 
   async listRepositories(
@@ -38,6 +47,7 @@ export class RepositoriesService {
 
   async createRepository(
     workspaceId: string,
+    userId: string,
     dto: CreateRepositoryDto,
   ): Promise<RepositoryResponseDto> {
     const existing =
@@ -57,13 +67,14 @@ export class RepositoriesService {
       );
     }
 
+    const metadata = await this.resolveRepositoryMetadata(userId, dto);
     const repository = await this.repositoriesRepository.create(workspaceId, {
       provider: dto.provider,
       externalId: dto.externalId,
-      owner: dto.owner,
-      name: dto.name,
-      fullName: dto.fullName,
-      defaultBranch: dto.defaultBranch ?? 'main',
+      owner: metadata.owner,
+      name: metadata.name,
+      fullName: metadata.fullName,
+      defaultBranch: metadata.defaultBranch,
     });
 
     await this.repositoryIndexingQueueService.enqueueIndexing(
@@ -72,6 +83,43 @@ export class RepositoriesService {
     );
 
     return this.toResponse(repository);
+  }
+
+  private async resolveRepositoryMetadata(
+    userId: string,
+    dto: CreateRepositoryDto,
+  ): Promise<{
+    owner: string;
+    name: string;
+    fullName: string;
+    defaultBranch: string;
+  }> {
+    if (dto.provider !== RepositoryProvider.GITHUB) {
+      return {
+        owner: dto.owner,
+        name: dto.name,
+        fullName: dto.fullName,
+        defaultBranch: dto.defaultBranch ?? 'main',
+      };
+    }
+
+    const repository =
+      await this.githubAccessTokenService.executeWithAccessToken(
+        userId,
+        (accessToken) =>
+          this.githubHttpService.getRepositoryById(accessToken, dto.externalId),
+      );
+
+    if (!repository.owner?.login || !repository.name || !repository.full_name) {
+      throw new BadRequestException('GitHub repository payload is incomplete');
+    }
+
+    return {
+      owner: repository.owner.login,
+      name: repository.name,
+      fullName: repository.full_name,
+      defaultBranch: repository.default_branch || 'main',
+    };
   }
 
   async updateRepository(

@@ -7,6 +7,7 @@ import { RepositoryProvider } from '@prisma/client';
 import { RepositoriesRepository } from '../../repositories/repositories.repository';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
 import { GithubAccountsRepository } from './github-accounts.repository';
+import { GithubAccessTokenService } from './github-access-token.service';
 import { GithubHttpService } from './github-http.service';
 import { GithubOauthStateService } from './github-oauth-state.service';
 import { GithubTokenCipherService } from './github-token-cipher.service';
@@ -20,6 +21,7 @@ describe('GithubIntegrationService', () => {
   let githubOauthStateService: jest.Mocked<GithubOauthStateService>;
   let githubHttpService: jest.Mocked<GithubHttpService>;
   let githubTokenCipherService: jest.Mocked<GithubTokenCipherService>;
+  let githubAccessTokenService: jest.Mocked<GithubAccessTokenService>;
 
   beforeEach(() => {
     workspacesService = {
@@ -33,6 +35,7 @@ describe('GithubIntegrationService', () => {
       upsertGithubAccount: jest.fn(),
       findByUserId: jest.fn(),
       softDeleteByUserId: jest.fn(),
+      updateTokensByUserId: jest.fn(),
     } as unknown as jest.Mocked<GithubAccountsRepository>;
     githubOauthStateService = {
       createState: jest.fn(),
@@ -41,13 +44,18 @@ describe('GithubIntegrationService', () => {
     githubHttpService = {
       buildConnectUrl: jest.fn(),
       exchangeCodeForToken: jest.fn(),
+      exchangeRefreshToken: jest.fn(),
       getViewer: jest.fn(),
       listRepositories: jest.fn(),
+      getRepositoryById: jest.fn(),
     } as unknown as jest.Mocked<GithubHttpService>;
     githubTokenCipherService = {
       encrypt: jest.fn((value: string) => `encrypted:${value}`),
       decrypt: jest.fn((value: string) => value.replace('encrypted:', '')),
     } as unknown as jest.Mocked<GithubTokenCipherService>;
+    githubAccessTokenService = {
+      executeWithAccessToken: jest.fn(),
+    } as unknown as jest.Mocked<GithubAccessTokenService>;
 
     service = new GithubIntegrationService(
       workspacesService,
@@ -56,6 +64,7 @@ describe('GithubIntegrationService', () => {
       githubOauthStateService,
       githubHttpService,
       githubTokenCipherService,
+      githubAccessTokenService,
     );
   });
 
@@ -137,6 +146,9 @@ describe('GithubIntegrationService', () => {
     accountsRepository.findByUserId.mockResolvedValue({
       accessTokenEncrypted: 'encrypted:token',
     } as never);
+    githubAccessTokenService.executeWithAccessToken.mockImplementation(
+      async (_userId, operation) => operation('token'),
+    );
     githubHttpService.listRepositories.mockResolvedValue({
       repositories: [
         {
@@ -173,7 +185,9 @@ describe('GithubIntegrationService', () => {
 
   it('requires connected account before listing repositories', async () => {
     workspacesService.getWorkspaceForUser.mockResolvedValue({} as never);
-    accountsRepository.findByUserId.mockResolvedValue(null);
+    githubAccessTokenService.executeWithAccessToken.mockRejectedValue(
+      new NotFoundException('GitHub account is not connected'),
+    );
 
     await expect(
       service.listRepositories('user-1', 'workspace-1'),

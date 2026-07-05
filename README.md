@@ -299,6 +299,7 @@ GITHUB_CLIENT_ID=your-client-id
 GITHUB_CLIENT_SECRET=your-client-secret
 GITHUB_OAUTH_REDIRECT_URI=http://localhost:5000/integrations/github/callback
 TOKEN_ENCRYPTION_KEY=replace-with-strong-random-secret
+GITHUB_OAUTH_STATE_SECRET=replace-with-strong-random-secret
 ```
 
 If `GITHUB_CLIENT_ID` is missing, `GET /integrations/github/connect-url` returns `503` with a configuration error.
