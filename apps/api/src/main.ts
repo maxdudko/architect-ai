@@ -18,7 +18,27 @@ function getCorsOrigins(): string | string[] {
   return origins.length === 1 ? origins[0] : origins;
 }
 
+function assertRequiredProductionEnv(): void {
+  const nodeEnv = process.env.NODE_ENV?.toLowerCase() ?? 'development';
+  if (nodeEnv === 'development' || nodeEnv === 'test') {
+    return;
+  }
+
+  const requiredVars = ['TOKEN_ENCRYPTION_KEY', 'GITHUB_OAUTH_STATE_SECRET'];
+  const missingVars = requiredVars.filter((name) => {
+    const value = process.env[name];
+    return !value || value.trim().length === 0;
+  });
+
+  if (missingVars.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missingVars.join(', ')}`,
+    );
+  }
+}
+
 async function bootstrap() {
+  assertRequiredProductionEnv();
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({

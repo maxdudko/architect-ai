@@ -1,6 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { isAxiosError } from 'axios';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { toast } from 'sonner';
 import type { RepositoryStatus } from '@/entities';
 import { useAuth } from '@/providers/auth-provider';
 import {
@@ -27,13 +30,33 @@ import {
 } from '../services/repository.service';
 import { canManageRepositories } from '../utils/repository-permissions';
 
+const GITHUB_RECONNECT_REQUIRED_CODE = 'GITHUB_RECONNECT_REQUIRED';
+
+function isGithubReconnectRequired(error: unknown): boolean {
+  if (!isAxiosError(error)) {
+    return false;
+  }
+
+  const payload = error.response?.data as
+    | { error?: { code?: string; message?: string } | string }
+    | undefined;
+  if (!payload || !payload.error || typeof payload.error === 'string') {
+    return false;
+  }
+
+  return payload.error.code === GITHUB_RECONNECT_REQUIRED_CODE;
+}
+
 export function RepositoriesList() {
   const { activeWorkspace } = useAuth();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const workspaceId = activeWorkspace?.id ?? '';
   const query = useRepositoriesQuery(workspaceId);
   const githubConnectionQuery = useGithubConnectionQuery();
   const connectUrlMutation = useGithubConnectUrlMutation();
   const disconnectGithubMutation = useDisconnectGithubMutation();
+  const refetchGithubConnection = githubConnectionQuery.refetch;
   const createMutation = useCreateRepositoryMutation(workspaceId);
   const deleteMutation = useDeleteRepositoryMutation(workspaceId);
   const retryMutation = useRetryRepositoryIndexingMutation(workspaceId);
@@ -41,6 +64,28 @@ export function RepositoriesList() {
   const [repoSearch, setRepoSearch] = useState('');
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const canManage = canManageRepositories(activeWorkspace?.role);
+
+  useEffect(() => {
+    const oauthStatus = searchParams.get('github_oauth');
+    if (!oauthStatus) {
+      return;
+    }
+    const oauthReason = searchParams.get('reason') ?? '';
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete('github_oauth');
+    nextParams.delete('reason');
+    nextParams.delete('workspaceId');
+    const nextQuery = nextParams.toString();
+    const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+    window.history.replaceState(null, '', nextUrl);
+
+    if (oauthStatus === 'success') {
+      toast.success('GitHub account connected successfully.');
+    } else if (oauthStatus === 'error') {
+      toast.error(oauthReason ? `GitHub OAuth failed: ${oauthReason}` : 'GitHub OAuth failed.');
+    }
+  }, [pathname, searchParams]);
 
   const githubReposQuery = useGithubRepositoriesQuery(workspaceId, {
     enabled: Boolean(workspaceId) && githubConnectionQuery.data?.connected === true,
@@ -54,6 +99,12 @@ export function RepositoriesList() {
       ) ?? [],
     [githubReposQuery.data?.repositories, repoSearch],
   );
+  const reconnectRequired =
+    Boolean(githubReposQuery.error) && isGithubReconnectRequired(githubReposQuery.error);
+  const githubReconnectMessage = reconnectRequired
+    ? 'GitHub authorization expired. Please reconnect GitHub.'
+    : null;
+  const visibleErrorMessage = errorMessage ?? githubReconnectMessage;
 
   const onConnectGithub = async () => {
     if (!workspaceId) {
@@ -67,6 +118,15 @@ export function RepositoriesList() {
       setErrorMessage('Unable to start GitHub OAuth flow. Please try again.');
     }
   };
+
+  useEffect(() => {
+    if (!reconnectRequired) {
+      return;
+    }
+
+    toast.error('GitHub authorization expired. Please reconnect GitHub.');
+    void refetchGithubConnection();
+  }, [reconnectRequired, refetchGithubConnection]);
 
   const statusLabel = (status: RepositoryStatus): string => {
     switch (status) {
@@ -177,7 +237,15 @@ export function RepositoriesList() {
                               fullName: repository.fullName,
                               defaultBranch: repository.defaultBranch,
                             });
-                          } catch {
+                          } catch (error) {
+                            if (isGithubReconnectRequired(error)) {
+                              setErrorMessage(
+                                'GitHub authorization expired. Please reconnect GitHub.',
+                              );
+                              toast.error('GitHub authorization expired. Please reconnect GitHub.');
+                              void githubConnectionQuery.refetch();
+                              return;
+                            }
                             setErrorMessage(
                               'Unable to connect selected repository. It may already be linked.',
                             );
@@ -205,7 +273,9 @@ export function RepositoriesList() {
               </p>
             )}
 
-            {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
+            {visibleErrorMessage ? (
+              <p className="text-sm text-destructive">{visibleErrorMessage}</p>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

@@ -74,4 +74,27 @@ export class GithubAccountsRepository {
     });
     return result.count;
   }
+
+  async updateTokensByUserId(
+    userId: string,
+    params: {
+      accessTokenEncrypted: string;
+      refreshTokenEncrypted?: string | null;
+      tokenExpiresAt?: Date | null;
+    },
+  ): Promise<number> {
+    const result = await this.prisma.oAuthAccount.updateMany({
+      where: {
+        userId,
+        provider: OAuthProvider.GITHUB,
+        deletedAt: null,
+      },
+      data: {
+        accessTokenEncrypted: params.accessTokenEncrypted,
+        refreshTokenEncrypted: params.refreshTokenEncrypted,
+        tokenExpiresAt: params.tokenExpiresAt,
+      },
+    });
+    return result.count;
+  }
 }

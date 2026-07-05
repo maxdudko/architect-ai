@@ -1,5 +1,7 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { RepositoryProvider, RepositoryStatus } from '@prisma/client';
+import { GithubAccessTokenService } from '../integrations/github/github-access-token.service';
+import { GithubHttpService } from '../integrations/github/github-http.service';
 import { RepositoryIndexingQueueService } from './repository-indexing.queue.service';
 import { RepositoriesService } from './repositories.service';
 import { RepositoriesRepository } from './repositories.repository';
@@ -28,6 +30,8 @@ describe('RepositoriesService', () => {
 
   let repositoriesRepository: jest.Mocked<RepositoriesRepository>;
   let repositoryIndexingQueueService: jest.Mocked<RepositoryIndexingQueueService>;
+  let githubAccessTokenService: jest.Mocked<GithubAccessTokenService>;
+  let githubHttpService: jest.Mocked<GithubHttpService>;
   let service: RepositoriesService;
 
   beforeEach(() => {
@@ -48,9 +52,24 @@ describe('RepositoriesService', () => {
       onModuleDestroy: jest.fn(),
     } as unknown as jest.Mocked<RepositoryIndexingQueueService>;
 
+    githubAccessTokenService = {
+      executeWithAccessToken: jest.fn(),
+    } as unknown as jest.Mocked<GithubAccessTokenService>;
+
+    githubHttpService = {
+      buildConnectUrl: jest.fn(),
+      exchangeCodeForToken: jest.fn(),
+      exchangeRefreshToken: jest.fn(),
+      getViewer: jest.fn(),
+      listRepositories: jest.fn(),
+      getRepositoryById: jest.fn(),
+    } as unknown as jest.Mocked<GithubHttpService>;
+
     service = new RepositoriesService(
       repositoriesRepository,
       repositoryIndexingQueueService,
+      githubAccessTokenService,
+      githubHttpService,
     );
   });
 
@@ -84,8 +103,8 @@ describe('RepositoriesService', () => {
     );
 
     await expect(
-      service.createRepository(workspaceB, {
-        provider: RepositoryProvider.GITHUB,
+      service.createRepository(workspaceB, 'user-1', {
+        provider: RepositoryProvider.GITLAB,
         externalId: '123',
         owner: 'acme',
         name: 'platform-api',
@@ -97,8 +116,21 @@ describe('RepositoriesService', () => {
   it('queues indexing after connecting a repository', async () => {
     repositoriesRepository.findByProviderAndExternalId.mockResolvedValue(null);
     repositoriesRepository.create.mockResolvedValue(repository);
+    githubHttpService.getRepositoryById.mockResolvedValue({
+      id: 123,
+      name: 'platform-api',
+      full_name: 'acme/platform-api',
+      private: true,
+      default_branch: 'main',
+      owner: {
+        login: 'acme',
+      },
+    });
+    githubAccessTokenService.executeWithAccessToken.mockImplementation(
+      async (_userId, operation) => operation('plain-token'),
+    );
 
-    await service.createRepository(workspaceA, {
+    await service.createRepository(workspaceA, 'user-1', {
       provider: RepositoryProvider.GITHUB,
       externalId: '123',
       owner: 'acme',

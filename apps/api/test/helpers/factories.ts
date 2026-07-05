@@ -172,7 +172,7 @@ export function buildRepositoryPayload(
 ): RepositoryPayload {
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   return {
-    provider: 'GITHUB',
+    provider: 'GITLAB',
     externalId: suffix,
     owner: 'acme',
     name: 'platform-api',

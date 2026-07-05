@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 import { RepositoryProvider } from '@prisma/client';
 import { RepositoriesRepository } from '../../repositories/repositories.repository';
@@ -10,6 +9,7 @@ import { WorkspacesService } from '../../workspaces/workspaces.service';
 import { GithubAccountsRepository } from './github-accounts.repository';
 import { GithubHttpService } from './github-http.service';
 import { GithubOauthStateService } from './github-oauth-state.service';
+import { GithubAccessTokenService } from './github-access-token.service';
 import { GithubTokenCipherService } from './github-token-cipher.service';
 import { GithubRepositoriesResponseDto } from './dto/github-repositories-response.dto';
 
@@ -24,6 +24,7 @@ export class GithubIntegrationService {
     private readonly githubOauthStateService: GithubOauthStateService,
     private readonly githubHttpService: GithubHttpService,
     private readonly githubTokenCipherService: GithubTokenCipherService,
+    private readonly githubAccessTokenService: GithubAccessTokenService,
   ) {}
 
   async getConnectUrl(userId: string, workspaceId?: string): Promise<string> {
@@ -119,22 +120,17 @@ export class GithubIntegrationService {
   ): Promise<GithubRepositoriesResponseDto> {
     await this.workspacesService.getWorkspaceForUser(workspaceId, userId);
 
-    const account = await this.accountsRepository.findByUserId(userId);
-    if (!account) {
-      throw new NotFoundException('GitHub account is not connected');
-    }
-
     const page = this.decodeCursor(cursor);
-    const accessToken = this.githubTokenCipherService.decrypt(
-      account.accessTokenEncrypted,
-    );
-
-    const [githubResponse, connectedExternalIds] = await Promise.all([
-      this.githubHttpService.listRepositories(accessToken, page, PER_PAGE),
-      this.repositoriesRepository.listExternalIdsByProvider(
+    const connectedExternalIds =
+      await this.repositoriesRepository.listExternalIdsByProvider(
         RepositoryProvider.GITHUB,
-      ),
-    ]);
+      );
+    const githubResponse =
+      await this.githubAccessTokenService.executeWithAccessToken(
+        userId,
+        (accessToken) =>
+          this.githubHttpService.listRepositories(accessToken, page, PER_PAGE),
+      );
     const connectedIdSet = new Set(connectedExternalIds);
 
     return {
