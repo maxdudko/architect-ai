@@ -260,7 +260,7 @@ docs/
 
 ## Requirements
 
-- Node.js
+- Node.js 20+
 - pnpm
 - Docker
 - Docker Compose
@@ -277,7 +277,32 @@ cd architect-ai
 pnpm install
 
 cp .env.example .env
+cp apps/api/.env.example apps/api/.env
 ```
+
+The root `.env` is used primarily for local infrastructure and web settings.  
+The API reads runtime secrets and OAuth credentials from `apps/api/.env`.
+
+---
+
+## GitHub OAuth Setup (Required for Repository Connect)
+
+Create a GitHub OAuth App and configure:
+
+- Homepage URL: `http://localhost:3000`
+- Authorization callback URL: `http://localhost:5000/integrations/github/callback`
+
+Then set these values in `apps/api/.env`:
+
+```bash
+GITHUB_CLIENT_ID=your-client-id
+GITHUB_CLIENT_SECRET=your-client-secret
+GITHUB_OAUTH_REDIRECT_URI=http://localhost:5000/integrations/github/callback
+TOKEN_ENCRYPTION_KEY=replace-with-strong-random-secret
+GITHUB_OAUTH_STATE_SECRET=replace-with-strong-random-secret
+```
+
+If `GITHUB_CLIENT_ID` is missing, `GET /integrations/github/connect-url` returns `503` with a configuration error.
 
 ---
 
@@ -315,11 +340,35 @@ This runs workspace `dev` tasks for both `apps/web` and `apps/api`.
 
 ---
 
+## GitHub Connectivity Flow (MVP)
+
+1. Web requests `GET /integrations/github/connect-url?workspaceId=<id>`
+2. User completes GitHub consent screen
+3. GitHub redirects to `GET /integrations/github/callback`
+4. API stores OAuth tokens encrypted at rest
+5. Web loads `GET /integrations/github/repositories?workspaceId=<id>`
+6. User selects a repository and connects it to the workspace
+7. Initial indexing is triggered asynchronously
+
+Repository indexing statuses:
+
+- `PENDING`
+- `CLONING`
+- `PARSING`
+- `EMBEDDING`
+- `READY`
+- `FAILED`
+
+On `FAILED`, users can trigger retry from the repositories UI.
+
+---
+
 ## Quality Checks
 
 ```bash
 pnpm lint
 pnpm test
+pnpm typecheck
 pnpm build
 ```
 
@@ -335,6 +384,8 @@ Checks on pull requests:
 
 - Lint
 - Test
+- Typecheck
+- API E2E test
 - Build
 
 ---

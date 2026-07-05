@@ -1,11 +1,11 @@
 'use client';
 
 import { Loader } from '@/shared/components';
-import { Button, Input } from '@/shared/components';
+import { Button, Input, PasswordInput } from '@/shared/components';
 import { useSignUpForm } from '../hooks/use-sign-up-form';
 
 export function SignUpForm() {
-  const { form, onSubmit, errorMessage, successMessage } = useSignUpForm();
+  const { form, onSubmit } = useSignUpForm();
   const {
     register,
     formState: { errors, isSubmitting },
@@ -44,18 +44,11 @@ export function SignUpForm() {
         <label htmlFor="password" className="text-sm font-medium">
           Password
         </label>
-        <Input
-          id="password"
-          type="password"
-          autoComplete="new-password"
-          {...register('password')}
-        />
+        <PasswordInput id="password" autoComplete="new-password" {...register('password')} />
         {errors.password ? (
           <p className="text-xs text-destructive">{errors.password.message}</p>
         ) : null}
       </div>
-      {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
-      {successMessage ? <p className="text-sm text-emerald-600">{successMessage}</p> : null}
       <Button type="submit" className="w-full" disabled={isSubmitting}>
         {isSubmitting ? <Loader className="mr-2 h-4 w-4" /> : null}
         Create account

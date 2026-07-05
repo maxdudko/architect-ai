@@ -10,10 +10,12 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { WorkspaceRole } from '@prisma/client';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { WorkspaceParamGuard } from '../common/guards/workspace-param.guard';
+import type { RequestUser } from '../common/interfaces/request-user.interface';
 import { CreateRepositoryDto } from './dto/create-repository.dto';
 import { RepositoryResponseDto } from './dto/repository-response.dto';
 import { UpdateRepositoryDto } from './dto/update-repository.dto';
@@ -60,9 +62,14 @@ export class RepositoriesController {
   @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.MEMBER)
   createRepository(
     @Param('id') workspaceId: string,
+    @CurrentUser() user: RequestUser,
     @Body() dto: CreateRepositoryDto,
   ): Promise<RepositoryResponseDto> {
-    return this.repositoriesService.createRepository(workspaceId, dto);
+    return this.repositoriesService.createRepository(
+      workspaceId,
+      user.sub,
+      dto,
+    );
   }
 
   @Patch(':repositoryId')
@@ -88,5 +95,15 @@ export class RepositoriesController {
     @Param('repositoryId') repositoryId: string,
   ): Promise<{ success: boolean }> {
     return this.repositoriesService.deleteRepository(workspaceId, repositoryId);
+  }
+
+  @Post(':repositoryId/retry')
+  @ApiOperation({ summary: 'Retry repository indexing pipeline' })
+  @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.MEMBER)
+  retryIndexing(
+    @Param('id') workspaceId: string,
+    @Param('repositoryId') repositoryId: string,
+  ): Promise<RepositoryResponseDto> {
+    return this.repositoriesService.retryIndexing(workspaceId, repositoryId);
   }
 }

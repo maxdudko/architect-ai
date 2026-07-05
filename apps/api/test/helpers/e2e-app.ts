@@ -59,6 +59,7 @@ export async function resetDatabase(prisma: PrismaService): Promise<void> {
       messages,
       conversations,
       repositories,
+      oauth_accounts,
       invitations,
       memberships,
       workspaces,

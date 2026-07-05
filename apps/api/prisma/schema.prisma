@@ -54,6 +54,10 @@ enum MessageRole {
   SYSTEM
 }
 
+enum OAuthProvider {
+  GITHUB
+}
+
 model User {
   id            String       @id @default(uuid()) @db.Uuid
   email         String       @unique
@@ -67,9 +71,30 @@ model User {
   updatedAt     DateTime     @updatedAt @map("updated_at")
   deletedAt     DateTime?    @map("deleted_at")
   lastLoginAt   DateTime?    @map("last_login_at")
+  oauthAccounts OAuthAccount[]
 
   @@index([createdAt], map: "users_created_at_idx")
   @@map("users")
+}
+
+model OAuthAccount {
+  id                    String        @id @default(uuid()) @db.Uuid
+  userId                String        @map("user_id") @db.Uuid
+  provider              OAuthProvider
+  providerUserId        String        @map("provider_user_id")
+  login                 String
+  accessTokenEncrypted  String        @map("access_token_encrypted") @db.Text
+  refreshTokenEncrypted String?       @map("refresh_token_encrypted") @db.Text
+  tokenExpiresAt        DateTime?     @map("token_expires_at")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  deletedAt             DateTime?     @map("deleted_at")
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider], map: "oauth_accounts_user_id_provider_key")
+  @@unique([provider, providerUserId], map: "oauth_accounts_provider_provider_user_id_key")
+  @@index([userId], map: "oauth_accounts_user_id_idx")
+  @@map("oauth_accounts")
 }
 
 model Workspace {
