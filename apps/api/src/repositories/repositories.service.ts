@@ -13,6 +13,7 @@ import { GithubAccessTokenService } from '../integrations/github/github-access-t
 import { GithubHttpService } from '../integrations/github/github-http.service';
 import { CreateRepositoryDto } from './dto/create-repository.dto';
 import { RepositoryResponseDto } from './dto/repository-response.dto';
+import { RetryIndexingDto } from './dto/retry-indexing.dto';
 import { UpdateRepositoryDto } from './dto/update-repository.dto';
 import { RepositoryIndexingQueueService } from './repository-indexing.queue.service';
 import { RepositoriesRepository } from './repositories.repository';
@@ -77,10 +78,12 @@ export class RepositoriesService {
       defaultBranch: metadata.defaultBranch,
     });
 
-    await this.repositoryIndexingQueueService.enqueueIndexing(
+    await this.repositoryIndexingQueueService.enqueueInitialIndexing({
       workspaceId,
-      repository.id,
-    );
+      repositoryId: repository.id,
+      userId,
+      branch: dto.indexBranch ?? metadata.defaultBranch,
+    });
 
     return this.toResponse(repository);
   }
@@ -168,6 +171,8 @@ export class RepositoriesService {
   async retryIndexing(
     workspaceId: string,
     repositoryId: string,
+    userId: string,
+    dto: RetryIndexingDto = {},
   ): Promise<RepositoryResponseDto> {
     const repository = await this.findRepositoryInWorkspace(
       workspaceId,
@@ -186,10 +191,12 @@ export class RepositoriesService {
       throw new NotFoundException('Repository not found in this workspace');
     }
 
-    await this.repositoryIndexingQueueService.enqueueIndexing(
+    await this.repositoryIndexingQueueService.enqueueRetryIndexing({
       workspaceId,
-      repository.id,
-    );
+      repositoryId: repository.id,
+      userId,
+      branch: dto.branch ?? repository.defaultBranch,
+    });
 
     return this.toResponse(updated);
   }

@@ -6,23 +6,27 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RepositoryStatus } from '@prisma/client';
-import Redis from 'ioredis';
+import { JobsOptions, Queue } from 'bullmq';
 import { RepositoriesRepository } from './repositories.repository';
-
-interface IndexRepositoryJobData {
-  workspaceId: string;
-  repositoryId: string;
-}
+import {
+  CloneJobData,
+  INDEXING_JOB_NAMES,
+  ReindexJobData,
+} from './indexing/indexing-job.types';
+import {
+  getDefaultIndexingJobOptions,
+  getQueueName,
+  getRedisConnectionFromConfig,
+} from './indexing/indexing-queue.config';
 
 @Injectable()
 export class RepositoryIndexingQueueService
   implements OnModuleInit, OnModuleDestroy
 {
   private readonly logger = new Logger(RepositoryIndexingQueueService.name);
-  private readonly queueName = 'repository:indexing:jobs';
-  private redisPublisher: Redis | null = null;
-  private redisConsumer: Redis | null = null;
-  private consumeLoopActive = false;
+  private queue: Queue | null = null;
+  private readonly queueName = getQueueName();
+  private readonly defaultJobOptions = getDefaultIndexingJobOptions();
 
   constructor(
     private readonly configService: ConfigService,
@@ -30,137 +34,153 @@ export class RepositoryIndexingQueueService
   ) {}
 
   onModuleInit(): void {
-    const redisUrl = this.configService.get<string>('REDIS_URL');
-    if (!redisUrl) {
-      this.logger.warn(
-        'REDIS_URL is not set, indexing queue will run in process',
+    try {
+      this.queue = new Queue(this.queueName, {
+        ...getRedisConnectionFromConfig(this.configService),
+        defaultJobOptions: this.defaultJobOptions,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to initialize BullMQ queue: ${error instanceof Error ? error.message : String(error)}`,
       );
-      return;
     }
-
-    this.redisPublisher = new Redis(redisUrl, {
-      maxRetriesPerRequest: 1,
-    });
-    this.redisConsumer = new Redis(redisUrl, {
-      maxRetriesPerRequest: null,
-    });
-    this.consumeLoopActive = true;
-    void this.consumeLoop();
   }
 
   async onModuleDestroy(): Promise<void> {
-    this.consumeLoopActive = false;
-    await this.redisConsumer?.quit();
-    await this.redisPublisher?.quit();
+    await this.queue?.close();
+    this.queue = null;
   }
 
-  async enqueueIndexing(
-    workspaceId: string,
-    repositoryId: string,
-  ): Promise<void> {
-    if (this.redisPublisher) {
-      const payload: IndexRepositoryJobData = {
-        workspaceId,
-        repositoryId,
-      };
-      await this.redisPublisher.lpush(this.queueName, JSON.stringify(payload));
-      return;
-    }
-
-    setTimeout(() => {
-      void this.runPipeline(workspaceId, repositoryId);
-    }, 0);
-  }
-
-  private async runPipeline(
-    workspaceId: string,
-    repositoryId: string,
-  ): Promise<void> {
-    try {
-      await this.repositoriesRepository.updateStatus(
-        workspaceId,
-        repositoryId,
-        {
-          status: RepositoryStatus.CLONING,
-          indexingError: null,
-          lastIndexedAt: null,
-        },
-      );
-      await this.delay(150);
-
-      await this.repositoriesRepository.updateStatus(
-        workspaceId,
-        repositoryId,
-        {
-          status: RepositoryStatus.PARSING,
-          indexingError: null,
-          lastIndexedAt: null,
-        },
-      );
-      await this.delay(150);
-
-      await this.repositoriesRepository.updateStatus(
-        workspaceId,
-        repositoryId,
-        {
-          status: RepositoryStatus.EMBEDDING,
-          indexingError: null,
-          lastIndexedAt: null,
-        },
-      );
-      await this.delay(150);
-
-      await this.repositoriesRepository.updateStatus(
-        workspaceId,
-        repositoryId,
-        {
-          status: RepositoryStatus.READY,
-          indexingError: null,
-          lastIndexedAt: new Date(),
-        },
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown indexing failure';
-      await this.repositoriesRepository.updateStatus(
-        workspaceId,
-        repositoryId,
-        {
-          status: RepositoryStatus.FAILED,
-          indexingError: message,
-        },
-      );
-    }
-  }
-
-  private async delay(ms: number): Promise<void> {
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, ms);
+  async enqueueInitialIndexing(params: {
+    workspaceId: string;
+    repositoryId: string;
+    userId: string;
+    branch?: string;
+  }): Promise<void> {
+    await this.enqueueReindex({
+      ...params,
+      trigger: 'INITIAL_CONNECT',
     });
   }
 
-  private async consumeLoop(): Promise<void> {
-    if (!this.redisConsumer) {
-      return;
+  async enqueueRetryIndexing(params: {
+    workspaceId: string;
+    repositoryId: string;
+    userId: string;
+    branch?: string;
+  }): Promise<void> {
+    await this.enqueueReindex({
+      ...params,
+      trigger: 'MANUAL_RETRY',
+    });
+  }
+
+  async enqueueReindex(data: ReindexJobData): Promise<void> {
+    if (!this.queue) {
+      throw new Error('Repository indexing queue is unavailable');
     }
 
-    while (this.consumeLoopActive) {
-      try {
-        const result = await this.redisConsumer.brpop(this.queueName, 1);
-        if (!result || result.length < 2) {
-          continue;
-        }
+    await this.queue.add(INDEXING_JOB_NAMES.reindex, data, {
+      ...this.defaultJobOptions,
+      jobId: `${data.workspaceId}:${data.repositoryId}:${data.trigger}:${data.branch ?? 'default'}:${Date.now()}`,
+    });
+  }
 
-        const data = JSON.parse(result[1]) as IndexRepositoryJobData;
-        if (!data.workspaceId || !data.repositoryId) {
-          this.logger.warn('Skipping malformed indexing job payload');
-          continue;
-        }
-
-        await this.runPipeline(data.workspaceId, data.repositoryId);
-      } catch (error) {
-        this.logger.error(`Indexing consumer loop error: ${String(error)}`);
-      }
+  async enqueueCloneJob(
+    data: CloneJobData,
+    options?: JobsOptions,
+  ): Promise<void> {
+    if (!this.queue) {
+      throw new Error('Repository indexing queue is unavailable');
     }
+
+    await this.queue.add(INDEXING_JOB_NAMES.clone, data, {
+      ...this.defaultJobOptions,
+      ...options,
+      jobId: `${data.runId}:clone`,
+    });
+  }
+
+  async enqueueParseJob(
+    data: CloneJobData & { clonePath: string },
+    options?: JobsOptions,
+  ): Promise<void> {
+    if (!this.queue) {
+      throw new Error('Repository indexing queue is unavailable');
+    }
+
+    await this.queue.add(INDEXING_JOB_NAMES.parse, data, {
+      ...this.defaultJobOptions,
+      ...options,
+      jobId: `${data.runId}:parse`,
+    });
+  }
+
+  async enqueueChunkJob(
+    data: CloneJobData & { clonePath: string },
+    options?: JobsOptions,
+  ): Promise<void> {
+    if (!this.queue) {
+      throw new Error('Repository indexing queue is unavailable');
+    }
+
+    await this.queue.add(INDEXING_JOB_NAMES.chunk, data, {
+      ...this.defaultJobOptions,
+      ...options,
+      jobId: `${data.runId}:chunk`,
+    });
+  }
+
+  async enqueueEmbedJob(
+    data: CloneJobData & { clonePath: string },
+    options?: JobsOptions,
+  ): Promise<void> {
+    if (!this.queue) {
+      throw new Error('Repository indexing queue is unavailable');
+    }
+
+    await this.queue.add(INDEXING_JOB_NAMES.embed, data, {
+      ...this.defaultJobOptions,
+      ...options,
+      jobId: `${data.runId}:embed`,
+    });
+  }
+
+  async markAsFailed(data: {
+    workspaceId: string;
+    repositoryId: string;
+    errorMessage: string;
+  }): Promise<void> {
+    await this.repositoriesRepository.updateStatus(
+      data.workspaceId,
+      data.repositoryId,
+      {
+        status: RepositoryStatus.FAILED,
+        indexingError: data.errorMessage,
+      },
+    );
+  }
+
+  isReady(): boolean {
+    return this.queue !== null;
+  }
+
+  getQueue(): Queue | null {
+    return this.queue;
+  }
+
+  getQueueJobOptions(): JobsOptions {
+    return this.defaultJobOptions;
+  }
+
+  getQueueNameValue(): string {
+    return this.queueName;
+  }
+
+  async waitUntilReady(): Promise<void> {
+    if (!this.queue) {
+      throw new Error('Repository indexing queue is unavailable');
+    }
+    await this.queue.waitUntilReady();
   }
 }

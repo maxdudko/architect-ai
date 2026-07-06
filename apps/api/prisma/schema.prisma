@@ -43,9 +43,29 @@ enum RepositoryStatus {
   PENDING
   CLONING
   PARSING
+  CHUNKING
   EMBEDDING
   READY
   FAILED
+}
+
+enum IndexingRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum IndexingTrigger {
+  INITIAL_CONNECT
+  MANUAL_RETRY
+  MANUAL_REINDEX
+}
+
+enum CodeSymbolType {
+  FUNCTION
+  CLASS
+  METHOD
+  INTERFACE
 }
 
 enum MessageRole {
@@ -169,10 +189,107 @@ model Repository {
   deletedAt     DateTime?
   workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   conversations Conversation[]
+  indexingRuns  IndexingRun[]
+  files         RepositoryFile[]
+  symbols       CodeSymbol[]
+  chunks        Chunk[]
 
   @@unique([provider, externalId])
   @@index([workspaceId])
   @@map("repositories")
+}
+
+model IndexingRun {
+  id                 String           @id @default(uuid()) @db.Uuid
+  repositoryId       String           @db.Uuid
+  trigger            IndexingTrigger
+  status             IndexingRunStatus
+  branch             String?
+  commitSha          String?
+  clonePath          String?
+  supportedFileCount Int              @default(0)
+  ignoredFileCount   Int              @default(0)
+  symbolCount        Int              @default(0)
+  chunkCount         Int              @default(0)
+  embeddingCount     Int              @default(0)
+  error              String?
+  startedAt          DateTime         @default(now())
+  completedAt        DateTime?
+  repository         Repository       @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  files              RepositoryFile[]
+  symbols            CodeSymbol[]
+  chunks             Chunk[]
+
+  @@index([repositoryId])
+  @@index([status])
+  @@map("indexing_runs")
+}
+
+model RepositoryFile {
+  id           String      @id @default(uuid()) @db.Uuid
+  repositoryId String      @db.Uuid
+  indexingRunId String     @db.Uuid
+  path         String
+  language     String
+  contentHash  String
+  createdAt    DateTime    @default(now())
+  repository   Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  indexingRun  IndexingRun @relation(fields: [indexingRunId], references: [id], onDelete: Cascade)
+  symbols      CodeSymbol[]
+  chunks       Chunk[]
+
+  @@unique([repositoryId, indexingRunId, path], map: "repository_files_run_path_key")
+  @@index([repositoryId])
+  @@index([indexingRunId])
+  @@map("repository_files")
+}
+
+model CodeSymbol {
+  id           String         @id @default(uuid()) @db.Uuid
+  repositoryId String         @db.Uuid
+  indexingRunId String        @db.Uuid
+  fileId       String?        @db.Uuid
+  filePath     String
+  type         CodeSymbolType
+  name         String
+  startLine    Int
+  endLine      Int
+  createdAt    DateTime       @default(now())
+  repository   Repository     @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  indexingRun  IndexingRun    @relation(fields: [indexingRunId], references: [id], onDelete: Cascade)
+  file         RepositoryFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  chunks       Chunk[]
+
+  @@index([repositoryId])
+  @@index([indexingRunId])
+  @@index([filePath])
+  @@map("code_symbols")
+}
+
+model Chunk {
+  id            String         @id @default(uuid()) @db.Uuid
+  repositoryId  String         @db.Uuid
+  indexingRunId String         @db.Uuid
+  fileId        String?        @db.Uuid
+  symbolId      String?        @db.Uuid
+  filePath      String
+  content       String         @db.Text
+  tokenCount    Int
+  startLine     Int?
+  endLine       Int?
+  vectorId      String?
+  language      String?
+  embeddingModel String?
+  createdAt     DateTime       @default(now())
+  repository    Repository     @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  indexingRun   IndexingRun    @relation(fields: [indexingRunId], references: [id], onDelete: Cascade)
+  file          RepositoryFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  symbol        CodeSymbol?    @relation(fields: [symbolId], references: [id], onDelete: SetNull)
+
+  @@index([repositoryId])
+  @@index([indexingRunId])
+  @@index([symbolId])
+  @@map("chunks")
 }
 
 model Conversation {

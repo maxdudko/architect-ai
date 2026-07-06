@@ -17,6 +17,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { WorkspaceParamGuard } from '../common/guards/workspace-param.guard';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
 import { CreateRepositoryDto } from './dto/create-repository.dto';
+import { RetryIndexingDto } from './dto/retry-indexing.dto';
 import { RepositoryResponseDto } from './dto/repository-response.dto';
 import { UpdateRepositoryDto } from './dto/update-repository.dto';
 import { RepositoriesService } from './repositories.service';
@@ -103,7 +104,14 @@ export class RepositoriesController {
   retryIndexing(
     @Param('id') workspaceId: string,
     @Param('repositoryId') repositoryId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: RetryIndexingDto = {},
   ): Promise<RepositoryResponseDto> {
-    return this.repositoriesService.retryIndexing(workspaceId, repositoryId);
+    return this.repositoriesService.retryIndexing(
+      workspaceId,
+      repositoryId,
+      user.sub,
+      dto,
+    );
   }
 }

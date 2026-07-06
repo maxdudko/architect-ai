@@ -47,7 +47,8 @@ describe('RepositoriesService', () => {
     } as unknown as jest.Mocked<RepositoriesRepository>;
 
     repositoryIndexingQueueService = {
-      enqueueIndexing: jest.fn(),
+      enqueueInitialIndexing: jest.fn(),
+      enqueueRetryIndexing: jest.fn(),
       onModuleInit: jest.fn(),
       onModuleDestroy: jest.fn(),
     } as unknown as jest.Mocked<RepositoryIndexingQueueService>;
@@ -138,9 +139,14 @@ describe('RepositoriesService', () => {
       fullName: 'acme/platform-api',
     });
 
-    expect(repositoryIndexingQueueService.enqueueIndexing).toHaveBeenCalledWith(
-      workspaceA,
-      repository.id,
+    expect(
+      repositoryIndexingQueueService.enqueueInitialIndexing,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: workspaceA,
+        repositoryId: repository.id,
+        userId: 'user-1',
+      }),
     );
   });
 
@@ -154,6 +160,29 @@ describe('RepositoriesService', () => {
     expect(repositoriesRepository.softDelete).toHaveBeenCalledWith(
       workspaceA,
       repositoryId,
+    );
+  });
+
+  it('queues retry indexing with optional branch', async () => {
+    repositoriesRepository.findById.mockResolvedValue(repository);
+    repositoriesRepository.updateStatus.mockResolvedValue({
+      ...repository,
+      status: RepositoryStatus.PENDING,
+    });
+
+    await service.retryIndexing(workspaceA, repositoryId, 'user-1', {
+      branch: 'develop',
+    });
+
+    expect(
+      repositoryIndexingQueueService.enqueueRetryIndexing,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: workspaceA,
+        repositoryId,
+        userId: 'user-1',
+        branch: 'develop',
+      }),
     );
   });
 });
