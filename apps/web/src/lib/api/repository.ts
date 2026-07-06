@@ -8,10 +8,15 @@ export interface CreateRepositoryPayload {
   name: string;
   fullName: string;
   defaultBranch?: string;
+  indexBranch?: string;
 }
 
 export interface UpdateRepositoryPayload {
   defaultBranch?: string;
+}
+
+export interface RetryRepositoryIndexingPayload {
+  branch?: string;
 }
 
 export async function listRepositories(workspaceId: string): Promise<Repository[]> {
@@ -65,10 +70,11 @@ export async function deleteRepository(
 export async function retryRepositoryIndexing(
   workspaceId: string,
   repositoryId: string,
+  payload: RetryRepositoryIndexingPayload = {},
 ): Promise<Repository> {
   const { data } = await apiClient.post<Repository>(
     `/workspaces/${workspaceId}/repositories/${repositoryId}/retry`,
-    {},
+    payload,
   );
   return data;
 }

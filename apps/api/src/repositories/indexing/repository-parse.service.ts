@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CodeSymbolType } from '@prisma/client';
 import { readFile, readdir, stat } from 'node:fs/promises';
-import path from 'node:path';
+import path from 'path';
 import { RepositoriesRepository } from '../repositories.repository';
 
 const SUPPORTED_EXTENSIONS = new Set([

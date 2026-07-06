@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { mkdir, readdir, rm, stat } from 'node:fs/promises';
-import path from 'node:path';
+import path from 'path';
 
 @Injectable()
 export class IndexingStorageService {

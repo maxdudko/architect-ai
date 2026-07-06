@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { readFile } from 'node:fs/promises';
-import path from 'node:path';
+import path from 'path';
 import { RepositoriesRepository } from '../repositories.repository';
 
 @Injectable()

@@ -82,7 +82,13 @@ export class RepositoryIndexingQueueService
 
     await this.queue.add(INDEXING_JOB_NAMES.reindex, data, {
       ...this.defaultJobOptions,
-      jobId: `${data.workspaceId}:${data.repositoryId}:${data.trigger}:${data.branch ?? 'default'}:${Date.now()}`,
+      jobId: this.buildJobId(
+        data.workspaceId,
+        data.repositoryId,
+        data.trigger,
+        data.branch ?? 'default',
+        String(Date.now()),
+      ),
     });
   }
 
@@ -97,7 +103,7 @@ export class RepositoryIndexingQueueService
     await this.queue.add(INDEXING_JOB_NAMES.clone, data, {
       ...this.defaultJobOptions,
       ...options,
-      jobId: `${data.runId}:clone`,
+      jobId: this.buildJobId(data.runId, 'clone'),
     });
   }
 
@@ -112,7 +118,7 @@ export class RepositoryIndexingQueueService
     await this.queue.add(INDEXING_JOB_NAMES.parse, data, {
       ...this.defaultJobOptions,
       ...options,
-      jobId: `${data.runId}:parse`,
+      jobId: this.buildJobId(data.runId, 'parse'),
     });
   }
 
@@ -127,7 +133,7 @@ export class RepositoryIndexingQueueService
     await this.queue.add(INDEXING_JOB_NAMES.chunk, data, {
       ...this.defaultJobOptions,
       ...options,
-      jobId: `${data.runId}:chunk`,
+      jobId: this.buildJobId(data.runId, 'chunk'),
     });
   }
 
@@ -142,7 +148,7 @@ export class RepositoryIndexingQueueService
     await this.queue.add(INDEXING_JOB_NAMES.embed, data, {
       ...this.defaultJobOptions,
       ...options,
-      jobId: `${data.runId}:embed`,
+      jobId: this.buildJobId(data.runId, 'embed'),
     });
   }
 
@@ -182,5 +188,15 @@ export class RepositoryIndexingQueueService
       throw new Error('Repository indexing queue is unavailable');
     }
     await this.queue.waitUntilReady();
+  }
+
+  private buildJobId(...parts: string[]): string {
+    return parts
+      .map((part) => this.sanitizeJobIdPart(part))
+      .join('__');
+  }
+
+  private sanitizeJobIdPart(value: string): string {
+    return value.replace(/:/g, '_');
   }
 }

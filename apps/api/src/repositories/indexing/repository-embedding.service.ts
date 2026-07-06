@@ -76,9 +76,8 @@ export class RepositoryEmbeddingService {
   }
 
   async deleteRepositoryVectors(repositoryId: string): Promise<void> {
-    await fetch(
-      `${this.qdrantUrl}/collections/${this.qdrantCollection}/points/delete`,
-      {
+    try {
+      await this.qdrantRequest('/points/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -91,38 +90,46 @@ export class RepositoryEmbeddingService {
             ],
           },
         }),
-      },
-    );
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (this.isMissingCollectionError(message)) {
+        return;
+      }
+      throw error;
+    }
   }
 
   private async ensureCollection(): Promise<void> {
     const dimensions = 16;
-    await fetch(`${this.qdrantUrl}/collections/${this.qdrantCollection}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        vectors: {
-          size: dimensions,
-          distance: 'Cosine',
-        },
-      }),
-    });
-  }
-
-  private async upsertPoints(points: QdrantPoint[]): Promise<void> {
-    const response = await fetch(
-      `${this.qdrantUrl}/collections/${this.qdrantCollection}/points`,
-      {
+    try {
+      await this.qdrantRequest('', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          points,
+          vectors: {
+            size: dimensions,
+            distance: 'Cosine',
+          },
         }),
-      },
-    );
-    if (!response.ok) {
-      throw new Error('Failed to upsert vectors to Qdrant');
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (this.isCollectionAlreadyExistsError(message)) {
+        return;
+      }
+      throw error;
     }
+  }
+
+  private async upsertPoints(points: QdrantPoint[]): Promise<void> {
+    await this.qdrantRequest('/points', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        points,
+      }),
+    });
   }
 
   private generateEmbedding(content: string): number[] {
@@ -132,5 +139,42 @@ export class RepositoryEmbeddingService {
       values.push((hash[i] ?? 0) / 255);
     }
     return values;
+  }
+
+  private async qdrantRequest(
+    pathSuffix: string,
+    init: RequestInit,
+  ): Promise<void> {
+    const endpoint = `${this.qdrantUrl}/collections/${this.qdrantCollection}${pathSuffix}`;
+    let response: Response;
+    try {
+      response = await fetch(endpoint, init);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to reach Qdrant at ${endpoint}. Check QDRANT_URL and that Qdrant is running. Cause: ${message}`,
+      );
+    }
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(
+        `Qdrant request failed (${response.status}) at ${endpoint}. Response: ${body || '<empty>'}`,
+      );
+    }
+  }
+
+  private isMissingCollectionError(message: string): boolean {
+    return (
+      message.includes('Qdrant request failed (404)') &&
+      message.includes("doesn't exist")
+    );
+  }
+
+  private isCollectionAlreadyExistsError(message: string): boolean {
+    return (
+      message.includes('Qdrant request failed (409)') &&
+      message.includes('already exists')
+    );
   }
 }

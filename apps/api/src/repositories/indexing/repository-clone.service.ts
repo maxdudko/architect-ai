@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { RepositoryProvider } from '@prisma/client';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import path from 'node:path';
+import path from 'path';
 import { GithubAccessTokenService } from '../../integrations/github/github-access-token.service';
 import { GithubHttpService } from '../../integrations/github/github-http.service';
 import { RepositoriesRepository } from '../repositories.repository';
@@ -55,23 +55,36 @@ export class RepositoryCloneService {
       },
     );
 
-    await execFileAsync('git', [
-      'clone',
-      '--depth',
-      '1',
-      '--branch',
-      branch,
-      cloneUrl,
-      clonePath,
-    ]);
-    const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
-      cwd: clonePath,
-    });
+    try {
+      await execFileAsync('git', [
+        'clone',
+        '--depth',
+        '1',
+        '--branch',
+        branch,
+        cloneUrl,
+        clonePath,
+      ]);
+      const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+        cwd: clonePath,
+      });
 
-    return {
-      clonePath,
-      branch,
-      commitSha: stdout.trim(),
-    };
+      return {
+        clonePath,
+        branch,
+        commitSha: stdout.trim(),
+      };
+    } catch (error) {
+      const isMissingGit =
+        error instanceof Error &&
+        (error.message.includes('spawn git ENOENT') ||
+          error.message.includes("ENOENT: no such file or directory, spawn 'git'"));
+      if (isMissingGit) {
+        throw new Error(
+          'Git is not available in the indexing worker runtime. Install git in the worker container.',
+        );
+      }
+      throw error;
+    }
   }
 }

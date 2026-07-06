@@ -150,6 +150,49 @@ describe('RepositoriesService', () => {
     );
   });
 
+  it('marks repository as failed when initial enqueue fails', async () => {
+    repositoriesRepository.findByProviderAndExternalId.mockResolvedValue(null);
+    repositoriesRepository.create.mockResolvedValue(repository);
+    repositoriesRepository.updateStatus.mockResolvedValue({
+      ...repository,
+      status: RepositoryStatus.FAILED,
+      indexingError: 'Indexing queue is currently unavailable. Please retry in a moment.',
+    });
+    githubHttpService.getRepositoryById.mockResolvedValue({
+      id: 123,
+      name: 'platform-api',
+      full_name: 'acme/platform-api',
+      private: true,
+      default_branch: 'main',
+      owner: {
+        login: 'acme',
+      },
+    });
+    githubAccessTokenService.executeWithAccessToken.mockImplementation(
+      async (_userId, operation) => operation('plain-token'),
+    );
+    repositoryIndexingQueueService.enqueueInitialIndexing.mockRejectedValue(
+      new Error('Repository indexing queue is unavailable'),
+    );
+
+    const response = await service.createRepository(workspaceA, 'user-1', {
+      provider: RepositoryProvider.GITHUB,
+      externalId: '123',
+      owner: 'acme',
+      name: 'platform-api',
+      fullName: 'acme/platform-api',
+    });
+
+    expect(repositoriesRepository.updateStatus).toHaveBeenCalledWith(
+      workspaceA,
+      repository.id,
+      expect.objectContaining({
+        status: RepositoryStatus.FAILED,
+      }),
+    );
+    expect(response.status).toBe(RepositoryStatus.FAILED);
+  });
+
   it('soft deletes only within the requested workspace', async () => {
     repositoriesRepository.findById.mockResolvedValue(repository);
     repositoriesRepository.softDelete.mockResolvedValue(1);
@@ -184,5 +227,36 @@ describe('RepositoriesService', () => {
         branch: 'develop',
       }),
     );
+  });
+
+  it('marks retry as failed when queue enqueue fails', async () => {
+    repositoriesRepository.findById.mockResolvedValue(repository);
+    repositoriesRepository.updateStatus
+      .mockResolvedValueOnce({
+        ...repository,
+        status: RepositoryStatus.PENDING,
+      })
+      .mockResolvedValueOnce({
+        ...repository,
+        status: RepositoryStatus.FAILED,
+        indexingError: 'Indexing queue is currently unavailable. Please retry in a moment.',
+      });
+    repositoryIndexingQueueService.enqueueRetryIndexing.mockRejectedValue(
+      new Error('Repository indexing queue is unavailable'),
+    );
+
+    const response = await service.retryIndexing(workspaceA, repositoryId, 'user-1', {
+      branch: 'develop',
+    });
+
+    expect(repositoriesRepository.updateStatus).toHaveBeenNthCalledWith(
+      2,
+      workspaceA,
+      repository.id,
+      expect.objectContaining({
+        status: RepositoryStatus.FAILED,
+      }),
+    );
+    expect(response.status).toBe(RepositoryStatus.FAILED);
   });
 });

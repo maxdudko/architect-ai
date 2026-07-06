@@ -11,6 +11,7 @@ import {
   retryRepositoryIndexing,
   updateRepository,
 } from '@/lib/api';
+import { isRepositoryIndexingActive } from '../utils/repository-status';
 
 export const REPOSITORY_QUERY_KEYS = {
   list: (workspaceId: string) => ['workspaces', workspaceId, 'repositories'] as const,
@@ -18,8 +19,6 @@ export const REPOSITORY_QUERY_KEYS = {
   githubRepositories: (workspaceId: string, cursor?: string) =>
     ['integrations', 'github', 'repositories', workspaceId, cursor ?? null] as const,
 };
-
-const ACTIVE_INDEXING_STATES = new Set(['PENDING', 'CLONING', 'PARSING', 'EMBEDDING']);
 
 export function useRepositoriesQuery(workspaceId: string) {
   return useQuery({
@@ -29,7 +28,7 @@ export function useRepositoriesQuery(workspaceId: string) {
     refetchInterval: (query) => {
       const repositories = query.state.data as Repository[] | undefined;
       const hasPending = repositories?.some((repository) =>
-        ACTIVE_INDEXING_STATES.has(repository.status),
+        isRepositoryIndexingActive(repository.status),
       );
       return hasPending ? 2500 : false;
     },
@@ -91,6 +90,7 @@ export function useCreateRepositoryMutation(workspaceId: string) {
       name: string;
       fullName: string;
       defaultBranch?: string;
+      indexBranch?: string;
     }) => createRepository(workspaceId, payload),
     onSuccess: async () => {
       await Promise.all([
@@ -139,7 +139,25 @@ export function useDeleteRepositoryMutation(workspaceId: string) {
 export function useRetryRepositoryIndexingMutation(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (repositoryId: string) => retryRepositoryIndexing(workspaceId, repositoryId),
+    mutationFn: (payload: { repositoryId: string; branch?: string }) =>
+      retryRepositoryIndexing(workspaceId, payload.repositoryId, {
+        branch: payload.branch,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: REPOSITORY_QUERY_KEYS.list(workspaceId),
+      });
+    },
+  });
+}
+
+export function useReindexRepositoryMutation(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { repositoryId: string; branch?: string }) =>
+      retryRepositoryIndexing(workspaceId, payload.repositoryId, {
+        branch: payload.branch,
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: REPOSITORY_QUERY_KEYS.list(workspaceId),

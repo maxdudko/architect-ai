@@ -8,7 +8,7 @@
   "scripts": {
     "build": "pnpm prisma:generate && nest build",
     "dev": "pnpm prisma:generate && nest start --watch",
-    "dev:worker": "pnpm prisma:generate && nest start --entryFile indexing-worker --watch",
+    "dev:worker": "pnpm prisma:generate && nest start --entryFile indexing-worker",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "pnpm prisma:generate && nest start",
     "start:worker": "pnpm prisma:generate && node dist/indexing-worker",

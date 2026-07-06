@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -20,6 +21,8 @@ import { RepositoriesRepository } from './repositories.repository';
 
 @Injectable()
 export class RepositoriesService {
+  private readonly logger = new Logger(RepositoriesService.name);
+
   constructor(
     private readonly repositoriesRepository: RepositoriesRepository,
     private readonly repositoryIndexingQueueService: RepositoryIndexingQueueService,
@@ -78,14 +81,15 @@ export class RepositoriesService {
       defaultBranch: metadata.defaultBranch,
     });
 
-    await this.repositoryIndexingQueueService.enqueueInitialIndexing({
+    const queuedRepository = await this.enqueueOrMarkFailed({
       workspaceId,
       repositoryId: repository.id,
-      userId,
       branch: dto.indexBranch ?? metadata.defaultBranch,
+      userId,
+      operation: 'initial',
     });
 
-    return this.toResponse(repository);
+    return this.toResponse(queuedRepository ?? repository);
   }
 
   private async resolveRepositoryMetadata(
@@ -191,14 +195,58 @@ export class RepositoriesService {
       throw new NotFoundException('Repository not found in this workspace');
     }
 
-    await this.repositoryIndexingQueueService.enqueueRetryIndexing({
+    const queuedRepository = await this.enqueueOrMarkFailed({
       workspaceId,
       repositoryId: repository.id,
-      userId,
       branch: dto.branch ?? repository.defaultBranch,
+      userId,
+      operation: 'retry',
     });
 
-    return this.toResponse(updated);
+    return this.toResponse(queuedRepository ?? updated);
+  }
+
+  private async enqueueOrMarkFailed(params: {
+    workspaceId: string;
+    repositoryId: string;
+    userId: string;
+    branch: string;
+    operation: 'initial' | 'retry';
+  }): Promise<Repository | null> {
+    try {
+      if (params.operation === 'initial') {
+        await this.repositoryIndexingQueueService.enqueueInitialIndexing({
+          workspaceId: params.workspaceId,
+          repositoryId: params.repositoryId,
+          userId: params.userId,
+          branch: params.branch,
+        });
+      } else {
+        await this.repositoryIndexingQueueService.enqueueRetryIndexing({
+          workspaceId: params.workspaceId,
+          repositoryId: params.repositoryId,
+          userId: params.userId,
+          branch: params.branch,
+        });
+      }
+      return null;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Queue is unavailable';
+      this.logger.error(
+        `Failed to enqueue repository indexing (${params.operation}) for ${params.repositoryId}: ${message}`,
+      );
+      return this.repositoriesRepository.updateStatus(
+        params.workspaceId,
+        params.repositoryId,
+        {
+          status: RepositoryStatus.FAILED,
+          indexingError:
+            'Indexing queue is currently unavailable. Please retry in a moment.',
+          lastIndexedAt: null,
+        },
+      );
+    }
   }
 
   private async findRepositoryInWorkspace(

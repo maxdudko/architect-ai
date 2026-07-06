@@ -12,7 +12,7 @@ function getCorsOrigins(): string | string[] {
 
   const origins = configured
     .split(',')
-    .map((origin) => origin.trim())
+    .map((origin: string) => origin.trim())
     .filter(Boolean);
 
   return origins.length === 1 ? origins[0] : origins;

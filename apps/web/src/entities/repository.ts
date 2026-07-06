@@ -1,5 +1,12 @@
 export type RepositoryProvider = 'GITHUB' | 'GITLAB' | 'BITBUCKET';
-export type RepositoryStatus = 'PENDING' | 'CLONING' | 'PARSING' | 'EMBEDDING' | 'READY' | 'FAILED';
+export type RepositoryStatus =
+  | 'PENDING'
+  | 'CLONING'
+  | 'PARSING'
+  | 'CHUNKING'
+  | 'EMBEDDING'
+  | 'READY'
+  | 'FAILED';
 
 export interface Repository {
   id: string;

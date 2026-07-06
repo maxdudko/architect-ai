@@ -4,17 +4,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import type { RepositoryStatus } from '@/entities';
 import { useAuth } from '@/providers/auth-provider';
 import {
-  Badge,
   Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-  ConfirmationDialog,
   Input,
   Skeleton,
 } from '@/shared/components';
@@ -25,10 +22,12 @@ import {
   useGithubConnectionQuery,
   useGithubConnectUrlMutation,
   useGithubRepositoriesQuery,
+  useReindexRepositoryMutation,
   useRepositoriesQuery,
   useRetryRepositoryIndexingMutation,
 } from '../services/repository.service';
 import { canManageRepositories } from '../utils/repository-permissions';
+import { RepositoryRow } from './repository-row';
 
 const GITHUB_RECONNECT_REQUIRED_CODE = 'GITHUB_RECONNECT_REQUIRED';
 
@@ -60,6 +59,7 @@ export function RepositoriesList() {
   const createMutation = useCreateRepositoryMutation(workspaceId);
   const deleteMutation = useDeleteRepositoryMutation(workspaceId);
   const retryMutation = useRetryRepositoryIndexingMutation(workspaceId);
+  const reindexMutation = useReindexRepositoryMutation(workspaceId);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [repoSearch, setRepoSearch] = useState('');
   const [cursor, setCursor] = useState<string | undefined>(undefined);
@@ -128,25 +128,6 @@ export function RepositoriesList() {
     void refetchGithubConnection();
   }, [reconnectRequired, refetchGithubConnection]);
 
-  const statusLabel = (status: RepositoryStatus): string => {
-    switch (status) {
-      case 'PENDING':
-        return 'Pending';
-      case 'CLONING':
-        return 'Cloning';
-      case 'PARSING':
-        return 'Parsing';
-      case 'EMBEDDING':
-        return 'Embedding';
-      case 'READY':
-        return 'Ready';
-      case 'FAILED':
-        return 'Failed';
-      default:
-        return status;
-    }
-  };
-
   if (!workspaceId) {
     return (
       <Card>
@@ -182,13 +163,16 @@ export function RepositoriesList() {
               </Button>
               {githubConnectionQuery.data?.connected ? (
                 <>
-                  <Badge variant="outline">Connected as {githubConnectionQuery.data.login}</Badge>
+                  <p className="text-sm text-muted-foreground">
+                    Connected as {githubConnectionQuery.data.login}
+                  </p>
                   <Button
                     type="button"
                     variant="outline"
                     disabled={disconnectGithubMutation.isPending}
                     onClick={async () => {
                       await disconnectGithubMutation.mutateAsync();
+                      toast.success('GitHub account disconnected.');
                     }}
                   >
                     Disconnect GitHub
@@ -236,7 +220,9 @@ export function RepositoriesList() {
                               name: repository.name,
                               fullName: repository.fullName,
                               defaultBranch: repository.defaultBranch,
+                              indexBranch: repository.defaultBranch,
                             });
+                            toast.success(`Connected ${repository.fullName}. Indexing started.`);
                           } catch (error) {
                             if (isGithubReconnectRequired(error)) {
                               setErrorMessage(
@@ -247,6 +233,9 @@ export function RepositoriesList() {
                               return;
                             }
                             setErrorMessage(
+                              'Unable to connect selected repository. It may already be linked.',
+                            );
+                            toast.error(
                               'Unable to connect selected repository. It may already be linked.',
                             );
                           }
@@ -293,51 +282,46 @@ export function RepositoriesList() {
             <p className="text-sm text-muted-foreground">No repositories connected yet.</p>
           ) : null}
           {query.data?.map((repository) => (
-            <div
+            <RepositoryRow
               key={repository.id}
-              className="flex items-center justify-between rounded-md border border-border/70 px-3 py-2"
-            >
-              <div>
-                <p className="font-medium">{repository.fullName}</p>
-                <p className="text-xs text-muted-foreground">
-                  {repository.provider} · {repository.defaultBranch}
-                </p>
-                {repository.indexingError ? (
-                  <p className="mt-1 text-xs text-destructive">{repository.indexingError}</p>
-                ) : null}
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">{statusLabel(repository.status)}</Badge>
-                {canManage && repository.status === 'FAILED' ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={retryMutation.isPending}
-                    onClick={async () => {
-                      await retryMutation.mutateAsync(repository.id);
-                    }}
-                  >
-                    Retry
-                  </Button>
-                ) : null}
-                {canManage ? (
-                  <ConfirmationDialog
-                    title="Disconnect repository?"
-                    description={`Remove ${repository.fullName} from this workspace.`}
-                    confirmText="Disconnect"
-                    destructive
-                    onConfirm={async () => {
-                      await deleteMutation.mutateAsync(repository.id);
-                    }}
-                    trigger={
-                      <Button variant="outline" size="sm" disabled={deleteMutation.isPending}>
-                        Disconnect
-                      </Button>
-                    }
-                  />
-                ) : null}
-              </div>
-            </div>
+              repository={repository}
+              canManage={canManage}
+              isRetryPending={retryMutation.isPending}
+              isReindexPending={reindexMutation.isPending}
+              isDeletePending={deleteMutation.isPending}
+              onRetry={async (repositoryId, branch) => {
+                try {
+                  await retryMutation.mutateAsync({ repositoryId, branch });
+                  toast.success('Repository indexing retry started.');
+                } catch (error) {
+                  if (isGithubReconnectRequired(error)) {
+                    toast.error('GitHub authorization expired. Please reconnect GitHub.');
+                    return;
+                  }
+                  toast.error('Unable to retry indexing for this repository.');
+                }
+              }}
+              onReindex={async (repositoryId, branch) => {
+                try {
+                  await reindexMutation.mutateAsync({ repositoryId, branch });
+                  toast.success('Repository reindex started.');
+                } catch (error) {
+                  if (isGithubReconnectRequired(error)) {
+                    toast.error('GitHub authorization expired. Please reconnect GitHub.');
+                    return;
+                  }
+                  toast.error('Unable to start repository reindex.');
+                }
+              }}
+              onDisconnect={async (repositoryId) => {
+                try {
+                  await deleteMutation.mutateAsync(repositoryId);
+                  toast.success('Repository disconnected.');
+                } catch {
+                  toast.error('Unable to disconnect repository.');
+                }
+              }}
+            />
           ))}
         </CardContent>
       </Card>
