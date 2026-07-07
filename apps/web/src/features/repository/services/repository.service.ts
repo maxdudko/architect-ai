@@ -21,6 +21,8 @@ export const REPOSITORY_QUERY_KEYS = {
     ['integrations', 'github', 'repositories', workspaceId, cursor ?? null] as const,
 };
 
+const ACTIVE_INDEXING_STATES = new Set(['PENDING', 'CLONING', 'PARSING', 'EMBEDDING']);
+
 export function useRepositoriesQuery(workspaceId: string) {
   return useQuery({
     queryKey: REPOSITORY_QUERY_KEYS.list(workspaceId),
