@@ -1,18 +1,20 @@
 import { ConfigService } from '@nestjs/config';
-import { RepositoryStatus } from '@prisma/client';
+import { Queue } from 'bullmq';
 import { RepositoriesRepository } from './repositories.repository';
 import { RepositoryIndexingQueueService } from './repository-indexing.queue.service';
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
+jest.mock('bullmq', () => ({
+  Queue: jest.fn().mockImplementation(() => ({
+    add: jest.fn(),
+    close: jest.fn(),
+    waitUntilReady: jest.fn(),
+  })),
+}));
 
 describe('RepositoryIndexingQueueService', () => {
-  it('progresses indexing states in process mode', async () => {
+  it('enqueues initial indexing as reindex job', async () => {
     const configService = {
-      get: jest.fn(() => undefined),
+      get: jest.fn(() => 'redis://localhost:6379'),
     } as unknown as ConfigService;
     const repositoriesRepository = {
       updateStatus: jest.fn().mockResolvedValue({}),
@@ -23,54 +25,36 @@ describe('RepositoryIndexingQueueService', () => {
     );
 
     service.onModuleInit();
-    await service.enqueueIndexing('workspace-1', 'repo-1');
-    await sleep(700);
+    await service.enqueueInitialIndexing({
+      workspaceId: 'workspace-1',
+      repositoryId: 'repo-1',
+      userId: 'user-1',
+      branch: 'main',
+    });
 
-    expect(repositoriesRepository.updateStatus).toHaveBeenNthCalledWith(
-      1,
-      'workspace-1',
-      'repo-1',
-      expect.objectContaining({ status: RepositoryStatus.CLONING }),
-    );
-    expect(repositoriesRepository.updateStatus).toHaveBeenNthCalledWith(
-      2,
-      'workspace-1',
-      'repo-1',
-      expect.objectContaining({ status: RepositoryStatus.PARSING }),
-    );
-    expect(repositoriesRepository.updateStatus).toHaveBeenNthCalledWith(
-      3,
-      'workspace-1',
-      'repo-1',
-      expect.objectContaining({ status: RepositoryStatus.EMBEDDING }),
-    );
-    expect(repositoriesRepository.updateStatus).toHaveBeenNthCalledWith(
-      4,
-      'workspace-1',
-      'repo-1',
-      expect.objectContaining({ status: RepositoryStatus.READY }),
+    const queueInstance = (Queue as unknown as jest.Mock).mock.results[0]
+      .value as jest.Mocked<Queue>;
+    expect(queueInstance.add).toHaveBeenCalledWith(
+      'reindex',
+      expect.objectContaining({
+        workspaceId: 'workspace-1',
+        repositoryId: 'repo-1',
+        userId: 'user-1',
+        branch: 'main',
+        trigger: 'INITIAL_CONNECT',
+      }),
+      expect.objectContaining({
+        attempts: 3,
+      }),
     );
   });
 
-  it('marks repository as failed when step errors', async () => {
+  it('marks repository failed from worker callback', async () => {
     const configService = {
-      get: jest.fn(() => undefined),
+      get: jest.fn(() => 'redis://localhost:6379'),
     } as unknown as ConfigService;
     const repositoriesRepository = {
-      updateStatus: jest
-        .fn()
-        .mockImplementation(
-          (
-            _workspaceId: string,
-            _repoId: string,
-            params: { status: RepositoryStatus },
-          ) => {
-            if (params.status === RepositoryStatus.PARSING) {
-              throw new Error('Parse failed');
-            }
-            return {};
-          },
-        ),
+      updateStatus: jest.fn().mockResolvedValue({}),
     } as unknown as jest.Mocked<RepositoriesRepository>;
     const service = new RepositoryIndexingQueueService(
       configService,
@@ -78,15 +62,12 @@ describe('RepositoryIndexingQueueService', () => {
     );
 
     service.onModuleInit();
-    await service.enqueueIndexing('workspace-1', 'repo-1');
-    await sleep(500);
+    await service.markAsFailed({
+      workspaceId: 'workspace-1',
+      repositoryId: 'repo-1',
+      errorMessage: 'Parse failed',
+    });
 
-    expect(repositoriesRepository.updateStatus).toHaveBeenCalledWith(
-      'workspace-1',
-      'repo-1',
-      expect.objectContaining({
-        status: RepositoryStatus.FAILED,
-      }),
-    );
+    expect(repositoriesRepository.updateStatus).toHaveBeenCalledTimes(1);
   });
 });

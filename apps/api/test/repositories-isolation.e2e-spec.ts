@@ -178,4 +178,32 @@ describeE2e('Repository isolation (e2e)', () => {
 
     expect(remaining).toHaveLength(0);
   });
+
+  it('reconnects a previously disconnected repository in the same workspace', async () => {
+    const auth = await signUp(app);
+    const payload = buildRepositoryPayload();
+
+    const repository = await connectRepository(
+      app,
+      auth.accessToken,
+      auth.activeWorkspace.id,
+      payload,
+    );
+
+    await request(app.getHttpServer())
+      .delete(
+        `/workspaces/${auth.activeWorkspace.id}/repositories/${repository.id}`,
+      )
+      .set(authHeader(auth.accessToken))
+      .expect(200);
+
+    const { body: reconnected } = await request(app.getHttpServer())
+      .post(`/workspaces/${auth.activeWorkspace.id}/repositories`)
+      .set(authHeader(auth.accessToken))
+      .send(payload)
+      .expect(201);
+
+    assertRepository(reconnected);
+    expect(reconnected.id).toBe(repository.id);
+  });
 });

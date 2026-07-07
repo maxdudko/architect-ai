@@ -47,4 +47,17 @@ export class CreateRepositoryDto {
     message: 'defaultBranch contains invalid characters',
   })
   defaultBranch?: string;
+
+  @ApiPropertyOptional({
+    example: 'main',
+    description: 'Optional branch to index instead of default branch',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(255)
+  @Matches(/^[A-Za-z0-9._/-]+$/, {
+    message: 'indexBranch contains invalid characters',
+  })
+  indexBranch?: string;
 }

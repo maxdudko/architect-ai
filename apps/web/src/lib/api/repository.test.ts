@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from './axios';
-import { retryRepositoryIndexing } from './repository';
+import { reindexRepository, retryRepositoryIndexing } from './repository';
 
 vi.mock('./axios', () => ({
   apiClient: {
@@ -39,5 +39,63 @@ describe('repository api client', () => {
       {},
     );
     expect(response.status).toBe('PENDING');
+  });
+
+  it('retries indexing with an optional branch payload', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      data: {
+        id: 'repo-1',
+        workspaceId: 'workspace-1',
+        provider: 'GITHUB',
+        externalId: '123',
+        owner: 'acme',
+        name: 'platform',
+        fullName: 'acme/platform',
+        defaultBranch: 'main',
+        status: 'PENDING',
+        lastIndexedAt: null,
+        indexingError: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    });
+
+    await retryRepositoryIndexing('workspace-1', 'repo-1', {
+      branch: 'release/2026.07',
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/workspaces/workspace-1/repositories/repo-1/retry',
+      { branch: 'release/2026.07' },
+    );
+  });
+
+  it('starts manual reindexing with an optional branch payload', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      data: {
+        id: 'repo-1',
+        workspaceId: 'workspace-1',
+        provider: 'GITHUB',
+        externalId: '123',
+        owner: 'acme',
+        name: 'platform',
+        fullName: 'acme/platform',
+        defaultBranch: 'main',
+        status: 'PENDING',
+        lastIndexedAt: null,
+        indexingError: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    });
+
+    await reindexRepository('workspace-1', 'repo-1', {
+      branch: 'release/2026.07',
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/workspaces/workspace-1/repositories/repo-1/reindex',
+      { branch: 'release/2026.07' },
+    );
   });
 });

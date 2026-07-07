@@ -70,6 +70,20 @@ export class MembershipsRepository {
     });
   }
 
+  async listActiveUserIdsByWorkspace(workspaceId: string): Promise<string[]> {
+    const memberships = await this.prisma.membership.findMany({
+      where: {
+        workspaceId,
+        status: MembershipStatus.ACTIVE,
+      },
+      select: {
+        userId: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    return memberships.map((membership) => membership.userId);
+  }
+
   async setRoleAndStatus(
     workspaceId: string,
     userId: string,
