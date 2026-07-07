@@ -203,9 +203,7 @@ export class RepositoryIndexingQueueService
   }
 
   private buildJobId(...parts: string[]): string {
-    return parts
-      .map((part) => this.sanitizeJobIdPart(part))
-      .join('__');
+    return parts.map((part) => this.sanitizeJobIdPart(part)).join('__');
   }
 
   private sanitizeJobIdPart(value: string): string {

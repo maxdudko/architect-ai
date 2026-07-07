@@ -9,21 +9,44 @@ import { IndexingStorageService } from './indexing-storage.service';
 import { RepositoryCloneService } from './repository-clone.service';
 
 jest.mock('node:child_process', () => {
-  const actual = jest.requireActual('node:child_process');
-  const execFile = jest.fn();
+  const actual =
+    jest.requireActual<typeof import('node:child_process')>(
+      'node:child_process',
+    );
   return {
     ...actual,
-    execFile,
-    __mockExecFile: execFile,
+    execFile: jest.fn(),
   };
 });
 
-jest.mock('node:fs/promises', () => ({
-  ...jest.requireActual('node:fs/promises'),
-  writeFile: jest.fn().mockResolvedValue(undefined),
-  chmod: jest.fn().mockResolvedValue(undefined),
-  rm: jest.fn().mockResolvedValue(undefined),
-}));
+jest.mock('node:fs/promises', () => {
+  const actual =
+    jest.requireActual<typeof import('node:fs/promises')>('node:fs/promises');
+  return {
+    ...actual,
+    writeFile: jest.fn().mockResolvedValue(undefined),
+    chmod: jest.fn().mockResolvedValue(undefined),
+    rm: jest.fn().mockResolvedValue(undefined),
+  };
+});
+
+type ExecFileCallback = (
+  error: Error | null,
+  stdout: string,
+  stderr: string,
+) => void;
+
+function invokeExecCallback(
+  callback: ExecFileCallback | undefined,
+  error: Error | null,
+  stdout = '',
+  stderr = '',
+): childProcess.ChildProcess {
+  if (callback) {
+    callback(error, stdout, stderr);
+  }
+  return {} as childProcess.ChildProcess;
+}
 
 describe('RepositoryCloneService', () => {
   const repository = {
@@ -48,13 +71,14 @@ describe('RepositoryCloneService', () => {
   let githubAccessTokenService: jest.Mocked<GithubAccessTokenService>;
   let membershipsRepository: jest.Mocked<MembershipsRepository>;
   let storageService: jest.Mocked<IndexingStorageService>;
-  let mockExecFile: jest.Mock;
+  let mockExecFile: jest.MockedFunction<typeof childProcess.execFile>;
   let service: RepositoryCloneService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockExecFile = (childProcess as unknown as { __mockExecFile: jest.Mock })
-      .__mockExecFile;
+    mockExecFile = childProcess.execFile as jest.MockedFunction<
+      typeof childProcess.execFile
+    >;
 
     configService = {
       get: jest.fn((key: string) =>
@@ -96,12 +120,14 @@ describe('RepositoryCloneService', () => {
 
   it('clones using branch override without embedding token in URL', async () => {
     mockExecFile
-      .mockImplementationOnce((_file, _args, options, callback) => {
-        callback?.(null, '', '');
-      })
-      .mockImplementationOnce((_file, _args, options, callback) => {
-        callback?.(null, 'abc123\n', '');
-      });
+      .mockImplementationOnce(
+        (_file, _args, _options, callback?: ExecFileCallback) =>
+          invokeExecCallback(callback, null, '', ''),
+      )
+      .mockImplementationOnce(
+        (_file, _args, _options, callback?: ExecFileCallback) =>
+          invokeExecCallback(callback, null, 'abc123\n', ''),
+      );
 
     const result = await service.cloneRepository({
       workspaceId: 'workspace-1',
@@ -144,9 +170,10 @@ describe('RepositoryCloneService', () => {
     const timeoutError = Object.assign(new Error('timed out'), {
       code: 'ETIMEDOUT',
     });
-    mockExecFile.mockImplementationOnce((_file, _args, options, callback) => {
-      callback?.(timeoutError, '', '');
-    });
+    mockExecFile.mockImplementationOnce(
+      (_file, _args, _options, callback?: ExecFileCallback) =>
+        invokeExecCallback(callback, timeoutError, '', ''),
+    );
 
     await expect(
       service.cloneRepository({
@@ -162,13 +189,15 @@ describe('RepositoryCloneService', () => {
   });
 
   it('maps missing git executable to runtime setup error', async () => {
-    mockExecFile.mockImplementationOnce((_file, _args, options, callback) => {
-      callback?.(
-        new Error("ENOENT: no such file or directory, spawn 'git'"),
-        '',
-        '',
-      );
-    });
+    mockExecFile.mockImplementationOnce(
+      (_file, _args, _options, callback?: ExecFileCallback) =>
+        invokeExecCallback(
+          callback,
+          new Error("ENOENT: no such file or directory, spawn 'git'"),
+          '',
+          '',
+        ),
+    );
 
     await expect(
       service.cloneRepository({
@@ -185,15 +214,21 @@ describe('RepositoryCloneService', () => {
 
   it('falls back to another workspace member token when first is unavailable', async () => {
     githubAccessTokenService.executeWithAccessToken
-      .mockRejectedValueOnce(new NotFoundException('GitHub account is not connected'))
-      .mockImplementationOnce(async (_userId, operation) => operation('gh-token-2'));
+      .mockRejectedValueOnce(
+        new NotFoundException('GitHub account is not connected'),
+      )
+      .mockImplementationOnce(async (_userId, operation) =>
+        operation('gh-token-2'),
+      );
     mockExecFile
-      .mockImplementationOnce((_file, _args, _options, callback) => {
-        callback?.(null, '', '');
-      })
-      .mockImplementationOnce((_file, _args, _options, callback) => {
-        callback?.(null, 'def456\n', '');
-      });
+      .mockImplementationOnce(
+        (_file, _args, _options, callback?: ExecFileCallback) =>
+          invokeExecCallback(callback, null, '', ''),
+      )
+      .mockImplementationOnce(
+        (_file, _args, _options, callback?: ExecFileCallback) =>
+          invokeExecCallback(callback, null, 'def456\n', ''),
+      );
 
     const result = await service.cloneRepository({
       workspaceId: 'workspace-1',
@@ -203,16 +238,12 @@ describe('RepositoryCloneService', () => {
       trigger: 'MANUAL_RETRY',
     });
 
-    expect(githubAccessTokenService.executeWithAccessToken).toHaveBeenNthCalledWith(
-      1,
-      'user-1',
-      expect.any(Function),
-    );
-    expect(githubAccessTokenService.executeWithAccessToken).toHaveBeenNthCalledWith(
-      2,
-      'user-2',
-      expect.any(Function),
-    );
+    expect(
+      githubAccessTokenService.executeWithAccessToken,
+    ).toHaveBeenNthCalledWith(1, 'user-1', expect.any(Function));
+    expect(
+      githubAccessTokenService.executeWithAccessToken,
+    ).toHaveBeenNthCalledWith(2, 'user-2', expect.any(Function));
     expect(result.commitSha).toBe('def456');
   });
 });

@@ -3,10 +3,7 @@
 import { LoaderCircle } from 'lucide-react';
 import type { RepositoryStatus } from '@/entities';
 import { Badge } from '@/shared/components';
-import {
-  getRepositoryStatusLabel,
-  isRepositoryIndexingActive,
-} from '../utils/repository-status';
+import { getRepositoryStatusLabel, isRepositoryIndexingActive } from '../utils/repository-status';
 
 interface RepositoryStatusBadgeProps {
   status: RepositoryStatus;

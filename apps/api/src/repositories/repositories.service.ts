@@ -364,9 +364,7 @@ export class RepositoriesService {
   }
 
   private assertNotIndexingInProgress(repository: Repository): void {
-    if (
-      RepositoriesService.ACTIVE_INDEXING_STATUSES.has(repository.status)
-    ) {
+    if (RepositoriesService.ACTIVE_INDEXING_STATUSES.has(repository.status)) {
       throw new ConflictException(
         'Repository indexing is already in progress for this repository',
       );

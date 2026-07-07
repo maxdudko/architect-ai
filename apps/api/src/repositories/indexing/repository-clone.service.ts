@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RepositoryProvider } from '@prisma/client';
 import { execFile } from 'node:child_process';
@@ -59,13 +63,16 @@ export class RepositoryCloneService {
     let lastError: unknown = null;
 
     for (const candidateUserId of candidateUserIds) {
-      const askPassPath = path.join(runDirectory, `.git-askpass-${candidateUserId}.sh`);
+      const askPassPath = path.join(
+        runDirectory,
+        `.git-askpass-${candidateUserId}.sh`,
+      );
       try {
         await rm(clonePath, { recursive: true, force: true });
         const accessToken =
           await this.githubAccessTokenService.executeWithAccessToken(
             candidateUserId,
-            async (token) => token,
+            (token) => Promise.resolve(token),
           );
         await this.writeAskPassScript(askPassPath, accessToken);
         await this.execFileAsync(
@@ -80,9 +87,13 @@ export class RepositoryCloneService {
             },
           },
         );
-        const { stdout } = await this.execFileAsync('git', ['rev-parse', 'HEAD'], {
-          cwd: clonePath,
-        });
+        const { stdout } = await this.execFileAsync(
+          'git',
+          ['rev-parse', 'HEAD'],
+          {
+            cwd: clonePath,
+          },
+        );
 
         return {
           clonePath,
@@ -108,7 +119,7 @@ export class RepositoryCloneService {
           lastError = error;
           continue;
         }
-        throw error;
+        throw this.toError(error);
       } finally {
         await rm(askPassPath, { force: true });
       }
@@ -120,11 +131,12 @@ export class RepositoryCloneService {
       );
     }
 
-    throw (
-      lastError ??
-      new Error(
-        'Repository clone failed because no workspace member has a valid GitHub authorization for this repository.',
-      )
+    if (lastError) {
+      throw this.toError(lastError);
+    }
+
+    throw new Error(
+      'Repository clone failed because no workspace member has a valid GitHub authorization for this repository.',
     );
   }
 
@@ -133,7 +145,9 @@ export class RepositoryCloneService {
     preferredUserId: string,
   ): Promise<string[]> {
     const workspaceUserIds =
-      await this.membershipsRepository.listActiveUserIdsByWorkspace(workspaceId);
+      await this.membershipsRepository.listActiveUserIdsByWorkspace(
+        workspaceId,
+      );
     const candidates = [preferredUserId, ...workspaceUserIds];
     return [...new Set(candidates)];
   }
@@ -142,7 +156,9 @@ export class RepositoryCloneService {
     return (
       error instanceof Error &&
       (error.message.includes('spawn git ENOENT') ||
-        error.message.includes("ENOENT: no such file or directory, spawn 'git'"))
+        error.message.includes(
+          "ENOENT: no such file or directory, spawn 'git'",
+        ))
     );
   }
 
@@ -197,7 +213,7 @@ esac
     return new Promise((resolve, reject) => {
       execFile(command, args, options ?? {}, (error, stdout, stderr) => {
         if (error) {
-          reject(error);
+          reject(this.toError(error));
           return;
         }
         resolve({
@@ -206,5 +222,15 @@ esac
         });
       });
     });
+  }
+
+  private toError(error: unknown): Error {
+    if (error instanceof Error) {
+      return error;
+    }
+    if (typeof error === 'string') {
+      return new Error(error);
+    }
+    return new Error('Unknown repository clone error');
   }
 }

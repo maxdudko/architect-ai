@@ -191,7 +191,9 @@ describeE2e('Repository isolation (e2e)', () => {
     );
 
     await request(app.getHttpServer())
-      .delete(`/workspaces/${auth.activeWorkspace.id}/repositories/${repository.id}`)
+      .delete(
+        `/workspaces/${auth.activeWorkspace.id}/repositories/${repository.id}`,
+      )
       .set(authHeader(auth.accessToken))
       .expect(200);
 

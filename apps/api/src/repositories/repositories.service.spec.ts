@@ -131,7 +131,9 @@ describe('RepositoriesService', () => {
 
   it('queues indexing after connecting a repository', async () => {
     repositoriesRepository.findByProviderAndExternalId.mockResolvedValue(null);
-    repositoriesRepository.findAnyByProviderAndExternalId.mockResolvedValue(null);
+    repositoriesRepository.findAnyByProviderAndExternalId.mockResolvedValue(
+      null,
+    );
     repositoriesRepository.create.mockResolvedValue(repository);
     githubHttpService.getRepositoryById.mockResolvedValue({
       id: 123,
@@ -168,12 +170,15 @@ describe('RepositoriesService', () => {
 
   it('marks repository as failed when initial enqueue fails', async () => {
     repositoriesRepository.findByProviderAndExternalId.mockResolvedValue(null);
-    repositoriesRepository.findAnyByProviderAndExternalId.mockResolvedValue(null);
+    repositoriesRepository.findAnyByProviderAndExternalId.mockResolvedValue(
+      null,
+    );
     repositoriesRepository.create.mockResolvedValue(repository);
     repositoriesRepository.updateStatus.mockResolvedValue({
       ...repository,
       status: RepositoryStatus.FAILED,
-      indexingError: 'Indexing queue is currently unavailable. Please retry in a moment.',
+      indexingError:
+        'Indexing queue is currently unavailable. Please retry in a moment.',
     });
     githubHttpService.getRepositoryById.mockResolvedValue({
       id: 123,
@@ -316,15 +321,21 @@ describe('RepositoriesService', () => {
       .mockResolvedValueOnce({
         ...repository,
         status: RepositoryStatus.FAILED,
-        indexingError: 'Indexing queue is currently unavailable. Please retry in a moment.',
+        indexingError:
+          'Indexing queue is currently unavailable. Please retry in a moment.',
       });
     repositoryIndexingQueueService.enqueueRetryIndexing.mockRejectedValue(
       new Error('Repository indexing queue is unavailable'),
     );
 
-    const response = await service.retryIndexing(workspaceA, repositoryId, 'user-1', {
-      branch: 'develop',
-    });
+    const response = await service.retryIndexing(
+      workspaceA,
+      repositoryId,
+      'user-1',
+      {
+        branch: 'develop',
+      },
+    );
 
     expect(repositoriesRepository.updateStatus).toHaveBeenNthCalledWith(
       2,

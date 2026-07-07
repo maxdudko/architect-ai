@@ -67,9 +67,7 @@ export function RepositoryActions({
               size="sm"
               disabled={isDeletePending || !visibility.allowDisconnect}
               title={
-                visibility.allowDisconnect
-                  ? undefined
-                  : 'Disconnect is disabled during indexing'
+                visibility.allowDisconnect ? undefined : 'Disconnect is disabled during indexing'
               }
             >
               Disconnect
