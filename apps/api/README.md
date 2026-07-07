@@ -72,3 +72,32 @@ pnpm --filter api prisma:generate
 pnpm --filter api prisma:migrate:dev
 pnpm --filter api prisma:seed
 ```
+
+## Testing
+
+Unit tests:
+
+```bash
+pnpm --filter api test
+```
+
+### End-to-end tests
+
+> ⚠️ The e2e suite runs migrations and `TRUNCATE`s every table. It must run
+> against a **dedicated, throwaway test database** — never your working DB.
+
+Provide a `TEST_DATABASE_URL` (preferred) or a `DATABASE_URL` whose database
+name contains `test`. The suite promotes `TEST_DATABASE_URL` to `DATABASE_URL`
+automatically and refuses to run against any database that doesn't look like a
+test database. Create the database once, then run the suite:
+
+```bash
+# one-time: create the throwaway test database
+createdb architect-ai-test-db
+
+TEST_DATABASE_URL="postgresql://architect-ai-user:architect-ai-password@localhost:5433/architect-ai-test-db?schema=public" \
+  pnpm --filter api test:e2e
+```
+
+To bypass the safety check (e.g. in CI with an ephemeral database), set
+`E2E_ALLOW_NON_TEST_DB=true`.
