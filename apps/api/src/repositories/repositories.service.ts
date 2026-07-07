@@ -54,14 +54,14 @@ export class RepositoriesService {
     userId: string,
     dto: CreateRepositoryDto,
   ): Promise<RepositoryResponseDto> {
-    const existing =
+    const existingActive =
       await this.repositoriesRepository.findByProviderAndExternalId(
         dto.provider,
         dto.externalId,
       );
 
-    if (existing) {
-      if (existing.workspaceId === workspaceId) {
+    if (existingActive) {
+      if (existingActive.workspaceId === workspaceId) {
         throw new ConflictException(
           'This repository is already connected to this workspace',
         );
@@ -72,14 +72,42 @@ export class RepositoriesService {
     }
 
     const metadata = await this.resolveRepositoryMetadata(userId, dto);
-    const repository = await this.repositoriesRepository.create(workspaceId, {
-      provider: dto.provider,
-      externalId: dto.externalId,
-      owner: metadata.owner,
-      name: metadata.name,
-      fullName: metadata.fullName,
-      defaultBranch: metadata.defaultBranch,
-    });
+    const existing =
+      await this.repositoriesRepository.findAnyByProviderAndExternalId(
+        dto.provider,
+        dto.externalId,
+      );
+
+    if (existing?.deletedAt && existing.workspaceId !== workspaceId) {
+      throw new ConflictException(
+        'This repository is already connected to another workspace',
+      );
+    }
+
+    const repository = existing?.deletedAt
+      ? await this.repositoriesRepository.restore(workspaceId, existing.id, {
+          owner: metadata.owner,
+          name: metadata.name,
+          fullName: metadata.fullName,
+          defaultBranch: metadata.defaultBranch,
+          status: RepositoryStatus.PENDING,
+          lastIndexedAt: null,
+          indexingError: null,
+        })
+      : await this.repositoriesRepository.create(workspaceId, {
+          provider: dto.provider,
+          externalId: dto.externalId,
+          owner: metadata.owner,
+          name: metadata.name,
+          fullName: metadata.fullName,
+          defaultBranch: metadata.defaultBranch,
+        });
+
+    if (!repository) {
+      throw new ConflictException(
+        'This repository is already connected to another workspace',
+      );
+    }
 
     const queuedRepository = await this.enqueueOrMarkFailed({
       workspaceId,

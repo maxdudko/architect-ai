@@ -39,9 +39,11 @@ describe('RepositoriesService', () => {
       create: jest.fn(),
       findById: jest.fn(),
       findByProviderAndExternalId: jest.fn(),
+      findAnyByProviderAndExternalId: jest.fn(),
       listByWorkspace: jest.fn(),
       update: jest.fn(),
       softDelete: jest.fn(),
+      restore: jest.fn(),
       listExternalIdsByProvider: jest.fn(),
       updateStatus: jest.fn(),
     } as unknown as jest.Mocked<RepositoriesRepository>;
@@ -116,6 +118,7 @@ describe('RepositoriesService', () => {
 
   it('queues indexing after connecting a repository', async () => {
     repositoriesRepository.findByProviderAndExternalId.mockResolvedValue(null);
+    repositoriesRepository.findAnyByProviderAndExternalId.mockResolvedValue(null);
     repositoriesRepository.create.mockResolvedValue(repository);
     githubHttpService.getRepositoryById.mockResolvedValue({
       id: 123,
@@ -152,6 +155,7 @@ describe('RepositoriesService', () => {
 
   it('marks repository as failed when initial enqueue fails', async () => {
     repositoriesRepository.findByProviderAndExternalId.mockResolvedValue(null);
+    repositoriesRepository.findAnyByProviderAndExternalId.mockResolvedValue(null);
     repositoriesRepository.create.mockResolvedValue(repository);
     repositoriesRepository.updateStatus.mockResolvedValue({
       ...repository,
@@ -191,6 +195,56 @@ describe('RepositoriesService', () => {
       }),
     );
     expect(response.status).toBe(RepositoryStatus.FAILED);
+  });
+
+  it('restores a previously disconnected repository in the same workspace', async () => {
+    const deletedRepository = {
+      ...repository,
+      deletedAt: new Date('2026-06-25T00:00:00.000Z'),
+      status: RepositoryStatus.FAILED,
+    };
+
+    repositoriesRepository.findByProviderAndExternalId.mockResolvedValue(null);
+    repositoriesRepository.findAnyByProviderAndExternalId.mockResolvedValue(
+      deletedRepository,
+    );
+    repositoriesRepository.restore.mockResolvedValue({
+      ...repository,
+      status: RepositoryStatus.PENDING,
+      deletedAt: null,
+    });
+    githubHttpService.getRepositoryById.mockResolvedValue({
+      id: 123,
+      name: 'platform-api',
+      full_name: 'acme/platform-api',
+      private: true,
+      default_branch: 'main',
+      owner: {
+        login: 'acme',
+      },
+    });
+    githubAccessTokenService.executeWithAccessToken.mockImplementation(
+      async (_userId, operation) => operation('plain-token'),
+    );
+
+    const result = await service.createRepository(workspaceA, 'user-1', {
+      provider: RepositoryProvider.GITHUB,
+      externalId: '123',
+      owner: 'acme',
+      name: 'platform-api',
+      fullName: 'acme/platform-api',
+    });
+
+    expect(repositoriesRepository.create).not.toHaveBeenCalled();
+    expect(repositoriesRepository.restore).toHaveBeenCalledWith(
+      workspaceA,
+      repository.id,
+      expect.objectContaining({
+        status: RepositoryStatus.PENDING,
+        indexingError: null,
+      }),
+    );
+    expect(result.id).toBe(repository.id);
   });
 
   it('soft deletes only within the requested workspace', async () => {

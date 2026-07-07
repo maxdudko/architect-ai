@@ -1,0 +1,36 @@
+flowchart LR
+  A[User connects repository] --> B[POST /workspaces/:id/repositories]
+  B --> C[RepositoriesService.createRepository]
+  C --> D[Repository status: PENDING]
+  C --> E[Enqueue BullMQ job: reindex]
+
+  E --> F[Worker: processReindex]
+  F --> G[Create IndexingRun RUNNING]
+  F --> H[Set status: CLONING]
+  F --> I[Delete previous artifacts + vectors]
+  F --> J[Enqueue clone]
+
+  J --> K[Worker: processClone]
+  K --> L[git clone --depth 1]
+  L --> M[Set status: PARSING]
+  M --> N[Enqueue parse]
+
+  N --> O[Worker: processParse]
+  O --> P[Walk files + extract symbols]
+  P --> Q[Set status: CHUNKING]
+  Q --> R[Enqueue chunk]
+
+  R --> S[Worker: processChunk]
+  S --> T[Create chunks]
+  T --> U[Set status: EMBEDDING]
+  U --> V[Enqueue embed]
+
+  V --> W[Worker: processEmbed]
+  W --> X[Generate embeddings]
+  X --> Y[Upsert vectors Qdrant]
+  Y --> Z[Set IndexingRun SUCCEEDED]
+  Z --> AA[Set repository READY + lastIndexedAt]
+
+  classDef fail fill:#ffe5e5,stroke:#cc0000,stroke-width:1px;
+  AB[On any stage failure]:::fail --> AC[mark IndexingRun FAILED]:::fail
+  AC --> AD[Set repository FAILED + indexingError]:::fail
