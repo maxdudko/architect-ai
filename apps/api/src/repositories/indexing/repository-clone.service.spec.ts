@@ -1,8 +1,9 @@
 import { ConfigService } from '@nestjs/config';
+import { NotFoundException } from '@nestjs/common';
 import { RepositoryProvider } from '@prisma/client';
 import * as childProcess from 'node:child_process';
 import { GithubAccessTokenService } from '../../integrations/github/github-access-token.service';
-import { GithubHttpService } from '../../integrations/github/github-http.service';
+import { MembershipsRepository } from '../../memberships/memberships.repository';
 import { RepositoriesRepository } from '../repositories.repository';
 import { IndexingStorageService } from './indexing-storage.service';
 import { RepositoryCloneService } from './repository-clone.service';
@@ -45,7 +46,7 @@ describe('RepositoryCloneService', () => {
   let configService: jest.Mocked<ConfigService>;
   let repositoriesRepository: jest.Mocked<RepositoriesRepository>;
   let githubAccessTokenService: jest.Mocked<GithubAccessTokenService>;
-  let githubHttpService: jest.Mocked<GithubHttpService>;
+  let membershipsRepository: jest.Mocked<MembershipsRepository>;
   let storageService: jest.Mocked<IndexingStorageService>;
   let mockExecFile: jest.Mock;
   let service: RepositoryCloneService;
@@ -69,12 +70,11 @@ describe('RepositoryCloneService', () => {
       executeWithAccessToken: jest.fn(),
     } as unknown as jest.Mocked<GithubAccessTokenService>;
 
-    githubHttpService = {
-      getRepositoryById: jest.fn().mockResolvedValue({
-        id: 12345,
-        full_name: 'acme/platform-api',
-      }),
-    } as unknown as jest.Mocked<GithubHttpService>;
+    membershipsRepository = {
+      listActiveUserIdsByWorkspace: jest
+        .fn()
+        .mockResolvedValue(['user-1', 'user-2']),
+    } as unknown as jest.Mocked<MembershipsRepository>;
 
     storageService = {
       enforceStorageLimit: jest.fn().mockResolvedValue(undefined),
@@ -89,7 +89,7 @@ describe('RepositoryCloneService', () => {
       configService,
       repositoriesRepository,
       githubAccessTokenService,
-      githubHttpService,
+      membershipsRepository,
       storageService,
     );
   });
@@ -128,7 +128,7 @@ describe('RepositoryCloneService', () => {
         timeout: 65000,
         env: expect.objectContaining({
           GIT_TERMINAL_PROMPT: '0',
-          GIT_ASKPASS: '/tmp/indexing/run-1/.git-askpass.sh',
+          GIT_ASKPASS: '/tmp/indexing/run-1/.git-askpass-user-1.sh',
         }),
       }),
       expect.any(Function),
@@ -181,5 +181,38 @@ describe('RepositoryCloneService', () => {
     ).rejects.toThrow(
       'Git is not available in the indexing worker runtime. Install git in the worker container.',
     );
+  });
+
+  it('falls back to another workspace member token when first is unavailable', async () => {
+    githubAccessTokenService.executeWithAccessToken
+      .mockRejectedValueOnce(new NotFoundException('GitHub account is not connected'))
+      .mockImplementationOnce(async (_userId, operation) => operation('gh-token-2'));
+    mockExecFile
+      .mockImplementationOnce((_file, _args, _options, callback) => {
+        callback?.(null, '', '');
+      })
+      .mockImplementationOnce((_file, _args, _options, callback) => {
+        callback?.(null, 'def456\n', '');
+      });
+
+    const result = await service.cloneRepository({
+      workspaceId: 'workspace-1',
+      repositoryId: 'repo-1',
+      runId: 'run-1',
+      userId: 'user-1',
+      trigger: 'MANUAL_RETRY',
+    });
+
+    expect(githubAccessTokenService.executeWithAccessToken).toHaveBeenNthCalledWith(
+      1,
+      'user-1',
+      expect.any(Function),
+    );
+    expect(githubAccessTokenService.executeWithAccessToken).toHaveBeenNthCalledWith(
+      2,
+      'user-2',
+      expect.any(Function),
+    );
+    expect(result.commitSha).toBe('def456');
   });
 });
