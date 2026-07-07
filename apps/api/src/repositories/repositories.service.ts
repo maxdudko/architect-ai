@@ -166,43 +166,6 @@ export class RepositoriesService {
     };
   }
 
-  private async resolveRepositoryMetadata(
-    userId: string,
-    dto: CreateRepositoryDto,
-  ): Promise<{
-    owner: string;
-    name: string;
-    fullName: string;
-    defaultBranch: string;
-  }> {
-    if (dto.provider !== RepositoryProvider.GITHUB) {
-      return {
-        owner: dto.owner,
-        name: dto.name,
-        fullName: dto.fullName,
-        defaultBranch: dto.defaultBranch ?? 'main',
-      };
-    }
-
-    const repository =
-      await this.githubAccessTokenService.executeWithAccessToken(
-        userId,
-        (accessToken) =>
-          this.githubHttpService.getRepositoryById(accessToken, dto.externalId),
-      );
-
-    if (!repository.owner?.login || !repository.name || !repository.full_name) {
-      throw new BadRequestException('GitHub repository payload is incomplete');
-    }
-
-    return {
-      owner: repository.owner.login,
-      name: repository.name,
-      fullName: repository.full_name,
-      defaultBranch: repository.default_branch || 'main',
-    };
-  }
-
   async updateRepository(
     workspaceId: string,
     repositoryId: string,
