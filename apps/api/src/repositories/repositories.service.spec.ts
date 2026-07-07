@@ -1,7 +1,12 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { RepositoryProvider, RepositoryStatus } from '@prisma/client';
 import { GithubAccessTokenService } from '../integrations/github/github-access-token.service';
 import { GithubHttpService } from '../integrations/github/github-http.service';
+import { RepositoryEmbeddingService } from './indexing/repository-embedding.service';
 import { RepositoryIndexingQueueService } from './repository-indexing.queue.service';
 import { RepositoriesService } from './repositories.service';
 import { RepositoriesRepository } from './repositories.repository';
@@ -32,6 +37,7 @@ describe('RepositoriesService', () => {
   let repositoryIndexingQueueService: jest.Mocked<RepositoryIndexingQueueService>;
   let githubAccessTokenService: jest.Mocked<GithubAccessTokenService>;
   let githubHttpService: jest.Mocked<GithubHttpService>;
+  let embeddingService: jest.Mocked<RepositoryEmbeddingService>;
   let service: RepositoriesService;
 
   beforeEach(() => {
@@ -51,6 +57,7 @@ describe('RepositoriesService', () => {
     repositoryIndexingQueueService = {
       enqueueInitialIndexing: jest.fn(),
       enqueueRetryIndexing: jest.fn(),
+      enqueueManualReindex: jest.fn(),
       onModuleInit: jest.fn(),
       onModuleDestroy: jest.fn(),
     } as unknown as jest.Mocked<RepositoryIndexingQueueService>;
@@ -68,11 +75,17 @@ describe('RepositoriesService', () => {
       getRepositoryById: jest.fn(),
     } as unknown as jest.Mocked<GithubHttpService>;
 
+    embeddingService = {
+      deleteRepositoryVectors: jest.fn(),
+      embedRepository: jest.fn(),
+    } as unknown as jest.Mocked<RepositoryEmbeddingService>;
+
     service = new RepositoriesService(
       repositoriesRepository,
       repositoryIndexingQueueService,
       githubAccessTokenService,
       githubHttpService,
+      embeddingService,
     );
   });
 
@@ -250,6 +263,7 @@ describe('RepositoriesService', () => {
   it('soft deletes only within the requested workspace', async () => {
     repositoriesRepository.findById.mockResolvedValue(repository);
     repositoriesRepository.softDelete.mockResolvedValue(1);
+    embeddingService.deleteRepositoryVectors.mockResolvedValue();
 
     const result = await service.deleteRepository(workspaceA, repositoryId);
 
@@ -258,10 +272,16 @@ describe('RepositoriesService', () => {
       workspaceA,
       repositoryId,
     );
+    expect(embeddingService.deleteRepositoryVectors).toHaveBeenCalledWith(
+      repositoryId,
+    );
   });
 
   it('queues retry indexing with optional branch', async () => {
-    repositoriesRepository.findById.mockResolvedValue(repository);
+    repositoriesRepository.findById.mockResolvedValue({
+      ...repository,
+      status: RepositoryStatus.FAILED,
+    });
     repositoriesRepository.updateStatus.mockResolvedValue({
       ...repository,
       status: RepositoryStatus.PENDING,
@@ -284,7 +304,10 @@ describe('RepositoriesService', () => {
   });
 
   it('marks retry as failed when queue enqueue fails', async () => {
-    repositoriesRepository.findById.mockResolvedValue(repository);
+    repositoriesRepository.findById.mockResolvedValue({
+      ...repository,
+      status: RepositoryStatus.FAILED,
+    });
     repositoriesRepository.updateStatus
       .mockResolvedValueOnce({
         ...repository,
@@ -312,5 +335,72 @@ describe('RepositoriesService', () => {
       }),
     );
     expect(response.status).toBe(RepositoryStatus.FAILED);
+  });
+
+  it('rejects retry indexing when repository is not failed', async () => {
+    repositoriesRepository.findById.mockResolvedValue({
+      ...repository,
+      status: RepositoryStatus.READY,
+    });
+
+    await expect(
+      service.retryIndexing(workspaceA, repositoryId, 'user-1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repositoriesRepository.updateStatus).not.toHaveBeenCalled();
+    expect(
+      repositoryIndexingQueueService.enqueueRetryIndexing,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('queues manual reindex with optional branch', async () => {
+    repositoriesRepository.findById.mockResolvedValue({
+      ...repository,
+      status: RepositoryStatus.READY,
+    });
+    repositoriesRepository.updateStatus.mockResolvedValue({
+      ...repository,
+      status: RepositoryStatus.PENDING,
+    });
+
+    await service.reindexRepository(workspaceA, repositoryId, 'user-1', {
+      branch: 'release/2026.07',
+    });
+
+    expect(
+      repositoryIndexingQueueService.enqueueManualReindex,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: workspaceA,
+        repositoryId,
+        userId: 'user-1',
+        branch: 'release/2026.07',
+      }),
+    );
+  });
+
+  it('rejects reindex when repository is not ready', async () => {
+    repositoriesRepository.findById.mockResolvedValue({
+      ...repository,
+      status: RepositoryStatus.FAILED,
+    });
+
+    await expect(
+      service.reindexRepository(workspaceA, repositoryId, 'user-1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repositoriesRepository.updateStatus).not.toHaveBeenCalled();
+    expect(
+      repositoryIndexingQueueService.enqueueManualReindex,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('rejects reindex while indexing is active', async () => {
+    repositoriesRepository.findById.mockResolvedValue({
+      ...repository,
+      status: RepositoryStatus.PARSING,
+    });
+
+    await expect(
+      service.reindexRepository(workspaceA, repositoryId, 'user-1'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });

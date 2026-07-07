@@ -78,3 +78,15 @@ export async function retryRepositoryIndexing(
   );
   return data;
 }
+
+export async function reindexRepository(
+  workspaceId: string,
+  repositoryId: string,
+  payload: RetryRepositoryIndexingPayload = {},
+): Promise<Repository> {
+  const { data } = await apiClient.post<Repository>(
+    `/workspaces/${workspaceId}/repositories/${repositoryId}/reindex`,
+    payload,
+  );
+  return data;
+}

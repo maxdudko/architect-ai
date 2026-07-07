@@ -75,6 +75,18 @@ export class RepositoryIndexingQueueService
     });
   }
 
+  async enqueueManualReindex(params: {
+    workspaceId: string;
+    repositoryId: string;
+    userId: string;
+    branch?: string;
+  }): Promise<void> {
+    await this.enqueueReindex({
+      ...params,
+      trigger: 'MANUAL_REINDEX',
+    });
+  }
+
   async enqueueReindex(data: ReindexJobData): Promise<void> {
     if (!this.queue) {
       throw new Error('Repository indexing queue is unavailable');

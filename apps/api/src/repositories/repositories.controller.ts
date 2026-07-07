@@ -114,4 +114,21 @@ export class RepositoriesController {
       dto,
     );
   }
+
+  @Post(':repositoryId/reindex')
+  @ApiOperation({ summary: 'Manually reindex a repository' })
+  @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.MEMBER)
+  reindexRepository(
+    @Param('id') workspaceId: string,
+    @Param('repositoryId') repositoryId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: RetryIndexingDto = {},
+  ): Promise<RepositoryResponseDto> {
+    return this.repositoriesService.reindexRepository(
+      workspaceId,
+      repositoryId,
+      user.sub,
+      dto,
+    );
+  }
 }

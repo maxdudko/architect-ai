@@ -16,18 +16,27 @@ import { CreateRepositoryDto } from './dto/create-repository.dto';
 import { RepositoryResponseDto } from './dto/repository-response.dto';
 import { RetryIndexingDto } from './dto/retry-indexing.dto';
 import { UpdateRepositoryDto } from './dto/update-repository.dto';
+import { RepositoryEmbeddingService } from './indexing/repository-embedding.service';
 import { RepositoryIndexingQueueService } from './repository-indexing.queue.service';
 import { RepositoriesRepository } from './repositories.repository';
 
 @Injectable()
 export class RepositoriesService {
   private readonly logger = new Logger(RepositoriesService.name);
+  private static readonly ACTIVE_INDEXING_STATUSES = new Set<RepositoryStatus>([
+    RepositoryStatus.PENDING,
+    RepositoryStatus.CLONING,
+    RepositoryStatus.PARSING,
+    RepositoryStatus.CHUNKING,
+    RepositoryStatus.EMBEDDING,
+  ]);
 
   constructor(
     private readonly repositoriesRepository: RepositoriesRepository,
     private readonly repositoryIndexingQueueService: RepositoryIndexingQueueService,
     private readonly githubAccessTokenService: GithubAccessTokenService,
     private readonly githubHttpService: GithubHttpService,
+    private readonly embeddingService: RepositoryEmbeddingService,
   ) {}
 
   async listRepositories(
@@ -197,6 +206,16 @@ export class RepositoriesService {
       throw new NotFoundException('Repository not found in this workspace');
     }
 
+    try {
+      await this.embeddingService.deleteRepositoryVectors(repositoryId);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown cleanup failure';
+      this.logger.warn(
+        `Repository ${repositoryId} disconnected but vector cleanup failed: ${message}`,
+      );
+    }
+
     return { success: true };
   }
 
@@ -210,7 +229,51 @@ export class RepositoriesService {
       workspaceId,
       repositoryId,
     );
+    this.assertNotIndexingInProgress(repository);
+    if (repository.status !== RepositoryStatus.FAILED) {
+      throw new BadRequestException(
+        'Retry is only available for failed repositories',
+      );
+    }
 
+    return this.startIndexing(workspaceId, repository, userId, {
+      branch: dto.branch ?? repository.defaultBranch,
+      operation: 'retry',
+    });
+  }
+
+  async reindexRepository(
+    workspaceId: string,
+    repositoryId: string,
+    userId: string,
+    dto: RetryIndexingDto = {},
+  ): Promise<RepositoryResponseDto> {
+    const repository = await this.findRepositoryInWorkspace(
+      workspaceId,
+      repositoryId,
+    );
+    this.assertNotIndexingInProgress(repository);
+    if (repository.status !== RepositoryStatus.READY) {
+      throw new BadRequestException(
+        'Reindex is only available for repositories that are ready',
+      );
+    }
+
+    return this.startIndexing(workspaceId, repository, userId, {
+      branch: dto.branch ?? repository.defaultBranch,
+      operation: 'reindex',
+    });
+  }
+
+  private async startIndexing(
+    workspaceId: string,
+    repository: Repository,
+    userId: string,
+    params: {
+      branch: string;
+      operation: 'retry' | 'reindex';
+    },
+  ): Promise<RepositoryResponseDto> {
     const updated = await this.repositoriesRepository.updateStatus(
       workspaceId,
       repository.id,
@@ -226,9 +289,9 @@ export class RepositoriesService {
     const queuedRepository = await this.enqueueOrMarkFailed({
       workspaceId,
       repositoryId: repository.id,
-      branch: dto.branch ?? repository.defaultBranch,
+      branch: params.branch,
       userId,
-      operation: 'retry',
+      operation: params.operation,
     });
 
     return this.toResponse(queuedRepository ?? updated);
@@ -239,7 +302,7 @@ export class RepositoriesService {
     repositoryId: string;
     userId: string;
     branch: string;
-    operation: 'initial' | 'retry';
+    operation: 'initial' | 'retry' | 'reindex';
   }): Promise<Repository | null> {
     try {
       if (params.operation === 'initial') {
@@ -249,8 +312,15 @@ export class RepositoriesService {
           userId: params.userId,
           branch: params.branch,
         });
-      } else {
+      } else if (params.operation === 'retry') {
         await this.repositoryIndexingQueueService.enqueueRetryIndexing({
+          workspaceId: params.workspaceId,
+          repositoryId: params.repositoryId,
+          userId: params.userId,
+          branch: params.branch,
+        });
+      } else {
+        await this.repositoryIndexingQueueService.enqueueManualReindex({
           workspaceId: params.workspaceId,
           repositoryId: params.repositoryId,
           userId: params.userId,
@@ -291,6 +361,16 @@ export class RepositoriesService {
     }
 
     return repository;
+  }
+
+  private assertNotIndexingInProgress(repository: Repository): void {
+    if (
+      RepositoriesService.ACTIVE_INDEXING_STATUSES.has(repository.status)
+    ) {
+      throw new ConflictException(
+        'Repository indexing is already in progress for this repository',
+      );
+    }
   }
 
   private toResponse(repository: Repository): RepositoryResponseDto {

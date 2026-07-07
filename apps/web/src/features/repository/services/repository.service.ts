@@ -8,6 +8,7 @@ import {
   getGithubConnection,
   listGithubRepositories,
   listRepositories,
+  reindexRepository,
   retryRepositoryIndexing,
   updateRepository,
 } from '@/lib/api';
@@ -155,7 +156,7 @@ export function useReindexRepositoryMutation(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: { repositoryId: string; branch?: string }) =>
-      retryRepositoryIndexing(workspaceId, payload.repositoryId, {
+      reindexRepository(workspaceId, payload.repositoryId, {
         branch: payload.branch,
       }),
     onSuccess: async () => {
