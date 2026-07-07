@@ -34,6 +34,13 @@ export class RepositoryIndexingQueueService
   ) {}
 
   onModuleInit(): void {
+    if (!this.configService.get<string>('REDIS_URL')) {
+      this.logger.warn(
+        'Repository indexing queue disabled: REDIS_URL is not configured',
+      );
+      return;
+    }
+
     try {
       this.queue = new Queue(this.queueName, {
         ...getRedisConnectionFromConfig(this.configService),

@@ -304,6 +304,22 @@ export class RepositoriesService {
     branch: string;
     operation: 'initial' | 'retry' | 'reindex';
   }): Promise<Repository | null> {
+    if (!this.repositoryIndexingQueueService.isReady()) {
+      this.logger.warn(
+        `Repository indexing queue unavailable; marking ${params.repositoryId} as failed (${params.operation})`,
+      );
+      return this.repositoriesRepository.updateStatus(
+        params.workspaceId,
+        params.repositoryId,
+        {
+          status: RepositoryStatus.FAILED,
+          indexingError:
+            'Indexing queue is currently unavailable. Please retry in a moment.',
+          lastIndexedAt: null,
+        },
+      );
+    }
+
     try {
       if (params.operation === 'initial') {
         await this.repositoryIndexingQueueService.enqueueInitialIndexing({

@@ -58,6 +58,7 @@ describe('RepositoriesService', () => {
       enqueueInitialIndexing: jest.fn(),
       enqueueRetryIndexing: jest.fn(),
       enqueueManualReindex: jest.fn(),
+      isReady: jest.fn().mockReturnValue(true),
       onModuleInit: jest.fn(),
       onModuleDestroy: jest.fn(),
     } as unknown as jest.Mocked<RepositoryIndexingQueueService>;
