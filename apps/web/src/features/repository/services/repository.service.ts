@@ -1,13 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { GithubRepositoriesResponse, Repository, RepositoryProvider } from '@/entities';
+import type {
+  CodeSymbolType,
+  GithubRepositoriesResponse,
+  Repository,
+  RepositoryProvider,
+} from '@/entities';
 import {
   createRepository,
   deleteRepository,
   disconnectGithubConnection,
   getGithubConnectUrl,
   getGithubConnection,
+  getRepository,
   listGithubRepositories,
   listRepositories,
+  listRepositoryFiles,
+  listRepositorySymbols,
   reindexRepository,
   retryRepositoryIndexing,
   updateRepository,
@@ -16,12 +24,16 @@ import { isRepositoryIndexingActive } from '../utils/repository-status';
 
 export const REPOSITORY_QUERY_KEYS = {
   list: (workspaceId: string) => ['workspaces', workspaceId, 'repositories'] as const,
+  detail: (workspaceId: string, repositoryId: string) =>
+    ['workspaces', workspaceId, 'repositories', repositoryId] as const,
+  files: (workspaceId: string, repositoryId: string) =>
+    ['workspaces', workspaceId, 'repositories', repositoryId, 'files'] as const,
+  symbols: (workspaceId: string, repositoryId: string, filePath?: string) =>
+    ['workspaces', workspaceId, 'repositories', repositoryId, 'symbols', filePath ?? null] as const,
   githubConnection: ['integrations', 'github', 'connection'] as const,
   githubRepositories: (workspaceId: string, cursor?: string) =>
     ['integrations', 'github', 'repositories', workspaceId, cursor ?? null] as const,
 };
-
-const ACTIVE_INDEXING_STATES = new Set(['PENDING', 'CLONING', 'PARSING', 'EMBEDDING']);
 
 export function useRepositoriesQuery(workspaceId: string) {
   return useQuery({
@@ -35,6 +47,34 @@ export function useRepositoriesQuery(workspaceId: string) {
       );
       return hasPending ? 2500 : false;
     },
+  });
+}
+
+export function useRepositoryQuery(workspaceId: string, repositoryId: string) {
+  return useQuery({
+    queryKey: REPOSITORY_QUERY_KEYS.detail(workspaceId, repositoryId),
+    queryFn: () => getRepository(workspaceId, repositoryId),
+    enabled: Boolean(workspaceId) && Boolean(repositoryId),
+  });
+}
+
+export function useRepositoryFilesQuery(workspaceId: string, repositoryId: string) {
+  return useQuery({
+    queryKey: REPOSITORY_QUERY_KEYS.files(workspaceId, repositoryId),
+    queryFn: () => listRepositoryFiles(workspaceId, repositoryId),
+    enabled: Boolean(workspaceId) && Boolean(repositoryId),
+  });
+}
+
+export function useRepositorySymbolsQuery(
+  workspaceId: string,
+  repositoryId: string,
+  options: { filePath?: string; type?: CodeSymbolType } = {},
+) {
+  return useQuery({
+    queryKey: REPOSITORY_QUERY_KEYS.symbols(workspaceId, repositoryId, options.filePath),
+    queryFn: () => listRepositorySymbols(workspaceId, repositoryId, options),
+    enabled: Boolean(workspaceId) && Boolean(repositoryId),
   });
 }
 

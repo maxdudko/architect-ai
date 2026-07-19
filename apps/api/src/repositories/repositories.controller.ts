@@ -6,17 +6,20 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { WorkspaceRole } from '@prisma/client';
+import { CodeSymbolType, WorkspaceRole } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { WorkspaceParamGuard } from '../common/guards/workspace-param.guard';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
+import { CodeSymbolResponseDto } from './dto/code-symbol-response.dto';
 import { CreateRepositoryDto } from './dto/create-repository.dto';
+import { RepositoryFileResponseDto } from './dto/repository-file-response.dto';
 import { RetryIndexingDto } from './dto/retry-indexing.dto';
 import { RepositoryResponseDto } from './dto/repository-response.dto';
 import { UpdateRepositoryDto } from './dto/update-repository.dto';
@@ -41,6 +44,47 @@ export class RepositoriesController {
     @Param('id') workspaceId: string,
   ): Promise<RepositoryResponseDto[]> {
     return this.repositoriesService.listRepositories(workspaceId);
+  }
+
+  @Get(':repositoryId/files')
+  @ApiOperation({ summary: 'List indexed files for a repository' })
+  @Roles(
+    WorkspaceRole.OWNER,
+    WorkspaceRole.ADMIN,
+    WorkspaceRole.MEMBER,
+    WorkspaceRole.VIEWER,
+  )
+  listRepositoryFiles(
+    @Param('id') workspaceId: string,
+    @Param('repositoryId') repositoryId: string,
+    @Query('pathPrefix') pathPrefix?: string,
+  ): Promise<RepositoryFileResponseDto[]> {
+    return this.repositoriesService.listRepositoryFiles(
+      workspaceId,
+      repositoryId,
+      pathPrefix,
+    );
+  }
+
+  @Get(':repositoryId/symbols')
+  @ApiOperation({ summary: 'List extracted symbols for a repository' })
+  @Roles(
+    WorkspaceRole.OWNER,
+    WorkspaceRole.ADMIN,
+    WorkspaceRole.MEMBER,
+    WorkspaceRole.VIEWER,
+  )
+  listRepositorySymbols(
+    @Param('id') workspaceId: string,
+    @Param('repositoryId') repositoryId: string,
+    @Query('filePath') filePath?: string,
+    @Query('type') type?: CodeSymbolType,
+  ): Promise<CodeSymbolResponseDto[]> {
+    return this.repositoriesService.listRepositorySymbols(
+      workspaceId,
+      repositoryId,
+      { filePath, type },
+    );
   }
 
   @Get(':repositoryId')

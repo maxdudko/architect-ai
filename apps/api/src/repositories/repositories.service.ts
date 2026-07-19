@@ -6,13 +6,18 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  CodeSymbol,
+  CodeSymbolType,
   Repository,
+  RepositoryFile,
   RepositoryProvider,
   RepositoryStatus,
 } from '@prisma/client';
 import { GithubAccessTokenService } from '../integrations/github/github-access-token.service';
 import { GithubHttpService } from '../integrations/github/github-http.service';
+import { CodeSymbolResponseDto } from './dto/code-symbol-response.dto';
 import { CreateRepositoryDto } from './dto/create-repository.dto';
+import { RepositoryFileResponseDto } from './dto/repository-file-response.dto';
 import { RepositoryResponseDto } from './dto/repository-response.dto';
 import { RetryIndexingDto } from './dto/retry-indexing.dto';
 import { UpdateRepositoryDto } from './dto/update-repository.dto';
@@ -56,6 +61,32 @@ export class RepositoriesService {
       repositoryId,
     );
     return this.toResponse(repository);
+  }
+
+  async listRepositoryFiles(
+    workspaceId: string,
+    repositoryId: string,
+    pathPrefix?: string,
+  ): Promise<RepositoryFileResponseDto[]> {
+    await this.findRepositoryInWorkspace(workspaceId, repositoryId);
+    const files = await this.repositoriesRepository.listCurrentRepositoryFiles(
+      repositoryId,
+      { pathPrefix },
+    );
+    return files.map((file) => this.toFileResponse(file));
+  }
+
+  async listRepositorySymbols(
+    workspaceId: string,
+    repositoryId: string,
+    options?: { filePath?: string; type?: CodeSymbolType },
+  ): Promise<CodeSymbolResponseDto[]> {
+    await this.findRepositoryInWorkspace(workspaceId, repositoryId);
+    const symbols = await this.repositoriesRepository.listCurrentCodeSymbols(
+      repositoryId,
+      options,
+    );
+    return symbols.map((symbol) => this.toSymbolResponse(symbol));
   }
 
   async createRepository(
@@ -402,6 +433,38 @@ export class RepositoriesService {
       indexingError: repository.indexingError,
       createdAt: repository.createdAt.toISOString(),
       updatedAt: repository.updatedAt.toISOString(),
+    };
+  }
+
+  private toFileResponse(file: RepositoryFile): RepositoryFileResponseDto {
+    return {
+      id: file.id,
+      repositoryId: file.repositoryId,
+      path: file.path,
+      language: file.language,
+      size: file.size,
+      lineCount: file.lineCount,
+      extension: file.extension,
+      generated: file.generated,
+      ignored: file.ignored,
+      binary: file.binary,
+      createdAt: file.createdAt.toISOString(),
+    };
+  }
+
+  private toSymbolResponse(symbol: CodeSymbol): CodeSymbolResponseDto {
+    return {
+      id: symbol.id,
+      repositoryId: symbol.repositoryId,
+      name: symbol.name,
+      qualifiedName: symbol.qualifiedName,
+      type: symbol.type,
+      filePath: symbol.filePath,
+      language: symbol.language,
+      startLine: symbol.startLine,
+      endLine: symbol.endLine,
+      fileId: symbol.fileId,
+      createdAt: symbol.createdAt.toISOString(),
     };
   }
 }

@@ -84,7 +84,7 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     };
   }
 
-  it('runs reindex -> clone -> parse -> chunk -> embed and marks repository ready', async () => {
+  it('runs reindex -> clone -> parse -> chunk and marks repository ready', async () => {
     const fixture = await createRepositoryFixture();
     const queueService = app.get(RepositoryIndexingQueueService);
     const worker = app.get(RepositoryIndexingWorkerService);
@@ -104,9 +104,6 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     const enqueueChunkSpy = jest
       .spyOn(queueService, 'enqueueChunkJob')
       .mockResolvedValue(undefined);
-    const enqueueEmbedSpy = jest
-      .spyOn(queueService, 'enqueueEmbedJob')
-      .mockResolvedValue(undefined);
     jest
       .spyOn(embeddingService, 'deleteRepositoryVectors')
       .mockResolvedValue(undefined);
@@ -122,9 +119,6 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     });
     jest.spyOn(chunkService, 'chunkRepository').mockResolvedValue({
       chunkCount: 39,
-    });
-    jest.spyOn(embeddingService, 'embedRepository').mockResolvedValue({
-      embeddedCount: 39,
     });
     const cleanupSpy = jest
       .spyOn(storageService, 'cleanupRunDirectory')
@@ -175,18 +169,7 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
       runId: run.id,
       clonePath: '/tmp/indexing/run-1/repo',
     });
-    expect(enqueueEmbedSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        repositoryId: fixture.repositoryId,
-        runId: run.id,
-      }),
-    );
-
-    await internals.processEmbed({
-      ...reindexData,
-      runId: run.id,
-      clonePath: '/tmp/indexing/run-1/repo',
-    });
+    expect(enqueueChunkSpy).toHaveBeenCalledTimes(1);
 
     const updatedRepository = await prisma.repository.findUniqueOrThrow({
       where: { id: fixture.repositoryId },
@@ -201,7 +184,7 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     expect(updatedRun.status).toBe('SUCCEEDED');
     expect(updatedRun.completedAt).not.toBeNull();
     expect(updatedRun.chunkCount).toBe(39);
-    expect(updatedRun.embeddingCount).toBe(39);
+    expect(updatedRun.embeddingCount).toBe(0);
     expect(cleanupSpy).toHaveBeenCalledWith(run.id);
   });
 

@@ -1,4 +1,10 @@
-import type { Repository, RepositoryProvider } from '@/entities';
+import type {
+  CodeSymbol,
+  CodeSymbolType,
+  Repository,
+  RepositoryFile,
+  RepositoryProvider,
+} from '@/entities';
 import { apiClient } from './axios';
 
 export interface CreateRepositoryPayload {
@@ -19,6 +25,15 @@ export interface RetryRepositoryIndexingPayload {
   branch?: string;
 }
 
+export interface ListRepositoryFilesParams {
+  pathPrefix?: string;
+}
+
+export interface ListRepositorySymbolsParams {
+  filePath?: string;
+  type?: CodeSymbolType;
+}
+
 export async function listRepositories(workspaceId: string): Promise<Repository[]> {
   const { data } = await apiClient.get<Repository[]>(`/workspaces/${workspaceId}/repositories`);
   return data;
@@ -30,6 +45,30 @@ export async function getRepository(
 ): Promise<Repository> {
   const { data } = await apiClient.get<Repository>(
     `/workspaces/${workspaceId}/repositories/${repositoryId}`,
+  );
+  return data;
+}
+
+export async function listRepositoryFiles(
+  workspaceId: string,
+  repositoryId: string,
+  params: ListRepositoryFilesParams = {},
+): Promise<RepositoryFile[]> {
+  const { data } = await apiClient.get<RepositoryFile[]>(
+    `/workspaces/${workspaceId}/repositories/${repositoryId}/files`,
+    { params },
+  );
+  return data;
+}
+
+export async function listRepositorySymbols(
+  workspaceId: string,
+  repositoryId: string,
+  params: ListRepositorySymbolsParams = {},
+): Promise<CodeSymbol[]> {
+  const { data } = await apiClient.get<CodeSymbol[]>(
+    `/workspaces/${workspaceId}/repositories/${repositoryId}/symbols`,
+    { params },
   );
   return data;
 }

@@ -66,6 +66,21 @@ enum CodeSymbolType {
   CLASS
   METHOD
   INTERFACE
+  ENUM
+  TYPE_ALIAS
+  VARIABLE
+  CONSTANT
+  NAMESPACE
+  MODULE
+}
+
+enum SymbolRelationType {
+  IMPORTS
+  EXPORTS
+  EXTENDS
+  IMPLEMENTS
+  CALLS
+  USES
 }
 
 enum MessageRole {
@@ -192,6 +207,7 @@ model Repository {
   indexingRuns  IndexingRun[]
   files         RepositoryFile[]
   symbols       CodeSymbol[]
+  symbolRelations SymbolRelation[]
   chunks        Chunk[]
 
   @@unique([provider, externalId])
@@ -212,12 +228,15 @@ model IndexingRun {
   symbolCount        Int              @default(0)
   chunkCount         Int              @default(0)
   embeddingCount     Int              @default(0)
+  processingDurationMs Int?           @map("processing_duration_ms")
   error              String?
+  errors             Json?
   startedAt          DateTime         @default(now())
   completedAt        DateTime?
   repository         Repository       @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
   files              RepositoryFile[]
   symbols            CodeSymbol[]
+  symbolRelations    SymbolRelation[]
   chunks             Chunk[]
 
   @@index([repositoryId])
@@ -232,13 +251,19 @@ model RepositoryFile {
   path         String
   language     String
   contentHash  String
+  size         Int
+  lineCount    Int         @map("line_count")
+  extension    String
+  generated    Boolean     @default(false)
+  ignored      Boolean     @default(false)
+  binary       Boolean     @default(false)
   createdAt    DateTime    @default(now())
   repository   Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
   indexingRun  IndexingRun @relation(fields: [indexingRunId], references: [id], onDelete: Cascade)
   symbols      CodeSymbol[]
   chunks       Chunk[]
 
-  @@unique([repositoryId, indexingRunId, path], map: "repository_files_run_path_key")
+  @@unique([repositoryId, path], map: "repository_files_repository_id_path_key")
   @@index([repositoryId])
   @@index([indexingRunId])
   @@map("repository_files")
@@ -252,17 +277,32 @@ model CodeSymbol {
   filePath     String
   type         CodeSymbolType
   name         String
+  qualifiedName String        @map("qualified_name")
+  language     String
   startLine    Int
   endLine      Int
+  startColumn  Int            @map("start_column")
+  endColumn    Int            @map("end_column")
+  exported     Boolean        @default(false)
+  isAsync      Boolean        @default(false) @map("is_async")
+  isStatic     Boolean        @default(false) @map("is_static")
+  visibility   String         @default("default")
+  parentSymbolId String?      @map("parent_symbol_id") @db.Uuid
   createdAt    DateTime       @default(now())
   repository   Repository     @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
   indexingRun  IndexingRun    @relation(fields: [indexingRunId], references: [id], onDelete: Cascade)
   file         RepositoryFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  parentSymbol CodeSymbol?    @relation("CodeSymbolParentChild", fields: [parentSymbolId], references: [id], onDelete: SetNull)
+  childSymbols CodeSymbol[]   @relation("CodeSymbolParentChild")
+  relationsFrom SymbolRelation[] @relation("SymbolRelationFrom")
+  relationsTo  SymbolRelation[] @relation("SymbolRelationTo")
   chunks       Chunk[]
 
   @@index([repositoryId])
   @@index([indexingRunId])
   @@index([filePath])
+  @@index([qualifiedName])
+  @@index([parentSymbolId])
   @@map("code_symbols")
 }
 
@@ -277,6 +317,7 @@ model Chunk {
   tokenCount    Int
   startLine     Int?
   endLine       Int?
+  metadata      Json?
   vectorId      String?
   language      String?
   embeddingModel String?
@@ -290,6 +331,28 @@ model Chunk {
   @@index([indexingRunId])
   @@index([symbolId])
   @@map("chunks")
+}
+
+model SymbolRelation {
+  id                  String            @id @default(uuid()) @db.Uuid
+  repositoryId        String            @db.Uuid
+  indexingRunId       String            @db.Uuid
+  fromSymbolId        String            @map("from_symbol_id") @db.Uuid
+  toSymbolId          String?           @map("to_symbol_id") @db.Uuid
+  relationType        SymbolRelationType @map("relation_type")
+  targetQualifiedName String?           @map("target_qualified_name")
+  targetFilePath      String?           @map("target_file_path")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  repository          Repository         @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  indexingRun         IndexingRun        @relation(fields: [indexingRunId], references: [id], onDelete: Cascade)
+  fromSymbol          CodeSymbol         @relation("SymbolRelationFrom", fields: [fromSymbolId], references: [id], onDelete: Cascade)
+  toSymbol            CodeSymbol?        @relation("SymbolRelationTo", fields: [toSymbolId], references: [id], onDelete: SetNull)
+
+  @@index([repositoryId, indexingRunId], map: "symbol_relations_repository_run_idx")
+  @@index([fromSymbolId], map: "symbol_relations_from_symbol_idx")
+  @@index([toSymbolId], map: "symbol_relations_to_symbol_idx")
+  @@index([relationType], map: "symbol_relations_relation_type_idx")
+  @@map("symbol_relations")
 }
 
 model Conversation {

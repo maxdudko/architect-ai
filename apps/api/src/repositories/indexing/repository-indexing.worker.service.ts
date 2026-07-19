@@ -127,10 +127,18 @@ export class RepositoryIndexingWorkerService
       return;
     }
     if (data.runId) {
+      const failedAt = new Date();
+      const existingRun = await this.repositoriesRepository.getIndexingRunById(
+        data.runId,
+      );
       await this.repositoriesRepository.updateIndexingRun(data.runId, {
         status: 'FAILED',
         error: error.message,
-        completedAt: new Date(),
+        errors: [error.message],
+        completedAt: failedAt,
+        processingDurationMs: existingRun
+          ? Math.max(0, failedAt.getTime() - existingRun.startedAt.getTime())
+          : undefined,
       });
       await this.indexingStorageService.cleanupRunDirectory(data.runId);
     }
@@ -224,24 +232,39 @@ export class RepositoryIndexingWorkerService
   private async processChunk(
     data: CloneJobData & { clonePath: string },
   ): Promise<void> {
+    const run = await this.repositoriesRepository.getIndexingRunById(
+      data.runId,
+    );
+    if (!run) {
+      throw new Error('Indexing run not found');
+    }
+
     const chunkResult = await this.chunkService.chunkRepository({
       repositoryId: data.repositoryId,
       runId: data.runId,
       clonePath: data.clonePath,
     });
+    const completedAt = new Date();
     await this.repositoriesRepository.updateIndexingRun(data.runId, {
       chunkCount: chunkResult.chunkCount,
+      embeddingCount: 0,
+      status: 'SUCCEEDED',
+      completedAt,
+      processingDurationMs: Math.max(
+        0,
+        completedAt.getTime() - run.startedAt.getTime(),
+      ),
     });
     await this.repositoriesRepository.updateStatus(
       data.workspaceId,
       data.repositoryId,
       {
-        status: RepositoryStatus.EMBEDDING,
+        status: RepositoryStatus.READY,
         indexingError: null,
-        lastIndexedAt: null,
+        lastIndexedAt: new Date(),
       },
     );
-    await this.queueService.enqueueEmbedJob(data);
+    await this.indexingStorageService.cleanupRunDirectory(data.runId);
   }
 
   private async processEmbed(data: EmbedJobData): Promise<void> {

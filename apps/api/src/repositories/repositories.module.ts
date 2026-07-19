@@ -3,6 +3,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { GithubIntegrationModule } from '../integrations/github/github-integration.module';
 import { WorkspaceParamGuard } from '../common/guards/workspace-param.guard';
 import { MembershipsModule } from '../memberships/memberships.module';
+import { CodeIntelligenceModule } from '../modules/code-intelligence/code-intelligence.module';
 import { IndexingStorageService } from './indexing/indexing-storage.service';
 import { RepositoryChunkService } from './indexing/repository-chunk.service';
 import { RepositoryCloneService } from './indexing/repository-clone.service';
@@ -15,7 +16,11 @@ import { RepositoriesRepository } from './repositories.repository';
 import { RepositoriesService } from './repositories.service';
 
 @Module({
-  imports: [MembershipsModule, forwardRef(() => GithubIntegrationModule)],
+  imports: [
+    MembershipsModule,
+    forwardRef(() => GithubIntegrationModule),
+    CodeIntelligenceModule,
+  ],
   controllers: [RepositoriesController],
   providers: [
     RepositoriesRepository,
