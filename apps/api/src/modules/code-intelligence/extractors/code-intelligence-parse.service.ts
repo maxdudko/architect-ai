@@ -45,13 +45,10 @@ export class CodeIntelligenceParseService {
           },
         );
 
-        const extractedSymbols = this.symbolExtractorService
-          .extract(candidate.relativePath, ast)
-          .map((symbol) => ({
-            ...symbol,
-            language: candidate.language,
-            filePath: candidate.relativePath,
-          }));
+        const extractedSymbols = this.symbolExtractorService.extract(
+          candidate.relativePath,
+          ast,
+        );
 
         const symbolIdMap = await this.storageService.createCodeSymbols(
           params.repositoryId,
@@ -103,6 +100,11 @@ export class CodeIntelligenceParseService {
           });
         }
       },
+    );
+
+    await this.storageService.pruneStaleRepositoryFiles(
+      params.repositoryId,
+      params.indexingRunId,
     );
 
     return {

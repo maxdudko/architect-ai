@@ -3,7 +3,11 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { RepositoryProvider, RepositoryStatus } from '@prisma/client';
+import {
+  CodeSymbolType,
+  RepositoryProvider,
+  RepositoryStatus,
+} from '@prisma/client';
 import { GithubAccessTokenService } from '../integrations/github/github-access-token.service';
 import { GithubHttpService } from '../integrations/github/github-http.service';
 import { RepositoryEmbeddingService } from './indexing/repository-embedding.service';
@@ -52,6 +56,8 @@ describe('RepositoriesService', () => {
       restore: jest.fn(),
       listExternalIdsByProvider: jest.fn(),
       updateStatus: jest.fn(),
+      listCurrentRepositoryFiles: jest.fn(),
+      listCurrentCodeSymbols: jest.fn(),
     } as unknown as jest.Mocked<RepositoriesRepository>;
 
     repositoryIndexingQueueService = {
@@ -414,5 +420,99 @@ describe('RepositoriesService', () => {
     await expect(
       service.reindexRepository(workspaceA, repositoryId, 'user-1'),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('lists repository files for a workspace-scoped repository', async () => {
+    repositoriesRepository.findById.mockResolvedValue(repository);
+    repositoriesRepository.listCurrentRepositoryFiles.mockResolvedValue([
+      {
+        id: 'file-1',
+        repositoryId,
+        indexingRunId: 'run-1',
+        path: 'src/auth.ts',
+        language: 'typescript',
+        contentHash: 'abc',
+        size: 120,
+        lineCount: 10,
+        extension: '.ts',
+        generated: false,
+        ignored: false,
+        binary: false,
+        createdAt: new Date('2026-06-24T00:00:00.000Z'),
+      },
+    ]);
+
+    const files = await service.listRepositoryFiles(
+      workspaceA,
+      repositoryId,
+      'src/',
+    );
+
+    expect(
+      repositoriesRepository.listCurrentRepositoryFiles,
+    ).toHaveBeenCalledWith(repositoryId, { pathPrefix: 'src/' });
+    expect(files).toEqual([
+      expect.objectContaining({
+        id: 'file-1',
+        path: 'src/auth.ts',
+        language: 'typescript',
+        lineCount: 10,
+      }),
+    ]);
+  });
+
+  it('lists repository symbols with optional filters', async () => {
+    repositoriesRepository.findById.mockResolvedValue(repository);
+    repositoriesRepository.listCurrentCodeSymbols.mockResolvedValue([
+      {
+        id: 'symbol-1',
+        repositoryId,
+        indexingRunId: 'run-1',
+        fileId: 'file-1',
+        filePath: 'src/auth.ts',
+        type: CodeSymbolType.FUNCTION,
+        name: 'login',
+        qualifiedName: 'src/auth.ts.login',
+        language: 'typescript',
+        startLine: 4,
+        endLine: 8,
+        startColumn: 1,
+        endColumn: 2,
+        exported: true,
+        isAsync: true,
+        isStatic: false,
+        visibility: 'default',
+        parentSymbolId: null,
+        createdAt: new Date('2026-06-24T00:00:00.000Z'),
+      },
+    ]);
+
+    const symbols = await service.listRepositorySymbols(
+      workspaceA,
+      repositoryId,
+      { filePath: 'src/auth.ts', type: CodeSymbolType.FUNCTION },
+    );
+
+    expect(repositoriesRepository.listCurrentCodeSymbols).toHaveBeenCalledWith(
+      repositoryId,
+      { filePath: 'src/auth.ts', type: CodeSymbolType.FUNCTION },
+    );
+    expect(symbols).toEqual([
+      expect.objectContaining({
+        id: 'symbol-1',
+        name: 'login',
+        type: CodeSymbolType.FUNCTION,
+        startLine: 4,
+        endLine: 8,
+      }),
+    ]);
+  });
+
+  it('rejects file listing when repository is outside workspace', async () => {
+    repositoriesRepository.findById.mockResolvedValue(null);
+
+    await expect(
+      service.listRepositoryFiles(workspaceB, repositoryId),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

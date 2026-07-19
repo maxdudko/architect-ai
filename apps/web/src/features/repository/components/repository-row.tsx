@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { Repository } from '@/entities';
 import { RepositoryActions } from './repository-actions';
 import { RepositoryErrorText } from './repository-error-text';
@@ -45,7 +46,11 @@ export function RepositoryRow({
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2">
       <div className="min-w-0">
-        <p className="font-medium">{repository.fullName}</p>
+        <p className="font-medium">
+          <Link href={`/repositories/${repository.id}`} className="hover:underline">
+            {repository.fullName}
+          </Link>
+        </p>
         <p className="text-xs text-muted-foreground">
           {repository.provider} · {repository.defaultBranch}
           {lastIndexedLabel ? ` · Last indexed ${lastIndexedLabel}` : ''}

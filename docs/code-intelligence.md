@@ -41,6 +41,7 @@ Business logic stays in the Code Intelligence module.
 ## Schema Decisions
 
 - `RepositoryFile` is unique per `(repositoryId, path)` to prevent duplication across runs.
+- After each successful parse pass, inventory rows whose `indexingRunId` is not the current run are pruned so the file index reflects only files seen in the latest scan.
 - `CodeSymbol` stores coordinates, modifiers, qualified naming, and parent linkage.
 - `SymbolRelation` stores graph edges for traversal (`from`, `to`, relation type).
 - `Chunk.metadata` stores semantic context (`symbolType`, `qualifiedName`, `language`).

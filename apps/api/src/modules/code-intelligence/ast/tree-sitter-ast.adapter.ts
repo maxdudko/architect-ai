@@ -15,7 +15,9 @@ function mapNode(node: SyntaxNode): AstNode {
         column: node.endPosition.column + 1,
       },
     },
-    children: node.namedChildren.map((child: SyntaxNode) => mapNode(child)),
+    children: (node.namedChildren ?? [])
+      .filter((child): child is SyntaxNode => child != null)
+      .map((child) => mapNode(child)),
   };
 }
 

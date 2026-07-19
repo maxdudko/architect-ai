@@ -29,6 +29,16 @@ export class CodeIntelligenceStorageService {
     return this.repositoriesRepository.upsertRepositoryFile(params);
   }
 
+  pruneStaleRepositoryFiles(
+    repositoryId: string,
+    indexingRunId: string,
+  ): Promise<{ count: number }> {
+    return this.repositoriesRepository.pruneStaleRepositoryFiles(
+      repositoryId,
+      indexingRunId,
+    );
+  }
+
   createCodeSymbols(
     repositoryId: string,
     indexingRunId: string,

@@ -319,6 +319,18 @@ export class RepositoriesRepository {
     });
   }
 
+  pruneStaleRepositoryFiles(
+    repositoryId: string,
+    indexingRunId: string,
+  ): Promise<{ count: number }> {
+    return this.prisma.repositoryFile.deleteMany({
+      where: {
+        repositoryId,
+        NOT: { indexingRunId },
+      },
+    });
+  }
+
   async createCodeSymbols(
     repositoryId: string,
     indexingRunId: string,
@@ -387,6 +399,21 @@ export class RepositoriesRepository {
     });
   }
 
+  listCurrentRepositoryFiles(
+    repositoryId: string,
+    options?: { pathPrefix?: string },
+  ): Promise<Array<RepositoryFile>> {
+    return this.prisma.repositoryFile.findMany({
+      where: {
+        repositoryId,
+        ...(options?.pathPrefix
+          ? { path: { startsWith: options.pathPrefix } }
+          : {}),
+      },
+      orderBy: { path: 'asc' },
+    });
+  }
+
   listCodeSymbols(
     repositoryId: string,
     indexingRunId: string,
@@ -395,6 +422,20 @@ export class RepositoriesRepository {
       where: {
         repositoryId,
         indexingRunId,
+      },
+      orderBy: [{ filePath: 'asc' }, { startLine: 'asc' }],
+    });
+  }
+
+  listCurrentCodeSymbols(
+    repositoryId: string,
+    options?: { filePath?: string; type?: CodeSymbolType },
+  ): Promise<Array<CodeSymbol>> {
+    return this.prisma.codeSymbol.findMany({
+      where: {
+        repositoryId,
+        ...(options?.filePath ? { filePath: options.filePath } : {}),
+        ...(options?.type ? { type: options.type } : {}),
       },
       orderBy: [{ filePath: 'asc' }, { startLine: 'asc' }],
     });

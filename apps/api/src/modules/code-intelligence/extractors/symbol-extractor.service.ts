@@ -3,12 +3,21 @@ import { CodeSymbolType } from '@prisma/client';
 import { SymbolExtractor } from '../interfaces/symbol-extractor.interface';
 import { ParsedFileAst, AstNode } from '../types/ast.type';
 import { ExtractedSymbol } from '../types/code-symbol.type';
+import { ProgrammingLanguage } from '../types/programming-language.type';
 
 interface SymbolContext {
+  filePath: string;
+  language: ProgrammingLanguage;
   parentLocalId: string | null;
   parentQualifiedName: string | null;
   exported: boolean;
 }
+
+const FUNCTION_VALUE_NODE_TYPES = new Set([
+  'arrow_function',
+  'function',
+  'function_expression',
+]);
 
 @Injectable()
 export class SymbolExtractorService implements SymbolExtractor {
@@ -17,6 +26,14 @@ export class SymbolExtractorService implements SymbolExtractor {
 
     const moduleLocalId = `module:${filePath}`;
     const moduleQualifiedName = filePath;
+    const rootContext: SymbolContext = {
+      filePath,
+      language: ast.language,
+      parentLocalId: null,
+      parentQualifiedName: null,
+      exported: false,
+    };
+
     symbols.push({
       localId: moduleLocalId,
       name: filePath.split('/').pop() ?? filePath,
@@ -37,9 +54,9 @@ export class SymbolExtractorService implements SymbolExtractor {
 
     for (const child of ast.tree.root.children) {
       this.walkNode(child, symbols, {
+        ...rootContext,
         parentLocalId: moduleLocalId,
         parentQualifiedName: moduleQualifiedName,
-        exported: false,
       });
     }
 
@@ -56,7 +73,7 @@ export class SymbolExtractorService implements SymbolExtractor {
 
     const declaration = this.extractDeclaration(
       node,
-      context,
+      { ...context, exported: isExportedContext },
       isExportedContext,
     );
     if (declaration.length > 0) {
@@ -64,6 +81,7 @@ export class SymbolExtractorService implements SymbolExtractor {
         symbols.push(symbol);
         for (const child of node.children) {
           this.walkNode(child, symbols, {
+            ...context,
             parentLocalId: symbol.localId,
             parentQualifiedName: symbol.qualifiedName,
             exported: isExportedContext,
@@ -220,20 +238,59 @@ export class SymbolExtractorService implements SymbolExtractor {
       node.type === 'variable_declaration' ||
       node.type === 'variable_statement'
     ) {
-      const names = this.extractVariableNames(node.text);
-      const isConst = /\bconst\b/.test(node.text);
-      return names.map((name) =>
-        this.makeSymbol(
-          node,
-          context,
-          name,
-          isConst ? CodeSymbolType.CONSTANT : CodeSymbolType.VARIABLE,
-          isExported,
-        ),
-      );
+      return this.extractVariableLikeSymbols(node, context, isExported);
     }
 
     return [];
+  }
+
+  private extractVariableLikeSymbols(
+    node: AstNode,
+    context: SymbolContext,
+    isExported: boolean,
+  ): ExtractedSymbol[] {
+    const isConst = /\bconst\b/.test(node.text);
+    const declarators = this.findNodesByType(node, 'variable_declarator');
+
+    if (declarators.length > 0) {
+      const symbols: ExtractedSymbol[] = [];
+      for (const declarator of declarators) {
+        const nameNode = declarator.children.find(
+          (child) => child.type === 'identifier',
+        );
+        const name =
+          nameNode?.text ??
+          this.extractIdentifier(declarator.text, /^([A-Za-z_$][\w$]*)/);
+        if (!name) {
+          continue;
+        }
+
+        const isFunctionValue = declarator.children.some((child) =>
+          FUNCTION_VALUE_NODE_TYPES.has(child.type),
+        );
+        const type = isFunctionValue
+          ? CodeSymbolType.FUNCTION
+          : isConst
+            ? CodeSymbolType.CONSTANT
+            : CodeSymbolType.VARIABLE;
+
+        symbols.push(
+          this.makeSymbol(declarator, context, name, type, isExported),
+        );
+      }
+      return symbols;
+    }
+
+    const names = this.extractVariableNames(node.text);
+    return names.map((name) =>
+      this.makeSymbol(
+        node,
+        context,
+        name,
+        isConst ? CodeSymbolType.CONSTANT : CodeSymbolType.VARIABLE,
+        isExported,
+      ),
+    );
   }
 
   private makeSymbol(
@@ -252,8 +309,8 @@ export class SymbolExtractorService implements SymbolExtractor {
       name,
       qualifiedName,
       type,
-      language: 'typescript',
-      filePath: '',
+      language: context.language,
+      filePath: context.filePath,
       startLine: node.range.start.line,
       endLine: node.range.end.line,
       startColumn: node.range.start.column,
@@ -264,6 +321,24 @@ export class SymbolExtractorService implements SymbolExtractor {
       visibility: this.extractVisibility(node.text),
       parentLocalId: context.parentLocalId,
     };
+  }
+
+  private findNodesByType(node: AstNode, type: string): AstNode[] {
+    const matches: AstNode[] = [];
+    const stack: AstNode[] = [node];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current) {
+        continue;
+      }
+      if (current.type === type) {
+        matches.push(current);
+      }
+      for (const child of current.children) {
+        stack.push(child);
+      }
+    }
+    return matches;
   }
 
   private extractVisibility(text: string): string {
