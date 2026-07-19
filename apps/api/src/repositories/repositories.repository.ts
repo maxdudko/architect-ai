@@ -10,6 +10,7 @@ import {
   RepositoryFile,
   RepositoryProvider,
   RepositoryStatus,
+  SymbolRelationType,
   Chunk,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -244,8 +245,10 @@ export class RepositoriesRepository {
       symbolCount?: number;
       chunkCount?: number;
       embeddingCount?: number;
+      processingDurationMs?: number;
       status?: IndexingRunStatus;
       error?: string;
+      errors?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
       completedAt?: Date;
     },
   ): Promise<IndexingRun> {
@@ -260,10 +263,10 @@ export class RepositoriesRepository {
       this.prisma.chunk.deleteMany({
         where: { repositoryId },
       }),
-      this.prisma.codeSymbol.deleteMany({
+      this.prisma.symbolRelation.deleteMany({
         where: { repositoryId },
       }),
-      this.prisma.repositoryFile.deleteMany({
+      this.prisma.codeSymbol.deleteMany({
         where: { repositoryId },
       }),
     ]);
@@ -275,12 +278,17 @@ export class RepositoriesRepository {
     path: string;
     language: string;
     contentHash: string;
+    size: number;
+    lineCount: number;
+    extension: string;
+    generated: boolean;
+    ignored: boolean;
+    binary: boolean;
   }): Promise<RepositoryFile> {
     return this.prisma.repositoryFile.upsert({
       where: {
-        repositoryId_indexingRunId_path: {
+        repositoryId_path: {
           repositoryId: params.repositoryId,
-          indexingRunId: params.indexingRunId,
           path: params.path,
         },
       },
@@ -290,10 +298,23 @@ export class RepositoriesRepository {
         path: params.path,
         language: params.language,
         contentHash: params.contentHash,
+        size: params.size,
+        lineCount: params.lineCount,
+        extension: params.extension,
+        generated: params.generated,
+        ignored: params.ignored,
+        binary: params.binary,
       },
       update: {
+        indexingRunId: params.indexingRunId,
         language: params.language,
         contentHash: params.contentHash,
+        size: params.size,
+        lineCount: params.lineCount,
+        extension: params.extension,
+        generated: params.generated,
+        ignored: params.ignored,
+        binary: params.binary,
       },
     });
   }
@@ -301,35 +322,56 @@ export class RepositoriesRepository {
   async createCodeSymbols(
     repositoryId: string,
     indexingRunId: string,
+    fileId: string,
     filePath: string,
     symbols: Array<{
+      localId: string;
       type: CodeSymbolType;
       name: string;
+      qualifiedName: string;
+      language: string;
       startLine: number;
       endLine: number;
+      startColumn: number;
+      endColumn: number;
+      exported: boolean;
+      isAsync: boolean;
+      isStatic: boolean;
+      visibility: string;
+      parentLocalId: string | null;
     }>,
-  ): Promise<void> {
-    const file = await this.prisma.repositoryFile.findFirst({
-      where: {
-        repositoryId,
-        indexingRunId,
-        path: filePath,
-      },
-      select: { id: true },
-    });
+  ): Promise<Map<string, string>> {
+    const createdSymbolMap = new Map<string, string>();
 
-    await this.prisma.codeSymbol.createMany({
-      data: symbols.map((symbol) => ({
-        repositoryId,
-        indexingRunId,
-        fileId: file?.id ?? null,
-        filePath,
-        type: symbol.type,
-        name: symbol.name,
-        startLine: symbol.startLine,
-        endLine: symbol.endLine,
-      })),
-    });
+    for (const symbol of symbols) {
+      const parentSymbolId = symbol.parentLocalId
+        ? (createdSymbolMap.get(symbol.parentLocalId) ?? null)
+        : null;
+      const created = await this.prisma.codeSymbol.create({
+        data: {
+          repositoryId,
+          indexingRunId,
+          fileId,
+          filePath,
+          type: symbol.type,
+          name: symbol.name,
+          qualifiedName: symbol.qualifiedName,
+          language: symbol.language,
+          startLine: symbol.startLine,
+          endLine: symbol.endLine,
+          startColumn: symbol.startColumn,
+          endColumn: symbol.endColumn,
+          exported: symbol.exported,
+          isAsync: symbol.isAsync,
+          isStatic: symbol.isStatic,
+          visibility: symbol.visibility,
+          parentSymbolId,
+        },
+      });
+      createdSymbolMap.set(symbol.localId, created.id);
+    }
+
+    return createdSymbolMap;
   }
 
   listRepositoryFiles(
@@ -358,12 +400,42 @@ export class RepositoriesRepository {
     });
   }
 
+  async createSymbolRelations(params: {
+    repositoryId: string;
+    indexingRunId: string;
+    relations: Array<{
+      fromSymbolId: string;
+      toSymbolId?: string;
+      relationType: SymbolRelationType;
+      targetQualifiedName?: string;
+      targetFilePath?: string;
+    }>;
+  }): Promise<void> {
+    if (params.relations.length === 0) {
+      return;
+    }
+
+    await this.prisma.symbolRelation.createMany({
+      data: params.relations.map((relation) => ({
+        repositoryId: params.repositoryId,
+        indexingRunId: params.indexingRunId,
+        fromSymbolId: relation.fromSymbolId,
+        toSymbolId: relation.toSymbolId,
+        relationType: relation.relationType,
+        targetQualifiedName: relation.targetQualifiedName,
+        targetFilePath: relation.targetFilePath,
+      })),
+    });
+  }
+
   createChunk(params: {
     repositoryId: string;
     indexingRunId: string;
+    fileId: string;
     filePath: string;
     content: string;
     tokenCount: number;
+    metadata?: Prisma.JsonObject;
     language?: string;
     startLine?: number;
     endLine?: number;
@@ -373,9 +445,11 @@ export class RepositoriesRepository {
       data: {
         repositoryId: params.repositoryId,
         indexingRunId: params.indexingRunId,
+        fileId: params.fileId,
         filePath: params.filePath,
         content: params.content,
         tokenCount: params.tokenCount,
+        metadata: params.metadata,
         language: params.language,
         startLine: params.startLine,
         endLine: params.endLine,
