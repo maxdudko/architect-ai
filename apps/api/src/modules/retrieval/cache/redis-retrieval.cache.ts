@@ -51,9 +51,24 @@ export class RedisRetrievalCache
   }
 
   async onModuleDestroy(): Promise<void> {
-    if (this.client) {
-      await this.client.quit();
-      this.client = null;
+    const client = this.client;
+    this.client = null;
+
+    if (!client || client.status === 'end') {
+      return;
+    }
+
+    if (client.status === 'wait') {
+      client.disconnect();
+      return;
+    }
+
+    try {
+      await client.quit();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.debug(`Redis cache shutdown skipped: ${message}`);
+      client.disconnect();
     }
   }
 

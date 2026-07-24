@@ -47,19 +47,15 @@ import { QdrantVectorStore } from './vector-store/qdrant.vector-store';
       provide: VECTOR_STORE,
       useExisting: QdrantVectorStore,
     },
-    InMemoryRetrievalCache,
-    RedisRetrievalCache,
     {
       provide: RETRIEVAL_CACHE,
-      inject: [ConfigService, RedisRetrievalCache, InMemoryRetrievalCache],
-      useFactory: (
-        configService: ConfigService,
-        redisCache: RedisRetrievalCache,
-        memoryCache: InMemoryRetrievalCache,
-      ) => {
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
         const driver =
           configService.get<string>('RETRIEVAL_CACHE_DRIVER') ?? 'redis';
-        return driver === 'memory' ? memoryCache : redisCache;
+        return driver === 'memory'
+          ? new InMemoryRetrievalCache()
+          : new RedisRetrievalCache(configService);
       },
     },
     PrismaChunkDataSource,
