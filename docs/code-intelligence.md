@@ -51,4 +51,4 @@ Business logic stays in the Code Intelligence module.
 
 - Add new languages by extending `LanguageDetectorService` and parser grammars.
 - Add new relationship types by extending `SymbolRelationType` and extractor logic.
-- Add embedding generation as a downstream stage, independent from chunk generation.
+- Add embedding generation as a downstream stage via the Retrieval module (`docs/retrieval.md`), independent from chunk generation.

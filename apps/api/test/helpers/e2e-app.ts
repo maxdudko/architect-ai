@@ -77,6 +77,7 @@ export function configureTestEnvironment(): void {
   process.env.JWT_REFRESH_SECRET ??= 'test-refresh-secret';
   process.env.JWT_ACCESS_TTL ??= '15m';
   process.env.JWT_REFRESH_TTL ??= '30d';
+  process.env.RETRIEVAL_CACHE_DRIVER = 'memory';
   delete process.env.REDIS_URL;
 }
 
