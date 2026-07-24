@@ -232,39 +232,24 @@ export class RepositoryIndexingWorkerService
   private async processChunk(
     data: CloneJobData & { clonePath: string },
   ): Promise<void> {
-    const run = await this.repositoriesRepository.getIndexingRunById(
-      data.runId,
-    );
-    if (!run) {
-      throw new Error('Indexing run not found');
-    }
-
     const chunkResult = await this.chunkService.chunkRepository({
       repositoryId: data.repositoryId,
       runId: data.runId,
       clonePath: data.clonePath,
     });
-    const completedAt = new Date();
     await this.repositoriesRepository.updateIndexingRun(data.runId, {
       chunkCount: chunkResult.chunkCount,
-      embeddingCount: 0,
-      status: 'SUCCEEDED',
-      completedAt,
-      processingDurationMs: Math.max(
-        0,
-        completedAt.getTime() - run.startedAt.getTime(),
-      ),
     });
     await this.repositoriesRepository.updateStatus(
       data.workspaceId,
       data.repositoryId,
       {
-        status: RepositoryStatus.READY,
+        status: RepositoryStatus.EMBEDDING,
         indexingError: null,
-        lastIndexedAt: new Date(),
+        lastIndexedAt: null,
       },
     );
-    await this.indexingStorageService.cleanupRunDirectory(data.runId);
+    await this.queueService.enqueueEmbedJob(data);
   }
 
   private async processEmbed(data: EmbedJobData): Promise<void> {
