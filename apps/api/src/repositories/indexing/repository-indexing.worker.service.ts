@@ -244,19 +244,27 @@ export class RepositoryIndexingWorkerService
       runId: data.runId,
       clonePath: data.clonePath,
     });
+    const completedAt = new Date();
     await this.repositoriesRepository.updateIndexingRun(data.runId, {
       chunkCount: chunkResult.chunkCount,
+      embeddingCount: 0,
+      status: 'SUCCEEDED',
+      completedAt,
+      processingDurationMs: Math.max(
+        0,
+        completedAt.getTime() - run.startedAt.getTime(),
+      ),
     });
     await this.repositoriesRepository.updateStatus(
       data.workspaceId,
       data.repositoryId,
       {
-        status: RepositoryStatus.EMBEDDING,
+        status: RepositoryStatus.READY,
         indexingError: null,
-        lastIndexedAt: null,
+        lastIndexedAt: new Date(),
       },
     );
-    await this.queueService.enqueueEmbedJob(data);
+    await this.indexingStorageService.cleanupRunDirectory(data.runId);
   }
 
   private async processEmbed(data: EmbedJobData): Promise<void> {

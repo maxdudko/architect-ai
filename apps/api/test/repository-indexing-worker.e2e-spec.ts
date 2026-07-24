@@ -84,7 +84,7 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     };
   }
 
-  it('runs reindex -> clone -> parse -> chunk -> embed and marks repository ready', async () => {
+  it('runs reindex -> clone -> parse -> chunk and marks repository ready', async () => {
     const fixture = await createRepositoryFixture();
     const queueService = app.get(RepositoryIndexingQueueService);
     const worker = app.get(RepositoryIndexingWorkerService);
@@ -103,9 +103,6 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
       .mockResolvedValue(undefined);
     const enqueueChunkSpy = jest
       .spyOn(queueService, 'enqueueChunkJob')
-      .mockResolvedValue(undefined);
-    const enqueueEmbedSpy = jest
-      .spyOn(queueService, 'enqueueEmbedJob')
       .mockResolvedValue(undefined);
     jest
       .spyOn(embeddingService, 'deleteRepositoryVectors')
@@ -206,7 +203,7 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     expect(updatedRun.status).toBe('SUCCEEDED');
     expect(updatedRun.completedAt).not.toBeNull();
     expect(updatedRun.chunkCount).toBe(39);
-    expect(updatedRun.embeddingCount).toBe(39);
+    expect(updatedRun.embeddingCount).toBe(0);
     expect(cleanupSpy).toHaveBeenCalledWith(run.id);
   });
 
