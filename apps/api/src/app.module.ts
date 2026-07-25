@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
+import { ChatModule } from './chat/chat.module';
+import { ConversationsModule } from './conversations/conversations.module';
 import { GithubIntegrationModule } from './integrations/github/github-integration.module';
 import { InvitationsModule } from './invitations/invitations.module';
 import { MailModule } from './mail/mail.module';
@@ -22,6 +24,8 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     WorkspacesModule,
     InvitationsModule,
     RepositoriesModule,
+    ConversationsModule,
+    ChatModule,
     GithubIntegrationModule,
     MailModule,
     AuthModule,

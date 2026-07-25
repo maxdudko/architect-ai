@@ -3,10 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "default": "./build/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "tsc --noEmit",
-    "test": "node -e \"console.log('No AI tests yet')\"",
+    "test": "node --experimental-strip-types --test src/providers/mock-llm.provider.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

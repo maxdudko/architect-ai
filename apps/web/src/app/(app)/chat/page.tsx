@@ -1,4 +1,4 @@
-import { ChatPlaceholder } from '@/features/chat';
+import { ChatWindow } from '@/features/chat';
 import { PageHeader } from '@/shared/components';
 
 export default function ChatPage() {
@@ -6,9 +6,9 @@ export default function ChatPage() {
     <div className="space-y-6">
       <PageHeader
         title="Chat"
-        description="Codebase chat assistant is planned for the next phase."
+        description="Ask onboarding questions about your indexed repositories."
       />
-      <ChatPlaceholder />
+      <ChatWindow />
     </div>
   );
 }

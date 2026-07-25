@@ -94,18 +94,19 @@ enum OAuthProvider {
 }
 
 model User {
-  id            String       @id @default(uuid()) @db.Uuid
-  email         String       @unique
-  passwordHash  String       @map("password_hash")
-  firstName     String       @map("first_name")
-  lastName      String       @map("last_name")
-  avatarUrl     String?      @map("avatar_url")
-  emailVerified Boolean      @default(false) @map("email_verified")
+  id            String         @id @default(uuid()) @db.Uuid
+  email         String         @unique
+  passwordHash  String         @map("password_hash")
+  firstName     String         @map("first_name")
+  lastName      String         @map("last_name")
+  avatarUrl     String?        @map("avatar_url")
+  emailVerified Boolean        @default(false) @map("email_verified")
   memberships   Membership[]
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
-  deletedAt     DateTime?    @map("deleted_at")
-  lastLoginAt   DateTime?    @map("last_login_at")
+  conversations Conversation[]
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  deletedAt     DateTime?      @map("deleted_at")
+  lastLoginAt   DateTime?      @map("last_login_at")
   oauthAccounts OAuthAccount[]
 
   @@index([createdAt], map: "users_created_at_idx")
@@ -366,11 +367,12 @@ model Conversation {
   deletedAt    DateTime?
   workspace    Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   repository   Repository? @relation(fields: [repositoryId], references: [id], onDelete: SetNull)
-  // createdBy User @relation(fields: [createdById], references: id[])
+  createdBy    User        @relation(fields: [createdById], references: [id], onDelete: Cascade)
   messages     Message[]
 
   @@index([workspaceId])
   @@index([repositoryId])
+  @@index([createdById])
   @@map("conversations")
 }
 
