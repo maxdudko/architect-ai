@@ -1,6 +1,5 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
-import { MockLlmProvider } from './mock-llm.provider.ts';
+import { describe, expect, it } from 'vitest';
+import { MockLlmProvider } from './mock-llm.provider.js';
 
 describe('MockLlmProvider', () => {
   it('generates a deterministic response', async () => {
@@ -10,9 +9,9 @@ describe('MockLlmProvider', () => {
     const result = await provider.generate({
       messages: [{ role: 'user', content: 'What is auth?' }],
     });
-    assert.match(result.content, /Hello from mock/);
-    assert.match(result.content, /What is auth\?/);
-    assert.equal(result.model, 'mock-llm');
+    expect(result.content).toContain('Hello from mock');
+    expect(result.content).toContain('What is auth?');
+    expect(result.model).toBe('mock-llm');
   });
 
   it('streams tokens then a done event', async () => {
@@ -26,7 +25,7 @@ describe('MockLlmProvider', () => {
     })) {
       events.push(event);
     }
-    assert.deepEqual(events[0], { type: 'token', text: 'ABCDE' });
-    assert.equal(events.at(-1)?.type, 'done');
+    expect(events[0]).toEqual({ type: 'token', text: 'ABCDE' });
+    expect(events.at(-1)?.type).toBe('done');
   });
 });
