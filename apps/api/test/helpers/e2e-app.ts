@@ -78,6 +78,8 @@ export function configureTestEnvironment(): void {
   process.env.JWT_ACCESS_TTL ??= '15m';
   process.env.JWT_REFRESH_TTL ??= '30d';
   process.env.RETRIEVAL_CACHE_DRIVER = 'memory';
+  process.env.LLM_PROVIDER = 'mock';
+  process.env.EMBEDDING_PROVIDER = 'mock';
   delete process.env.REDIS_URL;
 }
 

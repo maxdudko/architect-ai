@@ -1,0 +1,163 @@
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Conversation, Message, MessageRole, Prisma } from '@prisma/client';
+import { RepositoriesRepository } from '../repositories/repositories.repository';
+import {
+  ConversationDetailResponseDto,
+  ConversationResponseDto,
+} from './dto/conversation-response.dto';
+import { CreateConversationDto } from './dto/create-conversation.dto';
+import { MessageResponseDto } from './dto/message-response.dto';
+import {
+  ConversationsRepository,
+  type ConversationWithMessages,
+} from './conversations.repository';
+
+@Injectable()
+export class ConversationsService {
+  constructor(
+    private readonly conversationsRepository: ConversationsRepository,
+    private readonly repositoriesRepository: RepositoriesRepository,
+  ) {}
+
+  async createConversation(
+    workspaceId: string,
+    userId: string,
+    dto: CreateConversationDto,
+  ): Promise<ConversationResponseDto> {
+    if (dto.repositoryId) {
+      const repository = await this.repositoriesRepository.findById(
+        workspaceId,
+        dto.repositoryId,
+      );
+      if (!repository) {
+        throw new BadRequestException('Repository not found in this workspace');
+      }
+    }
+
+    const conversation = await this.conversationsRepository.create({
+      workspaceId,
+      createdById: userId,
+      repositoryId: dto.repositoryId ?? null,
+      title: dto.title ?? null,
+    });
+
+    return this.toConversationResponse(conversation);
+  }
+
+  async listConversations(
+    workspaceId: string,
+  ): Promise<ConversationResponseDto[]> {
+    const conversations =
+      await this.conversationsRepository.listByWorkspace(workspaceId);
+    return conversations.map((conversation) =>
+      this.toConversationResponse(conversation),
+    );
+  }
+
+  async getConversation(
+    workspaceId: string,
+    conversationId: string,
+  ): Promise<ConversationDetailResponseDto> {
+    const conversation =
+      await this.conversationsRepository.findByIdWithMessages(
+        workspaceId,
+        conversationId,
+      );
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found in this workspace');
+    }
+    return this.toConversationDetailResponse(conversation);
+  }
+
+  async deleteConversation(
+    workspaceId: string,
+    conversationId: string,
+  ): Promise<{ success: boolean }> {
+    await this.requireConversation(workspaceId, conversationId);
+    const deletedCount = await this.conversationsRepository.softDelete(
+      workspaceId,
+      conversationId,
+    );
+    if (deletedCount === 0) {
+      throw new NotFoundException('Conversation not found in this workspace');
+    }
+    return { success: true };
+  }
+
+  async requireConversation(
+    workspaceId: string,
+    conversationId: string,
+  ): Promise<Conversation> {
+    const conversation = await this.conversationsRepository.findById(
+      workspaceId,
+      conversationId,
+    );
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found in this workspace');
+    }
+    return conversation;
+  }
+
+  createMessage(data: {
+    conversationId: string;
+    role: MessageRole;
+    content: string;
+    metadata?: Prisma.InputJsonValue | null;
+  }): Promise<Message> {
+    return this.conversationsRepository.createMessage(data);
+  }
+
+  listRecentMessages(
+    conversationId: string,
+    limit: number,
+  ): Promise<Message[]> {
+    return this.conversationsRepository.listRecentMessages(
+      conversationId,
+      limit,
+    );
+  }
+
+  touchUpdatedAt(conversationId: string): Promise<Conversation> {
+    return this.conversationsRepository.touchUpdatedAt(conversationId);
+  }
+
+  toMessageResponse(message: Message): MessageResponseDto {
+    return {
+      id: message.id,
+      conversationId: message.conversationId,
+      role: message.role,
+      content: message.content,
+      metadata: (message.metadata as Record<string, unknown> | null) ?? null,
+      createdAt: message.createdAt.toISOString(),
+    };
+  }
+
+  private toConversationResponse(
+    conversation: Conversation,
+  ): ConversationResponseDto {
+    return {
+      id: conversation.id,
+      workspaceId: conversation.workspaceId,
+      repositoryId: conversation.repositoryId,
+      createdById: conversation.createdById,
+      title: conversation.title,
+      createdAt: conversation.createdAt.toISOString(),
+      updatedAt: conversation.updatedAt.toISOString(),
+    };
+  }
+
+  private toConversationDetailResponse(
+    conversation: ConversationWithMessages,
+  ): ConversationDetailResponseDto {
+    return {
+      ...this.toConversationResponse(conversation),
+      messages: conversation.messages.map((message) =>
+        this.toMessageResponse(message),
+      ),
+    };
+  }
+}
