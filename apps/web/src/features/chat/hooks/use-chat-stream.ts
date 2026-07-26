@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ChatMessage, ChatSourceReference } from '@/entities';
 import { streamChatMessage } from '@/lib/api';
@@ -19,6 +19,14 @@ export function useChatStream(workspaceId: string, conversationId: string) {
     abortRef.current = null;
     setIsStreaming(false);
   }, []);
+
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    },
+    [],
+  );
 
   const send = useCallback(
     async (content: string) => {
@@ -106,7 +114,13 @@ export function useChatStream(workspaceId: string, conversationId: string) {
             streamError instanceof Error ? streamError.message : 'Failed to stream response',
           );
         }
-        setIsStreaming(false);
+      } finally {
+        // The stream can close without a `done` event; clear the flag unless a
+        // newer send() has already taken over.
+        if (abortRef.current === controller) {
+          abortRef.current = null;
+          setIsStreaming(false);
+        }
       }
     },
     [conversationId, queryClient, workspaceId],

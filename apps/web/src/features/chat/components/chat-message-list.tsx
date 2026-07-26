@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import type { ChatMessage, ChatSourceReference } from '@/entities';
 
 function formatSource(source: ChatSourceReference): string {
@@ -19,8 +20,17 @@ export function ChatMessageList({
   streamingContent?: string;
   pendingSources?: ChatSourceReference[];
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [messages.length, streamingContent]);
+
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+    <div ref={scrollRef} className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
       {messages.length === 0 && !streamingContent ? (
         <p className="text-sm text-muted-foreground">
           Ask a question about your codebase to get started.

@@ -175,7 +175,9 @@ export function ChatWindow() {
 
             <ChatComposer
               disabled={stream.isStreaming || conversationQuery.isLoading}
+              isStreaming={stream.isStreaming}
               onSend={stream.send}
+              onCancel={stream.cancel}
             />
           </>
         )}
