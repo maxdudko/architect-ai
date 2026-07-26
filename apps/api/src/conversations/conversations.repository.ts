@@ -67,6 +67,29 @@ export class ConversationsRepository {
     });
   }
 
+  async update(
+    workspaceId: string,
+    conversationId: string,
+    data: { title?: string },
+  ): Promise<Conversation | null> {
+    const result = await this.prisma.conversation.updateMany({
+      where: {
+        id: conversationId,
+        workspaceId,
+        deletedAt: null,
+      },
+      data: {
+        ...(data.title !== undefined ? { title: data.title } : {}),
+      },
+    });
+
+    if (result.count === 0) {
+      return null;
+    }
+
+    return this.findById(workspaceId, conversationId);
+  }
+
   async softDelete(
     workspaceId: string,
     conversationId: string,

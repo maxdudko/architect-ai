@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -21,6 +22,7 @@ import {
   ConversationResponseDto,
 } from './dto/conversation-response.dto';
 import { CreateConversationDto } from './dto/create-conversation.dto';
+import { UpdateConversationDto } from './dto/update-conversation.dto';
 
 @ApiTags('Conversation')
 @ApiBearerAuth()
@@ -73,6 +75,21 @@ export class ConversationsController {
     return this.conversationsService.getConversation(
       workspaceId,
       conversationId,
+    );
+  }
+
+  @Patch(':conversationId')
+  @ApiOperation({ summary: 'Update a conversation' })
+  @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.MEMBER)
+  updateConversation(
+    @Param('id') workspaceId: string,
+    @Param('conversationId') conversationId: string,
+    @Body() dto: UpdateConversationDto,
+  ): Promise<ConversationResponseDto> {
+    return this.conversationsService.updateConversation(
+      workspaceId,
+      conversationId,
+      dto,
     );
   }
 

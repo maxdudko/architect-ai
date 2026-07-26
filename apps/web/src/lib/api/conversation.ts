@@ -16,6 +16,10 @@ export interface CreateConversationPayload {
   title?: string;
 }
 
+export interface UpdateConversationPayload {
+  title: string;
+}
+
 export interface CreateChatMessagePayload {
   content: string;
 }
@@ -52,6 +56,18 @@ export async function createConversation(
 ): Promise<Conversation> {
   const { data } = await apiClient.post<Conversation>(
     `/workspaces/${workspaceId}/conversations`,
+    payload,
+  );
+  return data;
+}
+
+export async function updateConversation(
+  workspaceId: string,
+  conversationId: string,
+  payload: UpdateConversationPayload,
+): Promise<Conversation> {
+  const { data } = await apiClient.patch<Conversation>(
+    `/workspaces/${workspaceId}/conversations/${conversationId}`,
     payload,
   );
   return data;

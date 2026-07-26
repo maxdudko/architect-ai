@@ -11,6 +11,7 @@ import {
 } from './dto/conversation-response.dto';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { MessageResponseDto } from './dto/message-response.dto';
+import { UpdateConversationDto } from './dto/update-conversation.dto';
 import {
   ConversationsRepository,
   type ConversationWithMessages,
@@ -71,6 +72,34 @@ export class ConversationsService {
       throw new NotFoundException('Conversation not found in this workspace');
     }
     return this.toConversationDetailResponse(conversation);
+  }
+
+  async updateConversation(
+    workspaceId: string,
+    conversationId: string,
+    dto: UpdateConversationDto,
+  ): Promise<ConversationResponseDto> {
+    await this.requireConversation(workspaceId, conversationId);
+
+    const title =
+      dto.title !== undefined ? dto.title.trim() : undefined;
+    if (title !== undefined && title.length === 0) {
+      throw new BadRequestException('Title cannot be empty');
+    }
+
+    const conversation = await this.conversationsRepository.update(
+      workspaceId,
+      conversationId,
+      {
+        ...(title !== undefined ? { title } : {}),
+      },
+    );
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found in this workspace');
+    }
+
+    return this.toConversationResponse(conversation);
   }
 
   async deleteConversation(
