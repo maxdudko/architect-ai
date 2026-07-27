@@ -22,3 +22,8 @@ export interface GithubRepositoryResponse {
     login: string;
   };
 }
+
+export interface GithubBranchResponse {
+  name: string;
+  protected: boolean;
+}

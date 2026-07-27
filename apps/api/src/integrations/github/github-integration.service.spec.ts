@@ -48,6 +48,7 @@ describe('GithubIntegrationService', () => {
       getViewer: jest.fn(),
       listRepositories: jest.fn(),
       getRepositoryById: jest.fn(),
+      listBranches: jest.fn(),
     } as unknown as jest.Mocked<GithubHttpService>;
     githubTokenCipherService = {
       encrypt: jest.fn((value: string) => `encrypted:${value}`),
@@ -192,6 +193,62 @@ describe('GithubIntegrationService', () => {
     await expect(
       service.listRepositories('user-1', 'workspace-1'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('lists branches for a github repository', async () => {
+    workspacesService.getWorkspaceForUser.mockResolvedValue({} as never);
+    githubAccessTokenService.executeWithAccessToken.mockImplementation(
+      async (_userId, operation) => operation('token'),
+    );
+    githubHttpService.getRepositoryById.mockResolvedValue({
+      id: 100,
+      owner: { login: 'acme' },
+      name: 'platform',
+      full_name: 'acme/platform',
+      private: true,
+      default_branch: 'main',
+    });
+    githubHttpService.listBranches.mockResolvedValue({
+      branches: [
+        { name: 'main', protected: true },
+        { name: 'develop', protected: false },
+      ],
+      hasNextPage: false,
+    });
+
+    const result = await service.listBranches('user-1', 'workspace-1', '100');
+
+    expect(workspacesService.getWorkspaceForUser).toHaveBeenCalledWith(
+      'workspace-1',
+      'user-1',
+    );
+    expect(githubHttpService.getRepositoryById).toHaveBeenCalledWith(
+      'token',
+      '100',
+    );
+    expect(githubHttpService.listBranches).toHaveBeenCalledWith(
+      'token',
+      'acme',
+      'platform',
+      1,
+      30,
+    );
+    expect(result).toEqual({
+      branches: [
+        { name: 'main', isProtected: true },
+        { name: 'develop', isProtected: false },
+      ],
+      defaultBranch: 'main',
+      nextCursor: null,
+    });
+  });
+
+  it('rejects invalid branch list cursor', async () => {
+    workspacesService.getWorkspaceForUser.mockResolvedValue({} as never);
+
+    await expect(
+      service.listBranches('user-1', 'workspace-1', '100', 'not-a-cursor'),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects invalid callback payloads', async () => {

@@ -28,6 +28,7 @@ import {
 } from '../services/repository.service';
 import { canManageRepositories } from '../utils/repository-permissions';
 import { RepositoryRow } from './repository-row';
+import { ConnectRepositoryDialog } from './connect-repository-dialog';
 
 const GITHUB_RECONNECT_REQUIRED_CODE = 'GITHUB_RECONNECT_REQUIRED';
 
@@ -206,11 +207,18 @@ export function RepositoriesList() {
                           {repository.defaultBranch} · {repository.isPrivate ? 'Private' : 'Public'}
                         </p>
                       </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={createMutation.isPending || !repository.connectable}
-                        onClick={async () => {
+                      <ConnectRepositoryDialog
+                        repository={repository}
+                        workspaceId={workspaceId}
+                        isPending={createMutation.isPending}
+                        onReconnectRequired={() => {
+                          setErrorMessage(
+                            'GitHub authorization expired. Please reconnect GitHub.',
+                          );
+                          toast.error('GitHub authorization expired. Please reconnect GitHub.');
+                          void githubConnectionQuery.refetch();
+                        }}
+                        onConnect={async (branch) => {
                           setErrorMessage(null);
                           try {
                             await createMutation.mutateAsync({
@@ -219,8 +227,8 @@ export function RepositoriesList() {
                               owner: repository.owner,
                               name: repository.name,
                               fullName: repository.fullName,
-                              defaultBranch: repository.defaultBranch,
-                              indexBranch: repository.defaultBranch,
+                              defaultBranch: branch,
+                              indexBranch: branch,
                             });
                             toast.success(`Connected ${repository.fullName}. Indexing started.`);
                           } catch (error) {
@@ -230,7 +238,7 @@ export function RepositoriesList() {
                               );
                               toast.error('GitHub authorization expired. Please reconnect GitHub.');
                               void githubConnectionQuery.refetch();
-                              return;
+                              throw error;
                             }
                             setErrorMessage(
                               'Unable to connect selected repository. It may already be linked.',
@@ -238,11 +246,10 @@ export function RepositoriesList() {
                             toast.error(
                               'Unable to connect selected repository. It may already be linked.',
                             );
+                            throw error;
                           }
                         }}
-                      >
-                        {repository.connectable ? 'Connect' : 'Already connected'}
-                      </Button>
+                      />
                     </div>
                   ))}
                 </div>
@@ -289,6 +296,10 @@ export function RepositoriesList() {
               isRetryPending={retryMutation.isPending}
               isReindexPending={reindexMutation.isPending}
               isDeletePending={deleteMutation.isPending}
+              onReconnectRequired={() => {
+                toast.error('GitHub authorization expired. Please reconnect GitHub.');
+                void githubConnectionQuery.refetch();
+              }}
               onRetry={async (repositoryId, branch) => {
                 try {
                   await retryMutation.mutateAsync({ repositoryId, branch });

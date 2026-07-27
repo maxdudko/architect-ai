@@ -1,4 +1,12 @@
-import { Controller, Delete, Get, Query, Res, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Query,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
@@ -10,7 +18,9 @@ import { GithubCallbackQueryDto } from './dto/github-callback-query.dto';
 import { GithubConnectUrlQueryDto } from './dto/github-connect-url-query.dto';
 import { GithubConnectionResponseDto } from './dto/github-connection-response.dto';
 import { GithubRepositoriesResponseDto } from './dto/github-repositories-response.dto';
+import { GithubBranchesResponseDto } from './dto/github-branches-response.dto';
 import { ListGithubRepositoriesQueryDto } from './dto/list-github-repositories-query.dto';
+import { ListGithubBranchesQueryDto } from './dto/list-github-branches-query.dto';
 
 @ApiTags('GitHub Integration')
 @Controller('integrations/github')
@@ -98,6 +108,23 @@ export class GithubIntegrationController {
     return this.githubIntegrationService.listRepositories(
       user.sub,
       query.workspaceId,
+      query.cursor,
+    );
+  }
+
+  @Get('repositories/:externalId/branches')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'List branches for a GitHub repository' })
+  listBranches(
+    @CurrentUser() user: RequestUser,
+    @Param('externalId') externalId: string,
+    @Query() query: ListGithubBranchesQueryDto,
+  ): Promise<GithubBranchesResponseDto> {
+    return this.githubIntegrationService.listBranches(
+      user.sub,
+      query.workspaceId,
+      externalId,
       query.cursor,
     );
   }

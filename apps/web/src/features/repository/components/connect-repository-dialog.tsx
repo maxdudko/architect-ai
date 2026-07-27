@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import type { GithubRepositorySummary } from '@/entities';
 import {
   Button,
   Dialog,
@@ -12,45 +13,39 @@ import {
 } from '@/shared/components';
 import { BranchSelect } from './branch-select';
 
-interface RepositoryIndexingActionDialogProps {
-  triggerLabel: string;
-  title: string;
-  description: string;
+interface ConnectRepositoryDialogProps {
+  repository: GithubRepositorySummary;
   workspaceId: string;
-  externalId: string;
-  defaultBranch: string;
   isPending: boolean;
-  onSubmit: (branch?: string) => Promise<void>;
+  onConnect: (branch: string) => Promise<void>;
   onReconnectRequired?: () => void;
 }
 
-export function RepositoryIndexingActionDialog({
-  triggerLabel,
-  title,
-  description,
+export function ConnectRepositoryDialog({
+  repository,
   workspaceId,
-  externalId,
-  defaultBranch,
   isPending,
-  onSubmit,
+  onConnect,
   onReconnectRequired,
-}: RepositoryIndexingActionDialogProps) {
+}: ConnectRepositoryDialogProps) {
   const [open, setOpen] = useState(false);
-  const [branch, setBranch] = useState(defaultBranch);
+  const [branch, setBranch] = useState(repository.defaultBranch);
   const [branchReady, setBranchReady] = useState(false);
 
   const onReadyChange = useCallback((ready: boolean) => {
     setBranchReady(ready);
   }, []);
 
-  const onActionSubmit = async () => {
-    if (!branchReady) {
+  const onConfirm = async () => {
+    if (!branchReady || !branch) {
       return;
     }
-    const normalizedBranch = branch.trim();
-    await onSubmit(normalizedBranch && normalizedBranch !== defaultBranch ? normalizedBranch : undefined);
-    setOpen(false);
-    setBranch(defaultBranch);
+    try {
+      await onConnect(branch);
+      setOpen(false);
+    } catch {
+      // Parent surfaces the error; keep dialog open for retry.
+    }
   };
 
   return (
@@ -59,30 +54,35 @@ export function RepositoryIndexingActionDialog({
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
         if (nextOpen) {
-          setBranch(defaultBranch);
+          setBranch(repository.defaultBranch);
           setBranchReady(false);
-        } else {
-          setBranch(defaultBranch);
         }
       }}
     >
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)} disabled={isPending}>
-        {triggerLabel}
+      <Button
+        type="button"
+        size="sm"
+        disabled={isPending || !repository.connectable}
+        onClick={() => setOpen(true)}
+      >
+        {repository.connectable ? 'Connect' : 'Already connected'}
       </Button>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogTitle>Connect {repository.fullName}</DialogTitle>
+          <DialogDescription>
+            Choose which branch to index for this repository.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
-          <label htmlFor={`index-branch-${externalId}`} className="text-sm font-medium">
+          <label htmlFor={`connect-branch-${repository.id}`} className="text-sm font-medium">
             Branch
           </label>
           <BranchSelect
-            id={`index-branch-${externalId}`}
+            id={`connect-branch-${repository.id}`}
             workspaceId={workspaceId}
-            externalId={externalId}
-            defaultBranch={defaultBranch}
+            externalId={repository.id}
+            defaultBranch={repository.defaultBranch}
             value={branch}
             onChange={setBranch}
             enabled={open}
@@ -90,9 +90,6 @@ export function RepositoryIndexingActionDialog({
             onReconnectRequired={onReconnectRequired}
             onReadyChange={onReadyChange}
           />
-          <p className="text-xs text-muted-foreground">
-            Leave the default branch selected to use {defaultBranch}.
-          </p>
         </div>
         <DialogFooter>
           <Button
@@ -106,11 +103,11 @@ export function RepositoryIndexingActionDialog({
           <Button
             type="button"
             onClick={() => {
-              void onActionSubmit();
+              void onConfirm();
             }}
-            disabled={isPending || !branchReady}
+            disabled={isPending || !branchReady || !branch}
           >
-            {triggerLabel}
+            Connect
           </Button>
         </DialogFooter>
       </DialogContent>

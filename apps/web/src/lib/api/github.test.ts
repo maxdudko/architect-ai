@@ -5,6 +5,7 @@ import {
   getGithubConnectUrl,
   getGithubConnection,
   listGithubRepositories,
+  listGithubRepositoryBranches,
 } from './github';
 
 vi.mock('./axios', () => ({
@@ -60,6 +61,29 @@ describe('github api client', () => {
       },
     });
     expect(response.nextCursor).toBe('cursor-2');
+  });
+
+  it('fetches github repository branches', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        branches: [{ name: 'main', isProtected: true }],
+        defaultBranch: 'main',
+        nextCursor: null,
+      },
+    });
+
+    const response = await listGithubRepositoryBranches('100', 'workspace-1');
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      '/integrations/github/repositories/100/branches',
+      {
+        params: {
+          workspaceId: 'workspace-1',
+        },
+      },
+    );
+    expect(response.branches).toHaveLength(1);
+    expect(response.defaultBranch).toBe('main');
   });
 
   it('disconnects github connection', async () => {

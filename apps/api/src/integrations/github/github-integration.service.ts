@@ -12,6 +12,7 @@ import { GithubOauthStateService } from './github-oauth-state.service';
 import { GithubAccessTokenService } from './github-access-token.service';
 import { GithubTokenCipherService } from './github-token-cipher.service';
 import { GithubRepositoriesResponseDto } from './dto/github-repositories-response.dto';
+import { GithubBranchesResponseDto } from './dto/github-branches-response.dto';
 
 const PER_PAGE = 30;
 
@@ -146,6 +147,57 @@ export class GithubIntegrationService {
       nextCursor: githubResponse.hasNextPage
         ? this.encodeCursor(page + 1)
         : null,
+    };
+  }
+
+  async listBranches(
+    userId: string,
+    workspaceId: string,
+    externalId: string,
+    cursor?: string,
+  ): Promise<GithubBranchesResponseDto> {
+    await this.workspacesService.getWorkspaceForUser(workspaceId, userId);
+
+    const page = this.decodeCursor(cursor);
+    const { repository, branches, hasNextPage } =
+      await this.githubAccessTokenService.executeWithAccessToken(
+        userId,
+        async (accessToken) => {
+          const repository = await this.githubHttpService.getRepositoryById(
+            accessToken,
+            externalId,
+          );
+          if (
+            !repository.owner?.login ||
+            !repository.name ||
+            !repository.full_name
+          ) {
+            throw new BadRequestException(
+              'GitHub repository payload is incomplete',
+            );
+          }
+          const branchesResponse = await this.githubHttpService.listBranches(
+            accessToken,
+            repository.owner.login,
+            repository.name,
+            page,
+            PER_PAGE,
+          );
+          return {
+            repository,
+            branches: branchesResponse.branches,
+            hasNextPage: branchesResponse.hasNextPage,
+          };
+        },
+      );
+
+    return {
+      branches: branches.map((branch) => ({
+        name: branch.name,
+        isProtected: Boolean(branch.protected),
+      })),
+      defaultBranch: repository.default_branch || 'main',
+      nextCursor: hasNextPage ? this.encodeCursor(page + 1) : null,
     };
   }
 

@@ -193,7 +193,8 @@ export class RepositoriesService {
       owner: repository.owner.login,
       name: repository.name,
       fullName: repository.full_name,
-      defaultBranch: repository.default_branch || 'main',
+      defaultBranch:
+        dto.defaultBranch ?? (repository.default_branch || 'main'),
     };
   }
 

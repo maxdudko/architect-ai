@@ -18,3 +18,14 @@ export interface GithubRepositoriesResponse {
   repositories: GithubRepositorySummary[];
   nextCursor: string | null;
 }
+
+export interface GithubBranchSummary {
+  name: string;
+  isProtected: boolean;
+}
+
+export interface GithubBranchesResponse {
+  branches: GithubBranchSummary[];
+  defaultBranch: string;
+  nextCursor: string | null;
+}
