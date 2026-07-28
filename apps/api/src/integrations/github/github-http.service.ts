@@ -1,6 +1,7 @@
 import {
   BadGatewayException,
   Injectable,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -215,6 +216,44 @@ export class GithubHttpService {
 
     if (response.status === 401) {
       throw new GithubUnauthorizedError();
+    }
+    if (!response.ok) {
+      throw new BadGatewayException(
+        'Failed to fetch GitHub repository details',
+      );
+    }
+
+    const body = (await response.json()) as GithubRepositoryResponse;
+    if (!body || typeof body.id !== 'number' || !body.full_name) {
+      throw new BadGatewayException('Unexpected GitHub repository response');
+    }
+
+    return body;
+  }
+
+  async getRepositoryByFullName(
+    accessToken: string,
+    owner: string,
+    name: string,
+  ): Promise<GithubRepositoryResponse> {
+    const response = await fetch(
+      `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
+      {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          Authorization: `Bearer ${accessToken}`,
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+
+    if (response.status === 401) {
+      throw new GithubUnauthorizedError();
+    }
+    if (response.status === 404) {
+      throw new NotFoundException(
+        'GitHub repository not found or is not accessible',
+      );
     }
     if (!response.ok) {
       throw new BadGatewayException(

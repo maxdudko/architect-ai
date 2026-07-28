@@ -19,6 +19,7 @@ import {
   listRepositoryFiles,
   listRepositorySymbols,
   reindexRepository,
+  resolveGithubRepository,
   retryRepositoryIndexing,
   updateRepository,
 } from '@/lib/api';
@@ -130,6 +131,12 @@ export function useGithubRepositoryBranchesQuery(
 export function useGithubConnectUrlMutation() {
   return useMutation({
     mutationFn: (workspaceId: string) => getGithubConnectUrl(workspaceId),
+  });
+}
+
+export function useResolveGithubRepositoryMutation(workspaceId: string) {
+  return useMutation({
+    mutationFn: (q: string) => resolveGithubRepository(workspaceId, q),
   });
 }
 

@@ -17,10 +17,14 @@ import { GithubIntegrationService } from './github-integration.service';
 import { GithubCallbackQueryDto } from './dto/github-callback-query.dto';
 import { GithubConnectUrlQueryDto } from './dto/github-connect-url-query.dto';
 import { GithubConnectionResponseDto } from './dto/github-connection-response.dto';
-import { GithubRepositoriesResponseDto } from './dto/github-repositories-response.dto';
+import {
+  GithubRepositoriesResponseDto,
+  GithubRepositorySummaryDto,
+} from './dto/github-repositories-response.dto';
 import { GithubBranchesResponseDto } from './dto/github-branches-response.dto';
 import { ListGithubRepositoriesQueryDto } from './dto/list-github-repositories-query.dto';
 import { ListGithubBranchesQueryDto } from './dto/list-github-branches-query.dto';
+import { ResolveGithubRepositoryQueryDto } from './dto/resolve-github-repository-query.dto';
 
 @ApiTags('GitHub Integration')
 @Controller('integrations/github')
@@ -95,6 +99,23 @@ export class GithubIntegrationController {
   @ApiOperation({ summary: 'Disconnect GitHub account for current user' })
   disconnect(@CurrentUser() user: RequestUser): Promise<{ success: boolean }> {
     return this.githubIntegrationService.disconnect(user.sub);
+  }
+
+  @Get('resolve')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Resolve a public GitHub repository by URL or owner/repo',
+  })
+  resolveRepository(
+    @CurrentUser() user: RequestUser,
+    @Query() query: ResolveGithubRepositoryQueryDto,
+  ): Promise<GithubRepositorySummaryDto> {
+    return this.githubIntegrationService.resolveRepository(
+      user.sub,
+      query.workspaceId,
+      query.q,
+    );
   }
 
   @Get('repositories')

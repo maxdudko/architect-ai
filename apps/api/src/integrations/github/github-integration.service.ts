@@ -11,8 +11,12 @@ import { GithubHttpService } from './github-http.service';
 import { GithubOauthStateService } from './github-oauth-state.service';
 import { GithubAccessTokenService } from './github-access-token.service';
 import { GithubTokenCipherService } from './github-token-cipher.service';
-import { GithubRepositoriesResponseDto } from './dto/github-repositories-response.dto';
+import {
+  GithubRepositoriesResponseDto,
+  GithubRepositorySummaryDto,
+} from './dto/github-repositories-response.dto';
 import { GithubBranchesResponseDto } from './dto/github-branches-response.dto';
+import { parseGithubRepositoryQuery } from './parse-github-repository-query';
 
 const PER_PAGE = 30;
 
@@ -112,6 +116,52 @@ export class GithubIntegrationService {
   async disconnect(userId: string): Promise<{ success: boolean }> {
     await this.accountsRepository.softDeleteByUserId(userId);
     return { success: true };
+  }
+
+  async resolveRepository(
+    userId: string,
+    workspaceId: string,
+    query: string,
+  ): Promise<GithubRepositorySummaryDto> {
+    await this.workspacesService.getWorkspaceForUser(workspaceId, userId);
+
+    const { owner, name } = parseGithubRepositoryQuery(query);
+    const repository =
+      await this.githubAccessTokenService.executeWithAccessToken(
+        userId,
+        (accessToken) =>
+          this.githubHttpService.getRepositoryByFullName(
+            accessToken,
+            owner,
+            name,
+          ),
+      );
+
+    if (!repository.owner?.login || !repository.name || !repository.full_name) {
+      throw new BadRequestException('GitHub repository payload is incomplete');
+    }
+
+    if (repository.private) {
+      throw new BadRequestException(
+        'Only public repositories can be connected by link. Use your repository list for private repos.',
+      );
+    }
+
+    const connectedExternalIds =
+      await this.repositoriesRepository.listExternalIdsByProvider(
+        RepositoryProvider.GITHUB,
+      );
+    const connectedIdSet = new Set(connectedExternalIds);
+
+    return {
+      id: String(repository.id),
+      owner: repository.owner.login,
+      name: repository.name,
+      fullName: repository.full_name,
+      defaultBranch: repository.default_branch || 'main',
+      isPrivate: repository.private,
+      connectable: !connectedIdSet.has(String(repository.id)),
+    };
   }
 
   async listRepositories(

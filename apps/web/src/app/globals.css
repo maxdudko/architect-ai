@@ -28,6 +28,20 @@ a {
   color: hsl(var(--accent-foreground));
 }
 
+/*
+  Native <select> popups on Linux ignore dark theme CSS and stay white.
+  Force light color-scheme + dark option text so items stay readable.
+  The closed control still uses bg-background / text-foreground via classes.
+*/
+.dark select {
+  color-scheme: light;
+}
+
+.dark select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
 @utility container {
   margin-inline: auto;
   padding-inline: 1rem;

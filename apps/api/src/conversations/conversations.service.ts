@@ -81,8 +81,7 @@ export class ConversationsService {
   ): Promise<ConversationResponseDto> {
     await this.requireConversation(workspaceId, conversationId);
 
-    const title =
-      dto.title !== undefined ? dto.title.trim() : undefined;
+    const title = dto.title !== undefined ? dto.title.trim() : undefined;
     if (title !== undefined && title.length === 0) {
       throw new BadRequestException('Title cannot be empty');
     }

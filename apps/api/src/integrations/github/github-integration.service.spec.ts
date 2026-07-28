@@ -48,6 +48,7 @@ describe('GithubIntegrationService', () => {
       getViewer: jest.fn(),
       listRepositories: jest.fn(),
       getRepositoryById: jest.fn(),
+      getRepositoryByFullName: jest.fn(),
       listBranches: jest.fn(),
     } as unknown as jest.Mocked<GithubHttpService>;
     githubTokenCipherService = {
@@ -255,5 +256,93 @@ describe('GithubIntegrationService', () => {
     await expect(service.processCallback({})).rejects.toBeInstanceOf(
       BadRequestException,
     );
+  });
+
+  it('resolves a public repository by URL', async () => {
+    workspacesService.getWorkspaceForUser.mockResolvedValue({} as never);
+    githubAccessTokenService.executeWithAccessToken.mockImplementation(
+      async (_userId, operation) => operation('token'),
+    );
+    githubHttpService.getRepositoryByFullName.mockResolvedValue({
+      id: 200,
+      owner: { login: 'facebook' },
+      name: 'react',
+      full_name: 'facebook/react',
+      private: false,
+      default_branch: 'main',
+    });
+    repositoriesRepository.listExternalIdsByProvider.mockResolvedValue([]);
+
+    const result = await service.resolveRepository(
+      'user-1',
+      'workspace-1',
+      'https://github.com/facebook/react',
+    );
+
+    expect(githubHttpService.getRepositoryByFullName).toHaveBeenCalledWith(
+      'token',
+      'facebook',
+      'react',
+    );
+    expect(result).toEqual({
+      id: '200',
+      owner: 'facebook',
+      name: 'react',
+      fullName: 'facebook/react',
+      defaultBranch: 'main',
+      isPrivate: false,
+      connectable: true,
+    });
+  });
+
+  it('marks already-linked public repositories as not connectable', async () => {
+    workspacesService.getWorkspaceForUser.mockResolvedValue({} as never);
+    githubAccessTokenService.executeWithAccessToken.mockImplementation(
+      async (_userId, operation) => operation('token'),
+    );
+    githubHttpService.getRepositoryByFullName.mockResolvedValue({
+      id: 200,
+      owner: { login: 'facebook' },
+      name: 'react',
+      full_name: 'facebook/react',
+      private: false,
+      default_branch: 'main',
+    });
+    repositoriesRepository.listExternalIdsByProvider.mockResolvedValue(['200']);
+
+    const result = await service.resolveRepository(
+      'user-1',
+      'workspace-1',
+      'facebook/react',
+    );
+
+    expect(result.connectable).toBe(false);
+  });
+
+  it('rejects private repositories on the paste-link path', async () => {
+    workspacesService.getWorkspaceForUser.mockResolvedValue({} as never);
+    githubAccessTokenService.executeWithAccessToken.mockImplementation(
+      async (_userId, operation) => operation('token'),
+    );
+    githubHttpService.getRepositoryByFullName.mockResolvedValue({
+      id: 300,
+      owner: { login: 'acme' },
+      name: 'secret',
+      full_name: 'acme/secret',
+      private: true,
+      default_branch: 'main',
+    });
+
+    await expect(
+      service.resolveRepository('user-1', 'workspace-1', 'acme/secret'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects invalid resolve queries', async () => {
+    workspacesService.getWorkspaceForUser.mockResolvedValue({} as never);
+
+    await expect(
+      service.resolveRepository('user-1', 'workspace-1', 'not-valid'),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

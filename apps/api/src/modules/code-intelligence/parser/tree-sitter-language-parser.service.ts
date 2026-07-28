@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { createRequire } from 'node:module';
 import type ParserType from 'tree-sitter';
 import { TreeSitterAstAdapter } from '../ast/tree-sitter-ast.adapter';
+import { UnparseableFileError } from '../errors/unparseable-file.error';
 import { LanguageParser } from '../interfaces/language-parser.interface';
 import { ParsedFileAst } from '../types/ast.type';
 import { PROGRAMMING_LANGUAGES } from '../types/programming-language.type';
@@ -47,23 +48,30 @@ export class TreeSitterLanguageParserService implements LanguageParser {
       throw new Error(`Missing grammar for ${grammarKey}`);
     }
 
-    // Create a fresh parser per call. Caching Parser instances across Jest
-    // files has been unreliable with the tree-sitter native addon.
-    const parser = new Parser();
-    parser.setLanguage(grammar);
-    const tree = parser.parse(source);
+    try {
+      // Create a fresh parser per call. Caching Parser instances across Jest
+      // files has been unreliable with the tree-sitter native addon.
+      const parser = new Parser();
+      parser.setLanguage(grammar);
+      const tree = parser.parse(source);
 
-    if (!tree?.rootNode) {
-      throw new Error(
-        `Tree-sitter returned no root node for ${file.relativePath}`,
-      );
+      if (!tree?.rootNode) {
+        throw new Error(
+          `Tree-sitter returned no root node for ${file.relativePath}`,
+        );
+      }
+
+      return {
+        language: file.language,
+        source,
+        tree: this.astAdapter.toAstTree(tree),
+      };
+    } catch (error) {
+      if (error instanceof UnparseableFileError) {
+        throw error;
+      }
+      throw new UnparseableFileError(file.relativePath, error);
     }
-
-    return {
-      language: file.language,
-      source,
-      tree: this.astAdapter.toAstTree(tree),
-    };
   }
 
   private resolveGrammarKey(file: RepositoryFileCandidate): GrammarKey {

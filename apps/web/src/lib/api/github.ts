@@ -2,6 +2,7 @@ import type {
   GithubBranchesResponse,
   GithubConnection,
   GithubRepositoriesResponse,
+  GithubRepositorySummary,
 } from '@/entities';
 import { apiClient } from './axios';
 
@@ -35,6 +36,19 @@ export async function listGithubRepositories(
       },
     },
   );
+  return data;
+}
+
+export async function resolveGithubRepository(
+  workspaceId: string,
+  q: string,
+): Promise<GithubRepositorySummary> {
+  const { data } = await apiClient.get<GithubRepositorySummary>('/integrations/github/resolve', {
+    params: {
+      workspaceId,
+      q,
+    },
+  });
   return data;
 }
 

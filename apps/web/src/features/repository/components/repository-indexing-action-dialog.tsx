@@ -48,7 +48,9 @@ export function RepositoryIndexingActionDialog({
       return;
     }
     const normalizedBranch = branch.trim();
-    await onSubmit(normalizedBranch && normalizedBranch !== defaultBranch ? normalizedBranch : undefined);
+    await onSubmit(
+      normalizedBranch && normalizedBranch !== defaultBranch ? normalizedBranch : undefined,
+    );
     setOpen(false);
     setBranch(defaultBranch);
   };

@@ -125,6 +125,50 @@ export class RepositoryCloneService {
       }
     }
 
+    // Public repos can be cloned without credentials when no member has access.
+    try {
+      await rm(clonePath, { recursive: true, force: true });
+      await this.execFileAsync(
+        'git',
+        ['clone', '--depth', '1', '--branch', branch, cloneUrl, clonePath],
+        {
+          timeout: this.cloneTimeoutMs,
+          env: {
+            ...process.env,
+            GIT_TERMINAL_PROMPT: '0',
+          },
+        },
+      );
+      const { stdout } = await this.execFileAsync(
+        'git',
+        ['rev-parse', 'HEAD'],
+        {
+          cwd: clonePath,
+        },
+      );
+
+      return {
+        clonePath,
+        branch,
+        commitSha: stdout.trim(),
+      };
+    } catch (error) {
+      if (this.isMissingGitError(error)) {
+        throw new Error(
+          'Git is not available in the indexing worker runtime. Install git in the worker container.',
+        );
+      }
+      if (this.isCloneTimeoutError(error)) {
+        throw new Error(
+          `Repository clone timed out after ${this.cloneTimeoutMs}ms. Retry with a smaller repository or increase INDEXING_CLONE_TIMEOUT_MS.`,
+        );
+      }
+      if (!this.isGitAuthError(error)) {
+        throw this.toError(error);
+      }
+      // Anonymous clone failed with an auth-style error; report prior token failure below.
+    }
+
     if (!candidateUserIds.length) {
       throw new Error(
         'No active workspace members are available to authorize repository cloning.',

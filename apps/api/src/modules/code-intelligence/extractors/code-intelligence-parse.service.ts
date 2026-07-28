@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { SymbolRelationType } from '@prisma/client';
 import { readFile } from 'node:fs/promises';
+import {
+  isUnparseableFileError,
+  UnparseableFileError,
+} from '../errors/unparseable-file.error';
 import { RepositoryInventoryService } from '../inventory/repository-inventory.service';
 import { TreeSitterLanguageParserService } from '../parser/tree-sitter-language-parser.service';
 import { SymbolRelationshipExtractorService } from '../relationships/symbol-relationship-extractor.service';
@@ -33,71 +37,79 @@ export class CodeIntelligenceParseService {
     const scanMetrics = await this.scannerService.scanRepository(
       params.clonePath,
       async (candidate) => {
-        const source = await readFile(candidate.absolutePath, 'utf8');
-        const ast = this.parserService.parse(candidate, source);
+        try {
+          const source = await readFile(candidate.absolutePath, 'utf8');
+          const ast = this.parserService.parse(candidate, source);
 
-        const inventoryEntry = await this.inventoryService.upsertInventoryEntry(
-          {
-            repositoryId: params.repositoryId,
-            indexingRunId: params.indexingRunId,
-            candidate,
-            source,
-          },
-        );
+          const inventoryEntry =
+            await this.inventoryService.upsertInventoryEntry({
+              repositoryId: params.repositoryId,
+              indexingRunId: params.indexingRunId,
+              candidate,
+              source,
+            });
 
-        const extractedSymbols = this.symbolExtractorService.extract(
-          candidate.relativePath,
-          ast,
-        );
-
-        const symbolIdMap = await this.storageService.createCodeSymbols(
-          params.repositoryId,
-          params.indexingRunId,
-          inventoryEntry.id,
-          candidate.relativePath,
-          extractedSymbols,
-        );
-        symbolCount += extractedSymbols.length;
-
-        const extractedRelationships =
-          this.relationshipExtractorService.extract({
-            filePath: candidate.relativePath,
+          const extractedSymbols = this.symbolExtractorService.extract(
+            candidate.relativePath,
             ast,
-            symbols: extractedSymbols,
-          });
+          );
 
-        if (extractedRelationships.length > 0) {
-          const relationRows: Array<{
-            fromSymbolId: string;
-            toSymbolId?: string;
-            relationType: SymbolRelationType;
-            targetQualifiedName?: string;
-            targetFilePath?: string;
-          }> = [];
+          const symbolIdMap = await this.storageService.createCodeSymbols(
+            params.repositoryId,
+            params.indexingRunId,
+            inventoryEntry.id,
+            candidate.relativePath,
+            extractedSymbols,
+          );
+          symbolCount += extractedSymbols.length;
 
-          for (const relationship of extractedRelationships) {
-            const fromSymbolId = symbolIdMap.get(
-              relationship.fromSymbolLocalId,
-            );
-            if (!fromSymbolId) {
-              continue;
+          const extractedRelationships =
+            this.relationshipExtractorService.extract({
+              filePath: candidate.relativePath,
+              ast,
+              symbols: extractedSymbols,
+            });
+
+          if (extractedRelationships.length > 0) {
+            const relationRows: Array<{
+              fromSymbolId: string;
+              toSymbolId?: string;
+              relationType: SymbolRelationType;
+              targetQualifiedName?: string;
+              targetFilePath?: string;
+            }> = [];
+
+            for (const relationship of extractedRelationships) {
+              const fromSymbolId = symbolIdMap.get(
+                relationship.fromSymbolLocalId,
+              );
+              if (!fromSymbolId) {
+                continue;
+              }
+              relationRows.push({
+                fromSymbolId,
+                toSymbolId: relationship.toSymbolLocalId
+                  ? symbolIdMap.get(relationship.toSymbolLocalId)
+                  : undefined,
+                relationType: relationship.relationType,
+                targetQualifiedName: relationship.toSymbolQualifiedName,
+                targetFilePath: relationship.targetFilePath,
+              });
             }
-            relationRows.push({
-              fromSymbolId,
-              toSymbolId: relationship.toSymbolLocalId
-                ? symbolIdMap.get(relationship.toSymbolLocalId)
-                : undefined,
-              relationType: relationship.relationType,
-              targetQualifiedName: relationship.toSymbolQualifiedName,
-              targetFilePath: relationship.targetFilePath,
+
+            await this.storageService.createSymbolRelations({
+              repositoryId: params.repositoryId,
+              indexingRunId: params.indexingRunId,
+              relations: relationRows,
             });
           }
-
-          await this.storageService.createSymbolRelations({
-            repositoryId: params.repositoryId,
-            indexingRunId: params.indexingRunId,
-            relations: relationRows,
-          });
+        } catch (error) {
+          if (isUnparseableFileError(error)) {
+            throw error;
+          }
+          // Native tree-sitter / fs edge cases (e.g. "Invalid argument") should
+          // skip the file instead of failing the whole indexing run.
+          throw new UnparseableFileError(candidate.relativePath, error);
         }
       },
     );

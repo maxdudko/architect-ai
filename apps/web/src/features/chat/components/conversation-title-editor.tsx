@@ -24,17 +24,16 @@ export function ConversationTitleEditor({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!isEditing) {
-      setDraft(title ?? '');
-    }
-  }, [isEditing, title]);
-
-  useEffect(() => {
     if (isEditing) {
       inputRef.current?.focus();
       inputRef.current?.select();
     }
   }, [isEditing]);
+
+  function startEditing() {
+    setDraft(title ?? '');
+    setIsEditing(true);
+  }
 
   async function commit() {
     const parsed = updateConversationSchema.safeParse({ title: draft });
@@ -90,7 +89,7 @@ export function ConversationTitleEditor({
         variant="ghost"
         size="sm"
         disabled={disabled || isSaving}
-        onClick={() => setIsEditing(true)}
+        onClick={startEditing}
       >
         Rename
       </Button>

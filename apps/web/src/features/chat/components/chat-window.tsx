@@ -5,10 +5,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { Button, EmptyState, ErrorState, Skeleton } from '@/shared/components';
 import { useRepositoriesQuery } from '@/features/repository';
 import { useChatStream } from '../hooks/use-chat-stream';
-import {
-  isDefaultConversationTitle,
-  titleFromMessage,
-} from '../schemas/chat.schema';
+import { isDefaultConversationTitle, titleFromMessage } from '../schemas/chat.schema';
 import {
   useConversationQuery,
   useConversationsQuery,
@@ -69,14 +66,8 @@ export function ChatWindow() {
   }
 
   async function handleSend(content: string) {
-    if (
-      selectedConversationId &&
-      isDefaultConversationTitle(selectedConversation?.title)
-    ) {
-      void handleRenameConversation(
-        selectedConversationId,
-        titleFromMessage(content),
-      ).catch(() => {
+    if (selectedConversationId && isDefaultConversationTitle(selectedConversation?.title)) {
+      void handleRenameConversation(selectedConversationId, titleFromMessage(content)).catch(() => {
         // Keep the chat response even if auto-title fails.
       });
     }

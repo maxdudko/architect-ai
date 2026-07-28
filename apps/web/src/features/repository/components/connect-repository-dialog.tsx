@@ -70,9 +70,7 @@ export function ConnectRepositoryDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Connect {repository.fullName}</DialogTitle>
-          <DialogDescription>
-            Choose which branch to index for this repository.
-          </DialogDescription>
+          <DialogDescription>Choose which branch to index for this repository.</DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
           <label htmlFor={`connect-branch-${repository.id}`} className="text-sm font-medium">
