@@ -5,14 +5,18 @@ import { useAuth } from '@/providers/auth-provider';
 import { Button, EmptyState, ErrorState, Skeleton } from '@/shared/components';
 import { useRepositoriesQuery } from '@/features/repository';
 import { useChatStream } from '../hooks/use-chat-stream';
+import { isDefaultConversationTitle, titleFromMessage } from '../schemas/chat.schema';
 import {
   useConversationQuery,
   useConversationsQuery,
   useCreateConversationMutation,
   useDeleteConversationMutation,
+  useUpdateConversationMutation,
 } from '../services/chat.service';
 import { ChatComposer } from './chat-composer';
 import { ChatMessageList } from './chat-message-list';
+import { ConversationTitleEditor } from './conversation-title-editor';
+import { CreateConversationDialog } from './create-conversation-dialog';
 
 export function ChatWindow() {
   const { activeWorkspace } = useAuth();
@@ -23,6 +27,7 @@ export function ChatWindow() {
   const conversationsQuery = useConversationsQuery(workspaceId);
   const repositoriesQuery = useRepositoriesQuery(workspaceId);
   const createMutation = useCreateConversationMutation(workspaceId);
+  const updateMutation = useUpdateConversationMutation(workspaceId);
   const deleteMutation = useDeleteConversationMutation(workspaceId);
 
   const conversationId = selectedConversationId ?? '';
@@ -38,12 +43,19 @@ export function ChatWindow() {
     [conversationId, conversations],
   );
 
-  async function handleCreateConversation() {
+  async function handleCreateConversation(title: string) {
     const conversation = await createMutation.mutateAsync({
       repositoryId: selectedRepositoryId || undefined,
-      title: 'New conversation',
+      title,
     });
     setSelectedConversationId(conversation.id);
+  }
+
+  async function handleRenameConversation(id: string, title: string) {
+    await updateMutation.mutateAsync({
+      conversationId: id,
+      payload: { title },
+    });
   }
 
   async function handleDeleteConversation(id: string) {
@@ -51,6 +63,15 @@ export function ChatWindow() {
     if (selectedConversationId === id) {
       setSelectedConversationId(null);
     }
+  }
+
+  async function handleSend(content: string) {
+    if (selectedConversationId && isDefaultConversationTitle(selectedConversation?.title)) {
+      void handleRenameConversation(selectedConversationId, titleFromMessage(content)).catch(() => {
+        // Keep the chat response even if auto-title fails.
+      });
+    }
+    await stream.send(content);
   }
 
   if (!workspaceId) {
@@ -88,13 +109,10 @@ export function ChatWindow() {
               </option>
             ))}
           </select>
-          <Button
-            className="w-full"
-            onClick={() => void handleCreateConversation()}
-            disabled={createMutation.isPending}
-          >
-            New chat
-          </Button>
+          <CreateConversationDialog
+            isPending={createMutation.isPending}
+            onCreate={handleCreateConversation}
+          />
         </div>
 
         <div className="flex-1 space-y-1 overflow-y-auto">
@@ -147,9 +165,11 @@ export function ChatWindow() {
         ) : (
           <>
             <div className="border-b px-4 py-3">
-              <h2 className="text-sm font-semibold">
-                {selectedConversation?.title || 'Conversation'}
-              </h2>
+              <ConversationTitleEditor
+                title={selectedConversation?.title}
+                isSaving={updateMutation.isPending}
+                onSave={(title) => handleRenameConversation(selectedConversationId, title)}
+              />
               <p className="text-xs text-muted-foreground">
                 {selectedConversation?.repositoryId
                   ? 'Scoped to a repository'
@@ -175,7 +195,9 @@ export function ChatWindow() {
 
             <ChatComposer
               disabled={stream.isStreaming || conversationQuery.isLoading}
-              onSend={stream.send}
+              isStreaming={stream.isStreaming}
+              onSend={handleSend}
+              onCancel={stream.cancel}
             />
           </>
         )}

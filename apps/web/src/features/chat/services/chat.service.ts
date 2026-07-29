@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Conversation } from '@/entities';
+import type { Conversation, ConversationDetail } from '@/entities';
 import {
   createConversation,
   deleteConversation,
   getConversation,
   listConversations,
+  updateConversation,
   type CreateConversationPayload,
+  type UpdateConversationPayload,
 } from '@/lib/api';
 
 export const CHAT_QUERY_KEYS = {
@@ -43,6 +45,31 @@ export function useCreateConversationMutation(workspaceId: string) {
         ...conversation,
         messages: [],
       });
+    },
+  });
+}
+
+export function useUpdateConversationMutation(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      conversationId,
+      payload,
+    }: {
+      conversationId: string;
+      payload: UpdateConversationPayload;
+    }) => updateConversation(workspaceId, conversationId, payload),
+    onSuccess: async (conversation: Conversation) => {
+      queryClient.setQueryData(
+        CHAT_QUERY_KEYS.list(workspaceId),
+        (current: Conversation[] | undefined) =>
+          current?.map((item) => (item.id === conversation.id ? conversation : item)),
+      );
+      queryClient.setQueryData(
+        CHAT_QUERY_KEYS.detail(workspaceId, conversation.id),
+        (current: ConversationDetail | undefined) =>
+          current ? { ...current, ...conversation } : current,
+      );
     },
   });
 }

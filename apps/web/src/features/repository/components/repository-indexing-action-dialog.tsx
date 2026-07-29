@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Button,
   Dialog,
@@ -9,50 +9,50 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
 } from '@/shared/components';
-
-const BRANCH_PATTERN = /^[A-Za-z0-9._/-]+$/;
+import { BranchSelect } from './branch-select';
 
 interface RepositoryIndexingActionDialogProps {
   triggerLabel: string;
   title: string;
   description: string;
+  workspaceId: string;
+  externalId: string;
   defaultBranch: string;
   isPending: boolean;
   onSubmit: (branch?: string) => Promise<void>;
+  onReconnectRequired?: () => void;
 }
 
 export function RepositoryIndexingActionDialog({
   triggerLabel,
   title,
   description,
+  workspaceId,
+  externalId,
   defaultBranch,
   isPending,
   onSubmit,
+  onReconnectRequired,
 }: RepositoryIndexingActionDialogProps) {
   const [open, setOpen] = useState(false);
-  const [branch, setBranch] = useState('');
+  const [branch, setBranch] = useState(defaultBranch);
+  const [branchReady, setBranchReady] = useState(false);
 
-  const validationMessage = useMemo(() => {
-    const normalizedBranch = branch.trim();
-    if (!normalizedBranch) {
-      return null;
-    }
-    if (!BRANCH_PATTERN.test(normalizedBranch)) {
-      return 'Branch contains invalid characters.';
-    }
-    return null;
-  }, [branch]);
+  const onReadyChange = useCallback((ready: boolean) => {
+    setBranchReady(ready);
+  }, []);
 
   const onActionSubmit = async () => {
-    const normalizedBranch = branch.trim();
-    if (validationMessage) {
+    if (!branchReady) {
       return;
     }
-    await onSubmit(normalizedBranch || undefined);
+    const normalizedBranch = branch.trim();
+    await onSubmit(
+      normalizedBranch && normalizedBranch !== defaultBranch ? normalizedBranch : undefined,
+    );
     setOpen(false);
-    setBranch('');
+    setBranch(defaultBranch);
   };
 
   return (
@@ -60,8 +60,11 @@ export function RepositoryIndexingActionDialog({
       open={open}
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
-        if (!nextOpen) {
-          setBranch('');
+        if (nextOpen) {
+          setBranch(defaultBranch);
+          setBranchReady(false);
+        } else {
+          setBranch(defaultBranch);
         }
       }}
     >
@@ -74,18 +77,24 @@ export function RepositoryIndexingActionDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
-          <Input
+          <label htmlFor={`index-branch-${externalId}`} className="text-sm font-medium">
+            Branch
+          </label>
+          <BranchSelect
+            id={`index-branch-${externalId}`}
+            workspaceId={workspaceId}
+            externalId={externalId}
+            defaultBranch={defaultBranch}
             value={branch}
-            onChange={(event) => setBranch(event.target.value)}
-            placeholder={`Optional branch override (default: ${defaultBranch})`}
+            onChange={setBranch}
+            enabled={open}
+            disabled={isPending}
+            onReconnectRequired={onReconnectRequired}
+            onReadyChange={onReadyChange}
           />
-          {validationMessage ? (
-            <p className="text-xs text-destructive">{validationMessage}</p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Leave blank to use the default branch ({defaultBranch}).
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            Leave the default branch selected to use {defaultBranch}.
+          </p>
         </div>
         <DialogFooter>
           <Button
@@ -101,7 +110,7 @@ export function RepositoryIndexingActionDialog({
             onClick={() => {
               void onActionSubmit();
             }}
-            disabled={isPending || Boolean(validationMessage)}
+            disabled={isPending || !branchReady}
           >
             {triggerLabel}
           </Button>

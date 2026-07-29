@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { RepositoryStatus } from '@prisma/client';
+import { mkdir, rm } from 'node:fs/promises';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { RepositoryIndexingQueueService } from '../src/repositories/repository-indexing.queue.service';
 import { RepositoryChunkService } from '../src/repositories/indexing/repository-chunk.service';
@@ -118,6 +119,7 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
       branch: 'develop',
       commitSha: 'abc123def',
     });
+    await mkdir('/tmp/indexing/run-1/repo', { recursive: true });
     jest.spyOn(parseService, 'parseRepository').mockResolvedValue({
       supportedFileCount: 12,
       ignoredFileCount: 4,
@@ -128,7 +130,9 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     });
     const cleanupSpy = jest
       .spyOn(storageService, 'cleanupRunDirectory')
-      .mockResolvedValue(undefined);
+      .mockImplementation(async () => {
+        await rm('/tmp/indexing/run-1', { recursive: true, force: true });
+      });
 
     const reindexData: ReindexJobData = {
       workspaceId: fixture.workspaceId,

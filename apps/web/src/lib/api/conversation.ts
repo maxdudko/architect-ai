@@ -16,6 +16,10 @@ export interface CreateConversationPayload {
   title?: string;
 }
 
+export interface UpdateConversationPayload {
+  title: string;
+}
+
 export interface CreateChatMessagePayload {
   content: string;
 }
@@ -52,6 +56,18 @@ export async function createConversation(
 ): Promise<Conversation> {
   const { data } = await apiClient.post<Conversation>(
     `/workspaces/${workspaceId}/conversations`,
+    payload,
+  );
+  return data;
+}
+
+export async function updateConversation(
+  workspaceId: string,
+  conversationId: string,
+  payload: UpdateConversationPayload,
+): Promise<Conversation> {
+  const { data } = await apiClient.patch<Conversation>(
+    `/workspaces/${workspaceId}/conversations/${conversationId}`,
     payload,
   );
   return data;
@@ -115,9 +131,40 @@ export async function streamChatMessage(
   const decoder = new TextDecoder();
   let buffer = '';
 
+  const dispatchChunk = (chunk: string) => {
+    const events = parseSseChunk(`${chunk}\n\n`);
+    for (const parsed of events) {
+      const eventPayload = parsed.data as Record<string, unknown>;
+      switch (parsed.event) {
+        case 'token':
+          handlers.onToken?.(String(eventPayload.text ?? ''));
+          break;
+        case 'sources':
+          handlers.onSources?.((eventPayload.sources as ChatSourceReference[]) ?? []);
+          break;
+        case 'message':
+          handlers.onMessage?.({
+            userMessage: eventPayload.userMessage as ChatAnswerResponse['userMessage'],
+            assistantMessage:
+              eventPayload.assistantMessage as ChatAnswerResponse['assistantMessage'],
+          });
+          break;
+        case 'error':
+          handlers.onError?.(String(eventPayload.message ?? 'Stream error'));
+          break;
+        case 'done':
+          handlers.onDone?.();
+          break;
+        default:
+          break;
+      }
+    }
+  };
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) {
+      buffer += decoder.decode();
       break;
     }
 
@@ -126,33 +173,11 @@ export async function streamChatMessage(
     buffer = chunks.pop() ?? '';
 
     for (const chunk of chunks) {
-      const events = parseSseChunk(`${chunk}\n\n`);
-      for (const parsed of events) {
-        const eventPayload = parsed.data as Record<string, unknown>;
-        switch (parsed.event) {
-          case 'token':
-            handlers.onToken?.(String(eventPayload.text ?? ''));
-            break;
-          case 'sources':
-            handlers.onSources?.((eventPayload.sources as ChatSourceReference[]) ?? []);
-            break;
-          case 'message':
-            handlers.onMessage?.({
-              userMessage: eventPayload.userMessage as ChatAnswerResponse['userMessage'],
-              assistantMessage:
-                eventPayload.assistantMessage as ChatAnswerResponse['assistantMessage'],
-            });
-            break;
-          case 'error':
-            handlers.onError?.(String(eventPayload.message ?? 'Stream error'));
-            break;
-          case 'done':
-            handlers.onDone?.();
-            break;
-          default:
-            break;
-        }
-      }
+      dispatchChunk(chunk);
     }
+  }
+
+  if (buffer.trim()) {
+    dispatchChunk(buffer);
   }
 }

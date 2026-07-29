@@ -110,4 +110,44 @@ describeE2e('Chat (e2e)', () => {
 
     expect(detail.messages).toHaveLength(2);
   });
+
+  it('renames a conversation', async () => {
+    const auth = await signUp(app);
+    const workspaceId = auth.activeWorkspace.id;
+
+    const { body: conversation } = await request(app.getHttpServer())
+      .post(`/workspaces/${workspaceId}/conversations`)
+      .set(authHeader(auth.accessToken))
+      .send({})
+      .expect(201);
+
+    expect(conversation.title).toBeNull();
+
+    const { body: updated } = await request(app.getHttpServer())
+      .patch(`/workspaces/${workspaceId}/conversations/${conversation.id}`)
+      .set(authHeader(auth.accessToken))
+      .send({ title: 'Auth questions' })
+      .expect(200);
+
+    expect(updated).toEqual(
+      expect.objectContaining({
+        id: conversation.id,
+        title: 'Auth questions',
+      }),
+    );
+
+    const { body: listed } = await request(app.getHttpServer())
+      .get(`/workspaces/${workspaceId}/conversations`)
+      .set(authHeader(auth.accessToken))
+      .expect(200);
+
+    expect(listed).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: conversation.id,
+          title: 'Auth questions',
+        }),
+      ]),
+    );
+  });
 });

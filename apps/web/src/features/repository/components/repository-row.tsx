@@ -15,6 +15,7 @@ interface RepositoryRowProps {
   onRetry: (repositoryId: string, branch?: string) => Promise<void>;
   onReindex: (repositoryId: string, branch?: string) => Promise<void>;
   onDisconnect: (repositoryId: string) => Promise<void>;
+  onReconnectRequired?: () => void;
 }
 
 function formatLastIndexedAt(value: string | null): string | null {
@@ -40,6 +41,7 @@ export function RepositoryRow({
   onRetry,
   onReindex,
   onDisconnect,
+  onReconnectRequired,
 }: RepositoryRowProps) {
   const lastIndexedLabel = formatLastIndexedAt(repository.lastIndexedAt);
 
@@ -68,6 +70,7 @@ export function RepositoryRow({
           onRetry={onRetry}
           onReindex={onReindex}
           onDisconnect={onDisconnect}
+          onReconnectRequired={onReconnectRequired}
         />
       </div>
     </div>

@@ -80,6 +80,7 @@ describe('RepositoriesService', () => {
       getViewer: jest.fn(),
       listRepositories: jest.fn(),
       getRepositoryById: jest.fn(),
+      listBranches: jest.fn(),
     } as unknown as jest.Mocked<GithubHttpService>;
 
     embeddingService = {
@@ -171,6 +172,54 @@ describe('RepositoriesService', () => {
         workspaceId: workspaceA,
         repositoryId: repository.id,
         userId: 'user-1',
+      }),
+    );
+  });
+
+  it('honors dto.defaultBranch when connecting a github repository', async () => {
+    repositoriesRepository.findByProviderAndExternalId.mockResolvedValue(null);
+    repositoriesRepository.findAnyByProviderAndExternalId.mockResolvedValue(
+      null,
+    );
+    repositoriesRepository.create.mockResolvedValue({
+      ...repository,
+      defaultBranch: 'develop',
+    });
+    githubHttpService.getRepositoryById.mockResolvedValue({
+      id: 123,
+      name: 'platform-api',
+      full_name: 'acme/platform-api',
+      private: true,
+      default_branch: 'main',
+      owner: {
+        login: 'acme',
+      },
+    });
+    githubAccessTokenService.executeWithAccessToken.mockImplementation(
+      async (_userId, operation) => operation('plain-token'),
+    );
+
+    await service.createRepository(workspaceA, 'user-1', {
+      provider: RepositoryProvider.GITHUB,
+      externalId: '123',
+      owner: 'acme',
+      name: 'platform-api',
+      fullName: 'acme/platform-api',
+      defaultBranch: 'develop',
+      indexBranch: 'develop',
+    });
+
+    expect(repositoriesRepository.create).toHaveBeenCalledWith(
+      workspaceA,
+      expect.objectContaining({
+        defaultBranch: 'develop',
+      }),
+    );
+    expect(
+      repositoryIndexingQueueService.enqueueInitialIndexing,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        branch: 'develop',
       }),
     );
   });

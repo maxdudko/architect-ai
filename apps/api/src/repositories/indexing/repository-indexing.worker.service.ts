@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { RepositoryStatus } from '@prisma/client';
 import { QueueEvents, Worker } from 'bullmq';
 import { randomUUID } from 'node:crypto';
+import { access } from 'node:fs/promises';
 import { RepositoriesRepository } from '../repositories.repository';
 import { RepositoryIndexingQueueService } from '../repository-indexing.queue.service';
 import {
@@ -64,6 +65,15 @@ export class RepositoryIndexingWorkerService
     const concurrency = Number(
       this.configService.get<string>('INDEXING_WORKER_CONCURRENCY') ?? 2,
     );
+    const cloneTimeoutMs = Number(
+      this.configService.get<string>('INDEXING_CLONE_TIMEOUT_MS') ?? 120_000,
+    );
+    // Keep the lock longer than the slowest stage (clone/parse) so BullMQ does
+    // not stall-retry mid-job and wipe an in-progress clone directory.
+    const lockDuration = Number(
+      this.configService.get<string>('INDEXING_JOB_LOCK_DURATION_MS') ??
+        Math.max(cloneTimeoutMs * 2, 30 * 60 * 1000),
+    );
 
     this.worker = new Worker(
       queueName,
@@ -95,6 +105,8 @@ export class RepositoryIndexingWorkerService
       {
         ...redisConnection,
         concurrency,
+        lockDuration,
+        stalledInterval: Math.min(Math.floor(lockDuration / 2), 60_000),
       },
     );
 
@@ -104,6 +116,16 @@ export class RepositoryIndexingWorkerService
     });
 
     this.worker.on('failed', (job, error) => {
+      if (!job) {
+        return;
+      }
+      const maxAttempts = job.opts.attempts ?? 1;
+      if (job.attemptsMade < maxAttempts) {
+        this.logger.warn(
+          `Indexing job ${job.id} failed attempt ${job.attemptsMade}/${maxAttempts}: ${error.message}`,
+        );
+        return;
+      }
       void this.handleWorkerFailure(job, error);
     });
   }
@@ -205,6 +227,14 @@ export class RepositoryIndexingWorkerService
   private async processParse(
     data: CloneJobData & { clonePath: string },
   ): Promise<void> {
+    try {
+      await access(data.clonePath);
+    } catch {
+      throw new Error(
+        `Clone directory is missing at ${data.clonePath}. The clone may have been cleaned up before parsing; retry indexing.`,
+      );
+    }
+
     const parseResult = await this.parseService.parseRepository({
       workspaceId: data.workspaceId,
       repositoryId: data.repositoryId,

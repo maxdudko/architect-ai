@@ -5,6 +5,8 @@ import {
   getGithubConnectUrl,
   getGithubConnection,
   listGithubRepositories,
+  listGithubRepositoryBranches,
+  resolveGithubRepository,
 } from './github';
 
 vi.mock('./axios', () => ({
@@ -60,6 +62,54 @@ describe('github api client', () => {
       },
     });
     expect(response.nextCursor).toBe('cursor-2');
+  });
+
+  it('fetches github repository branches', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        branches: [{ name: 'main', isProtected: true }],
+        defaultBranch: 'main',
+        nextCursor: null,
+      },
+    });
+
+    const response = await listGithubRepositoryBranches('100', 'workspace-1');
+
+    expect(apiClient.get).toHaveBeenCalledWith('/integrations/github/repositories/100/branches', {
+      params: {
+        workspaceId: 'workspace-1',
+      },
+    });
+    expect(response.branches).toHaveLength(1);
+    expect(response.defaultBranch).toBe('main');
+  });
+
+  it('resolves a public github repository by query', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        id: '200',
+        owner: 'facebook',
+        name: 'react',
+        fullName: 'facebook/react',
+        defaultBranch: 'main',
+        isPrivate: false,
+        connectable: true,
+      },
+    });
+
+    const response = await resolveGithubRepository(
+      'workspace-1',
+      'https://github.com/facebook/react',
+    );
+
+    expect(apiClient.get).toHaveBeenCalledWith('/integrations/github/resolve', {
+      params: {
+        workspaceId: 'workspace-1',
+        q: 'https://github.com/facebook/react',
+      },
+    });
+    expect(response.fullName).toBe('facebook/react');
+    expect(response.connectable).toBe(true);
   });
 
   it('disconnects github connection', async () => {

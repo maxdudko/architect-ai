@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { isUnparseableFileError } from '../errors/unparseable-file.error';
 import { LanguageDetectorService } from '../languages/language-detector.service';
 import { RepositoryFileCandidate } from '../types/repository-file-candidate.type';
 import { ChecksumService } from '../utils/checksum.service';
@@ -35,6 +36,8 @@ export interface RepositoryScanMetrics {
 
 @Injectable()
 export class RepositoryScannerService {
+  private readonly logger = new Logger(RepositoryScannerService.name);
+
   constructor(
     private readonly checksumService: ChecksumService,
     private readonly languageDetector: LanguageDetectorService,
@@ -54,7 +57,19 @@ export class RepositoryScannerService {
         continue;
       }
 
-      const entries = await readdir(currentPath, { withFileTypes: true });
+      let entries;
+      try {
+        entries = await readdir(currentPath, { withFileTypes: true });
+      } catch (error) {
+        this.logger.warn(
+          `Skipping unreadable directory ${currentPath}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        ignoredFileCount += 1;
+        continue;
+      }
+
       for (const entry of entries) {
         const absolutePath = path.join(currentPath, entry.name);
 
@@ -84,22 +99,55 @@ export class RepositoryScannerService {
           continue;
         }
 
-        const fileStats = await stat(absolutePath);
+        let fileStats;
+        try {
+          fileStats = await stat(absolutePath);
+        } catch (error) {
+          this.logger.warn(
+            `Skipping unreadable file ${absolutePath}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          ignoredFileCount += 1;
+          continue;
+        }
+
         if (fileStats.size === 0) {
           ignoredFileCount += 1;
           continue;
         }
 
-        const checksum = await this.checksumService.hashFile(absolutePath);
-        await onCandidate({
-          absolutePath,
-          relativePath: path.relative(repositoryRoot, absolutePath),
-          language,
-          extension,
-          size: fileStats.size,
-          checksum,
-        });
-        supportedFileCount += 1;
+        let checksum: string;
+        try {
+          checksum = await this.checksumService.hashFile(absolutePath);
+        } catch (error) {
+          this.logger.warn(
+            `Skipping unhashable file ${absolutePath}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          ignoredFileCount += 1;
+          continue;
+        }
+
+        try {
+          await onCandidate({
+            absolutePath,
+            relativePath: path.relative(repositoryRoot, absolutePath),
+            language,
+            extension,
+            size: fileStats.size,
+            checksum,
+          });
+          supportedFileCount += 1;
+        } catch (error) {
+          if (isUnparseableFileError(error)) {
+            this.logger.warn(error.message);
+            ignoredFileCount += 1;
+            continue;
+          }
+          throw error;
+        }
       }
     }
 

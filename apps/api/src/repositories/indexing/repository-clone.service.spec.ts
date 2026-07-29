@@ -246,4 +246,54 @@ describe('RepositoryCloneService', () => {
     ).toHaveBeenNthCalledWith(2, 'user-2', expect.any(Function));
     expect(result.commitSha).toBe('def456');
   });
+
+  it('falls back to anonymous clone when member tokens cannot access the repo', async () => {
+    githubAccessTokenService.executeWithAccessToken.mockRejectedValue(
+      new NotFoundException('GitHub account is not connected'),
+    );
+    mockExecFile
+      .mockImplementationOnce(
+        (_file, _args, _options, callback?: ExecFileCallback) =>
+          invokeExecCallback(callback, null, '', ''),
+      )
+      .mockImplementationOnce(
+        (_file, _args, _options, callback?: ExecFileCallback) =>
+          invokeExecCallback(callback, null, 'pub789\n', ''),
+      );
+
+    const result = await service.cloneRepository({
+      workspaceId: 'workspace-1',
+      repositoryId: 'repo-1',
+      runId: 'run-1',
+      userId: 'user-1',
+      trigger: 'MANUAL_RETRY',
+    });
+
+    expect(mockExecFile).toHaveBeenCalledWith(
+      'git',
+      [
+        'clone',
+        '--depth',
+        '1',
+        '--branch',
+        'main',
+        'https://github.com/acme/platform-api.git',
+        '/tmp/indexing/run-1/repo',
+      ],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          GIT_TERMINAL_PROMPT: '0',
+        }),
+      }),
+      expect.any(Function),
+    );
+    const anonymousCall = mockExecFile.mock.calls.find(
+      (call) =>
+        Array.isArray(call[1]) &&
+        call[1][0] === 'clone' &&
+        !(call[2] as { env?: { GIT_ASKPASS?: string } })?.env?.GIT_ASKPASS,
+    );
+    expect(anonymousCall).toBeDefined();
+    expect(result.commitSha).toBe('pub789');
+  });
 });

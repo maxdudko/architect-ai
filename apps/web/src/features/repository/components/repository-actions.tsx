@@ -14,6 +14,7 @@ interface RepositoryActionsProps {
   onRetry: (repositoryId: string, branch?: string) => Promise<void>;
   onReindex: (repositoryId: string, branch?: string) => Promise<void>;
   onDisconnect: (repositoryId: string) => Promise<void>;
+  onReconnectRequired?: () => void;
 }
 
 export function RepositoryActions({
@@ -25,6 +26,7 @@ export function RepositoryActions({
   onRetry,
   onReindex,
   onDisconnect,
+  onReconnectRequired,
 }: RepositoryActionsProps) {
   const visibility = getRepositoryActionVisibility(repository.status, canManage);
 
@@ -35,9 +37,12 @@ export function RepositoryActions({
           triggerLabel="Retry indexing"
           title="Retry indexing"
           description={`Retry indexing for ${repository.fullName}.`}
+          workspaceId={repository.workspaceId}
+          externalId={repository.externalId}
           defaultBranch={repository.defaultBranch}
           isPending={isRetryPending}
           onSubmit={async (branch) => onRetry(repository.id, branch)}
+          onReconnectRequired={onReconnectRequired}
         />
       ) : null}
 
@@ -46,9 +51,12 @@ export function RepositoryActions({
           triggerLabel="Reindex"
           title="Reindex repository"
           description={`Start a fresh indexing run for ${repository.fullName}.`}
+          workspaceId={repository.workspaceId}
+          externalId={repository.externalId}
           defaultBranch={repository.defaultBranch}
           isPending={isReindexPending}
           onSubmit={async (branch) => onReindex(repository.id, branch)}
+          onReconnectRequired={onReconnectRequired}
         />
       ) : null}
 

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CodeSymbolType,
+  GithubBranchesResponse,
   GithubRepositoriesResponse,
   Repository,
   RepositoryProvider,
@@ -13,10 +14,12 @@ import {
   getGithubConnection,
   getRepository,
   listGithubRepositories,
+  listGithubRepositoryBranches,
   listRepositories,
   listRepositoryFiles,
   listRepositorySymbols,
   reindexRepository,
+  resolveGithubRepository,
   retryRepositoryIndexing,
   updateRepository,
 } from '@/lib/api';
@@ -33,6 +36,16 @@ export const REPOSITORY_QUERY_KEYS = {
   githubConnection: ['integrations', 'github', 'connection'] as const,
   githubRepositories: (workspaceId: string, cursor?: string) =>
     ['integrations', 'github', 'repositories', workspaceId, cursor ?? null] as const,
+  githubBranches: (workspaceId: string, externalId: string, cursor?: string) =>
+    [
+      'integrations',
+      'github',
+      'repositories',
+      externalId,
+      'branches',
+      workspaceId,
+      cursor ?? null,
+    ] as const,
 };
 
 export function useRepositoriesQuery(workspaceId: string) {
@@ -99,9 +112,31 @@ export function useGithubRepositoriesQuery(
   });
 }
 
+export function useGithubRepositoryBranchesQuery(
+  workspaceId: string,
+  externalId: string,
+  options: {
+    enabled: boolean;
+    cursor?: string;
+  },
+) {
+  return useQuery<GithubBranchesResponse>({
+    queryKey: REPOSITORY_QUERY_KEYS.githubBranches(workspaceId, externalId, options.cursor),
+    queryFn: () => listGithubRepositoryBranches(externalId, workspaceId, options.cursor),
+    enabled: Boolean(workspaceId) && Boolean(externalId) && options.enabled,
+    staleTime: 60_000,
+  });
+}
+
 export function useGithubConnectUrlMutation() {
   return useMutation({
     mutationFn: (workspaceId: string) => getGithubConnectUrl(workspaceId),
+  });
+}
+
+export function useResolveGithubRepositoryMutation(workspaceId: string) {
+  return useMutation({
+    mutationFn: (q: string) => resolveGithubRepository(workspaceId, q),
   });
 }
 

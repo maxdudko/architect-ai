@@ -1,10 +1,12 @@
 import {
   BadGatewayException,
   Injectable,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  GithubBranchResponse,
   GithubRepositoryResponse,
   GithubTokenResponse,
   GithubViewerResponse,
@@ -227,5 +229,85 @@ export class GithubHttpService {
     }
 
     return body;
+  }
+
+  async getRepositoryByFullName(
+    accessToken: string,
+    owner: string,
+    name: string,
+  ): Promise<GithubRepositoryResponse> {
+    const response = await fetch(
+      `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
+      {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          Authorization: `Bearer ${accessToken}`,
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+
+    if (response.status === 401) {
+      throw new GithubUnauthorizedError();
+    }
+    if (response.status === 404) {
+      throw new NotFoundException(
+        'GitHub repository not found or is not accessible',
+      );
+    }
+    if (!response.ok) {
+      throw new BadGatewayException(
+        'Failed to fetch GitHub repository details',
+      );
+    }
+
+    const body = (await response.json()) as GithubRepositoryResponse;
+    if (!body || typeof body.id !== 'number' || !body.full_name) {
+      throw new BadGatewayException('Unexpected GitHub repository response');
+    }
+
+    return body;
+  }
+
+  async listBranches(
+    accessToken: string,
+    owner: string,
+    name: string,
+    page: number,
+    perPage: number,
+  ): Promise<{
+    branches: GithubBranchResponse[];
+    hasNextPage: boolean;
+  }> {
+    const response = await fetch(
+      `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/branches?page=${page}&per_page=${perPage}`,
+      {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          Authorization: `Bearer ${accessToken}`,
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+
+    if (response.status === 401) {
+      throw new GithubUnauthorizedError();
+    }
+    if (!response.ok) {
+      throw new BadGatewayException('Failed to fetch GitHub branches');
+    }
+
+    const body = (await response.json()) as GithubBranchResponse[];
+    if (!Array.isArray(body)) {
+      throw new BadGatewayException('Unexpected GitHub branches response');
+    }
+
+    const linkHeader = response.headers.get('link');
+    const hasNextPage = Boolean(linkHeader?.includes('rel="next"'));
+
+    return {
+      branches: body,
+      hasNextPage,
+    };
   }
 }

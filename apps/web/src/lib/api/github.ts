@@ -1,4 +1,9 @@
-import type { GithubConnection, GithubRepositoriesResponse } from '@/entities';
+import type {
+  GithubBranchesResponse,
+  GithubConnection,
+  GithubRepositoriesResponse,
+  GithubRepositorySummary,
+} from '@/entities';
 import { apiClient } from './axios';
 
 export async function getGithubConnectUrl(workspaceId: string): Promise<{ url: string }> {
@@ -24,6 +29,36 @@ export async function listGithubRepositories(
 ): Promise<GithubRepositoriesResponse> {
   const { data } = await apiClient.get<GithubRepositoriesResponse>(
     '/integrations/github/repositories',
+    {
+      params: {
+        workspaceId,
+        ...(cursor ? { cursor } : {}),
+      },
+    },
+  );
+  return data;
+}
+
+export async function resolveGithubRepository(
+  workspaceId: string,
+  q: string,
+): Promise<GithubRepositorySummary> {
+  const { data } = await apiClient.get<GithubRepositorySummary>('/integrations/github/resolve', {
+    params: {
+      workspaceId,
+      q,
+    },
+  });
+  return data;
+}
+
+export async function listGithubRepositoryBranches(
+  externalId: string,
+  workspaceId: string,
+  cursor?: string,
+): Promise<GithubBranchesResponse> {
+  const { data } = await apiClient.get<GithubBranchesResponse>(
+    `/integrations/github/repositories/${encodeURIComponent(externalId)}/branches`,
     {
       params: {
         workspaceId,
