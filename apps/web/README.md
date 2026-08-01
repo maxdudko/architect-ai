@@ -56,7 +56,7 @@ The codebase uses **feature-based architecture** — files are organized by prod
 ```
 src/
 ├── app/          # Next.js routes, layouts, error boundaries
-├── features/     # auth, workspace, repository, chat, settings
+├── features/     # auth, workspace, repository, onboarding, chat, settings
 ├── shared/       # Reusable UI components and primitives
 ├── entities/     # Domain types (User, Workspace, Membership, …)
 ├── widgets/      # Composed blocks (app shell, navigation)
@@ -86,13 +86,14 @@ Each feature under `src/features/` contains:
 
 All HTTP calls go through `src/lib/api/`. Components and pages never import Axios directly.
 
-| File            | Purpose                                                |
-| --------------- | ------------------------------------------------------ |
-| `axios.ts`      | Shared client, auth header injection, 401 refresh hook |
-| `auth.ts`       | Sign in, sign up, logout, session                      |
-| `workspace.ts`  | List, create, update, switch workspaces                |
-| `membership.ts` | List and remove members                                |
-| `invitation.ts` | Create and accept invitations                          |
+| File                  | Purpose                                                |
+| --------------------- | ------------------------------------------------------ |
+| `axios.ts`            | Shared client, auth header injection, 401 refresh hook |
+| `auth.ts`             | Sign in, sign up, logout, session                      |
+| `workspace.ts`        | List, create, update, switch workspaces                |
+| `membership.ts`       | List and remove members                                |
+| `invitation.ts`       | Create and accept invitations                          |
+| `onboarding-guide.ts` | List, generate, poll, and read onboarding guides       |
 
 ### Auth & session
 
@@ -114,17 +115,19 @@ All HTTP calls go through `src/lib/api/`. Components and pages never import Axio
 
 ### Protected (app shell)
 
-| Route                    | Description                                        |
-| ------------------------ | -------------------------------------------------- |
-| `/dashboard`             | Workspace dashboard with Phase 1 placeholder cards |
-| `/workspaces`            | List and create workspaces                         |
-| `/workspace`             | Workspace hub (settings, members, invitations)     |
-| `/workspace/settings`    | Update workspace name and plan                     |
-| `/workspace/members`     | View and remove members                            |
-| `/workspace/invitations` | Invite teammates                                   |
-| `/repositories`          | Phase 2 placeholder                                |
-| `/chat`                  | Phase 2 placeholder                                |
-| `/settings`              | Personal settings placeholder                      |
+| Route                                         | Description                                        |
+| --------------------------------------------- | -------------------------------------------------- |
+| `/dashboard`                                  | Workspace dashboard with Phase 1 placeholder cards |
+| `/workspaces`                                 | List and create workspaces                         |
+| `/workspace`                                  | Workspace hub (settings, members, invitations)     |
+| `/workspace/settings`                         | Update workspace name and plan                     |
+| `/workspace/members`                          | View and remove members                            |
+| `/workspace/invitations`                      | Invite teammates                                   |
+| `/repositories`                               | Phase 2 placeholder                                |
+| `/repositories/:repositoryId/guides`          | Living onboarding guide library                    |
+| `/repositories/:repositoryId/guides/:guideId` | Living onboarding guide detail                     |
+| `/chat`                                       | Phase 2 placeholder                                |
+| `/settings`                                   | Personal settings placeholder                      |
 
 ### System
 
@@ -167,3 +170,5 @@ Theme is controlled by `ThemeProvider` and toggled from the top nav (light / dar
 - Add new product areas as feature modules under `src/features/`
 - Keep route files thin — compose from `features/`, `widgets/`, and `shared/`
 - For server-only code (e.g. `next/headers`), use a `.server.ts` suffix and avoid importing it from client components
+
+See [`docs/onboarding-guides.md`](../../docs/onboarding-guides.md) for the Living Onboarding Guides flow and UI behavior.

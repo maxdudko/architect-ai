@@ -11,6 +11,7 @@ This service follows a modular DDD-inspired structure:
 - `src/memberships`: workspace access, roles, and member lifecycle
 - `src/invitations`: invitation creation and acceptance
 - `src/users`: user persistence and user-domain service
+- `src/modules/onboarding`: living onboarding guide generation, storage, and worker
 - `src/common`: reusable guards, decorators, and exception filter
 - `src/prisma`: database gateway
 - `prisma`: schema and seed data
@@ -50,8 +51,15 @@ Each module separates:
 - Invitation:
   - `POST /workspaces/:id/invitations`
   - `POST /invitations/:token/accept`
+- Living onboarding guides:
+  - `GET /workspaces/:id/repositories/:repositoryId/guides`
+  - `GET /workspaces/:id/repositories/:repositoryId/guides/generation-runs/latest`
+  - `GET /workspaces/:id/repositories/:repositoryId/guides/:guideId`
+  - `POST /workspaces/:id/repositories/:repositoryId/guides/generate`
+  - `POST /workspaces/:id/repositories/:repositoryId/guides/regenerate`
 
 Swagger is available at `GET /docs`.
+See [`docs/onboarding-guides.md`](../../docs/onboarding-guides.md) for the guide generation architecture and operations.
 
 ## Environment
 

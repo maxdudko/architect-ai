@@ -61,6 +61,32 @@ enum IndexingTrigger {
   MANUAL_REINDEX
 }
 
+enum GuideType {
+  EXECUTIVE_SUMMARY
+  PROJECT_OVERVIEW
+  FOLDER
+  MODULE
+  SERVICE
+  TECHNOLOGY_STACK
+  READING_ORDER
+  GLOSSARY
+  COMMON_PITFALLS
+}
+
+enum GuideGenerationStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum GuideGenerationTrigger {
+  INITIAL_INDEX
+  MANUAL_GENERATE
+  MANUAL_REGENERATE
+  REINDEX
+}
+
 enum CodeSymbolType {
   FUNCTION
   CLASS
@@ -134,17 +160,19 @@ model OAuthAccount {
 }
 
 model Workspace {
-  id            String         @id @default(uuid()) @db.Uuid
-  name          String
-  slug          String         @unique
-  plan          WorkspacePlan  @default(FREE)
-  memberships   Membership[]
-  invitations   Invitation[]
-  repositories  Repository[]
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-  deletedAt     DateTime?      @map("deleted_at")
-  conversations Conversation[]
+  id                  String               @id @default(uuid()) @db.Uuid
+  name                String
+  slug                String               @unique
+  plan                WorkspacePlan        @default(FREE)
+  memberships         Membership[]
+  invitations         Invitation[]
+  repositories        Repository[]
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  deletedAt           DateTime?            @map("deleted_at")
+  conversations       Conversation[]
+  guides              Guide[]
+  guideGenerationRuns GuideGenerationRun[]
 
   @@index([createdAt], map: "workspaces_created_at_idx")
   @@map("workspaces")
@@ -189,56 +217,107 @@ model Invitation {
 }
 
 model Repository {
-  id            String             @id @default(uuid()) @db.Uuid
-  workspaceId   String             @db.Uuid
-  provider      RepositoryProvider
-  externalId    String
-  owner         String
-  name          String
-  fullName      String
-  defaultBranch String
-  status        RepositoryStatus
-  lastIndexedAt DateTime?
-  indexingError String?
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-  deletedAt     DateTime?
-  workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  conversations Conversation[]
-  indexingRuns  IndexingRun[]
-  files         RepositoryFile[]
-  symbols       CodeSymbol[]
-  symbolRelations SymbolRelation[]
-  chunks        Chunk[]
+  id                  String               @id @default(uuid()) @db.Uuid
+  workspaceId         String               @db.Uuid
+  provider            RepositoryProvider
+  externalId          String
+  owner               String
+  name                String
+  fullName            String
+  defaultBranch       String
+  status              RepositoryStatus
+  lastIndexedAt       DateTime?
+  indexingError       String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  deletedAt           DateTime?
+  workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations       Conversation[]
+  indexingRuns        IndexingRun[]
+  files               RepositoryFile[]
+  symbols             CodeSymbol[]
+  symbolRelations     SymbolRelation[]
+  chunks              Chunk[]
+  guides              Guide[]
+  guideGenerationRuns GuideGenerationRun[]
 
   @@unique([provider, externalId])
   @@index([workspaceId])
   @@map("repositories")
 }
 
+model Guide {
+  id                  String     @id @default(uuid()) @db.Uuid
+  workspaceId         String     @db.Uuid
+  repositoryId        String     @db.Uuid
+  type                GuideType
+  slug                String
+  title               String
+  markdown            String     @db.Text
+  summary             String?    @db.Text
+  metadata            Json
+  generationVersion   Int        @default(1)
+  sourceIndexingRunId String?    @db.Uuid
+  sourceCommitSha     String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  workspace           Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  repository          Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([repositoryId, type, slug], map: "guides_repository_id_type_slug_key")
+  @@index([workspaceId, repositoryId], map: "guides_workspace_id_repository_id_idx")
+  @@index([repositoryId, type], map: "guides_repository_id_type_idx")
+  @@map("guides")
+}
+
+model GuideGenerationRun {
+  id                  String                 @id @default(uuid()) @db.Uuid
+  workspaceId         String                 @db.Uuid
+  repositoryId        String                 @db.Uuid
+  trigger             GuideGenerationTrigger
+  status              GuideGenerationStatus  @default(QUEUED)
+  requestedTypes      GuideType[]
+  totalGuideCount     Int                    @default(0)
+  completedGuideCount Int                    @default(0)
+  sourceIndexingRunId String?                @db.Uuid
+  sourceCommitSha     String?
+  error               String?                @db.Text
+  errors              Json?
+  createdAt           DateTime               @default(now())
+  startedAt           DateTime?
+  completedAt         DateTime?
+  updatedAt           DateTime               @updatedAt
+  workspace           Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  repository          Repository             @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, repositoryId], map: "guide_generation_runs_workspace_repository_idx")
+  @@index([repositoryId, status, createdAt], map: "guide_generation_runs_repository_status_created_idx")
+  @@map("guide_generation_runs")
+}
+
 model IndexingRun {
-  id                 String           @id @default(uuid()) @db.Uuid
-  repositoryId       String           @db.Uuid
-  trigger            IndexingTrigger
-  status             IndexingRunStatus
-  branch             String?
-  commitSha          String?
-  clonePath          String?
-  supportedFileCount Int              @default(0)
-  ignoredFileCount   Int              @default(0)
-  symbolCount        Int              @default(0)
-  chunkCount         Int              @default(0)
-  embeddingCount     Int              @default(0)
-  processingDurationMs Int?           @map("processing_duration_ms")
-  error              String?
-  errors             Json?
-  startedAt          DateTime         @default(now())
-  completedAt        DateTime?
-  repository         Repository       @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  files              RepositoryFile[]
-  symbols            CodeSymbol[]
-  symbolRelations    SymbolRelation[]
-  chunks             Chunk[]
+  id                   String            @id @default(uuid()) @db.Uuid
+  repositoryId         String            @db.Uuid
+  trigger              IndexingTrigger
+  status               IndexingRunStatus
+  branch               String?
+  commitSha            String?
+  clonePath            String?
+  supportedFileCount   Int               @default(0)
+  ignoredFileCount     Int               @default(0)
+  symbolCount          Int               @default(0)
+  chunkCount           Int               @default(0)
+  embeddingCount       Int               @default(0)
+  processingDurationMs Int?              @map("processing_duration_ms")
+  error                String?
+  errors               Json?
+  startedAt            DateTime          @default(now())
+  completedAt          DateTime?
+  repository           Repository        @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  files                RepositoryFile[]
+  symbols              CodeSymbol[]
+  symbolRelations      SymbolRelation[]
+  chunks               Chunk[]
 
   @@index([repositoryId])
   @@index([status])
@@ -246,23 +325,23 @@ model IndexingRun {
 }
 
 model RepositoryFile {
-  id           String      @id @default(uuid()) @db.Uuid
-  repositoryId String      @db.Uuid
-  indexingRunId String     @db.Uuid
-  path         String
-  language     String
-  contentHash  String
-  size         Int
-  lineCount    Int         @map("line_count")
-  extension    String
-  generated    Boolean     @default(false)
-  ignored      Boolean     @default(false)
-  binary       Boolean     @default(false)
-  createdAt    DateTime    @default(now())
-  repository   Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  indexingRun  IndexingRun @relation(fields: [indexingRunId], references: [id], onDelete: Cascade)
-  symbols      CodeSymbol[]
-  chunks       Chunk[]
+  id            String       @id @default(uuid()) @db.Uuid
+  repositoryId  String       @db.Uuid
+  indexingRunId String       @db.Uuid
+  path          String
+  language      String
+  contentHash   String
+  size          Int
+  lineCount     Int          @map("line_count")
+  extension     String
+  generated     Boolean      @default(false)
+  ignored       Boolean      @default(false)
+  binary        Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  repository    Repository   @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  indexingRun   IndexingRun  @relation(fields: [indexingRunId], references: [id], onDelete: Cascade)
+  symbols       CodeSymbol[]
+  chunks        Chunk[]
 
   @@unique([repositoryId, path], map: "repository_files_repository_id_path_key")
   @@index([repositoryId])
@@ -271,33 +350,33 @@ model RepositoryFile {
 }
 
 model CodeSymbol {
-  id           String         @id @default(uuid()) @db.Uuid
-  repositoryId String         @db.Uuid
-  indexingRunId String        @db.Uuid
-  fileId       String?        @db.Uuid
-  filePath     String
-  type         CodeSymbolType
-  name         String
-  qualifiedName String        @map("qualified_name")
-  language     String
-  startLine    Int
-  endLine      Int
-  startColumn  Int            @map("start_column")
-  endColumn    Int            @map("end_column")
-  exported     Boolean        @default(false)
-  isAsync      Boolean        @default(false) @map("is_async")
-  isStatic     Boolean        @default(false) @map("is_static")
-  visibility   String         @default("default")
-  parentSymbolId String?      @map("parent_symbol_id") @db.Uuid
-  createdAt    DateTime       @default(now())
-  repository   Repository     @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  indexingRun  IndexingRun    @relation(fields: [indexingRunId], references: [id], onDelete: Cascade)
-  file         RepositoryFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
-  parentSymbol CodeSymbol?    @relation("CodeSymbolParentChild", fields: [parentSymbolId], references: [id], onDelete: SetNull)
-  childSymbols CodeSymbol[]   @relation("CodeSymbolParentChild")
-  relationsFrom SymbolRelation[] @relation("SymbolRelationFrom")
-  relationsTo  SymbolRelation[] @relation("SymbolRelationTo")
-  chunks       Chunk[]
+  id             String           @id @default(uuid()) @db.Uuid
+  repositoryId   String           @db.Uuid
+  indexingRunId  String           @db.Uuid
+  fileId         String?          @db.Uuid
+  filePath       String
+  type           CodeSymbolType
+  name           String
+  qualifiedName  String           @map("qualified_name")
+  language       String
+  startLine      Int
+  endLine        Int
+  startColumn    Int              @map("start_column")
+  endColumn      Int              @map("end_column")
+  exported       Boolean          @default(false)
+  isAsync        Boolean          @default(false) @map("is_async")
+  isStatic       Boolean          @default(false) @map("is_static")
+  visibility     String           @default("default")
+  parentSymbolId String?          @map("parent_symbol_id") @db.Uuid
+  createdAt      DateTime         @default(now())
+  repository     Repository       @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  indexingRun    IndexingRun      @relation(fields: [indexingRunId], references: [id], onDelete: Cascade)
+  file           RepositoryFile?  @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  parentSymbol   CodeSymbol?      @relation("CodeSymbolParentChild", fields: [parentSymbolId], references: [id], onDelete: SetNull)
+  childSymbols   CodeSymbol[]     @relation("CodeSymbolParentChild")
+  relationsFrom  SymbolRelation[] @relation("SymbolRelationFrom")
+  relationsTo    SymbolRelation[] @relation("SymbolRelationTo")
+  chunks         Chunk[]
 
   @@index([repositoryId])
   @@index([indexingRunId])
@@ -308,25 +387,25 @@ model CodeSymbol {
 }
 
 model Chunk {
-  id            String         @id @default(uuid()) @db.Uuid
-  repositoryId  String         @db.Uuid
-  indexingRunId String         @db.Uuid
-  fileId        String?        @db.Uuid
-  symbolId      String?        @db.Uuid
-  filePath      String
-  content       String         @db.Text
-  tokenCount    Int
-  startLine     Int?
-  endLine       Int?
-  metadata      Json?
-  vectorId      String?
-  language      String?
+  id             String          @id @default(uuid()) @db.Uuid
+  repositoryId   String          @db.Uuid
+  indexingRunId  String          @db.Uuid
+  fileId         String?         @db.Uuid
+  symbolId       String?         @db.Uuid
+  filePath       String
+  content        String          @db.Text
+  tokenCount     Int
+  startLine      Int?
+  endLine        Int?
+  metadata       Json?
+  vectorId       String?
+  language       String?
   embeddingModel String?
-  createdAt     DateTime       @default(now())
-  repository    Repository     @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  indexingRun   IndexingRun    @relation(fields: [indexingRunId], references: [id], onDelete: Cascade)
-  file          RepositoryFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
-  symbol        CodeSymbol?    @relation(fields: [symbolId], references: [id], onDelete: SetNull)
+  createdAt      DateTime        @default(now())
+  repository     Repository      @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  indexingRun    IndexingRun     @relation(fields: [indexingRunId], references: [id], onDelete: Cascade)
+  file           RepositoryFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  symbol         CodeSymbol?     @relation(fields: [symbolId], references: [id], onDelete: SetNull)
 
   @@index([repositoryId])
   @@index([indexingRunId])
@@ -335,15 +414,15 @@ model Chunk {
 }
 
 model SymbolRelation {
-  id                  String            @id @default(uuid()) @db.Uuid
-  repositoryId        String            @db.Uuid
-  indexingRunId       String            @db.Uuid
-  fromSymbolId        String            @map("from_symbol_id") @db.Uuid
-  toSymbolId          String?           @map("to_symbol_id") @db.Uuid
+  id                  String             @id @default(uuid()) @db.Uuid
+  repositoryId        String             @db.Uuid
+  indexingRunId       String             @db.Uuid
+  fromSymbolId        String             @map("from_symbol_id") @db.Uuid
+  toSymbolId          String?            @map("to_symbol_id") @db.Uuid
   relationType        SymbolRelationType @map("relation_type")
-  targetQualifiedName String?           @map("target_qualified_name")
-  targetFilePath      String?           @map("target_file_path")
-  createdAt           DateTime          @default(now()) @map("created_at")
+  targetQualifiedName String?            @map("target_qualified_name")
+  targetFilePath      String?            @map("target_file_path")
+  createdAt           DateTime           @default(now()) @map("created_at")
   repository          Repository         @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
   indexingRun         IndexingRun        @relation(fields: [indexingRunId], references: [id], onDelete: Cascade)
   fromSymbol          CodeSymbol         @relation("SymbolRelationFrom", fields: [fromSymbolId], references: [id], onDelete: Cascade)

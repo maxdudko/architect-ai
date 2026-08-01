@@ -8,6 +8,7 @@ import { GithubIntegrationModule } from './integrations/github/github-integratio
 import { InvitationsModule } from './invitations/invitations.module';
 import { MailModule } from './mail/mail.module';
 import { MembershipsModule } from './memberships/memberships.module';
+import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RepositoriesModule } from './repositories/repositories.module';
 import { UsersModule } from './users/users.module';
@@ -23,6 +24,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     MembershipsModule,
     WorkspacesModule,
     InvitationsModule,
+    OnboardingModule,
     RepositoriesModule,
     ConversationsModule,
     ChatModule,

@@ -9,6 +9,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Button,
   ErrorState,
   PageHeader,
   Skeleton,
@@ -81,7 +82,14 @@ export function RepositoryBrowse({ repositoryId }: RepositoryBrowseProps) {
       <PageHeader
         title={repository.fullName}
         description={`${repository.provider} · ${repository.defaultBranch}`}
-        actions={<RepositoryStatusBadge status={repository.status} />}
+        actions={
+          <>
+            <RepositoryStatusBadge status={repository.status} />
+            <Button asChild variant="outline">
+              <Link href={`/repositories/${repository.id}/guides`}>Guides</Link>
+            </Button>
+          </>
+        }
       />
 
       {repository.status !== 'READY' ? (

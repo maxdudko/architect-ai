@@ -4,3 +4,4 @@ export * as workspaceFeature from './workspace';
 export * as repositoryFeature from './repository';
 export * as chatFeature from './chat';
 export * as settingsFeature from './settings';
+export * as onboardingFeature from './onboarding';

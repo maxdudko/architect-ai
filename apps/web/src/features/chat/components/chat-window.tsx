@@ -18,11 +18,15 @@ import { ChatMessageList } from './chat-message-list';
 import { ConversationTitleEditor } from './conversation-title-editor';
 import { CreateConversationDialog } from './create-conversation-dialog';
 
-export function ChatWindow() {
+interface ChatWindowProps {
+  initialRepositoryId?: string;
+}
+
+export function ChatWindow({ initialRepositoryId = '' }: ChatWindowProps) {
   const { activeWorkspace } = useAuth();
   const workspaceId = activeWorkspace?.id ?? '';
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  const [selectedRepositoryId, setSelectedRepositoryId] = useState<string>('');
+  const [selectedRepositoryId, setSelectedRepositoryId] = useState<string>(initialRepositoryId);
 
   const conversationsQuery = useConversationsQuery(workspaceId);
   const repositoriesQuery = useRepositoriesQuery(workspaceId);

@@ -61,6 +61,12 @@ export function RepositoryRow({
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <RepositoryStatusBadge status={repository.status} />
+        <Link
+          href={`/repositories/${repository.id}/guides`}
+          className="inline-flex rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent"
+        >
+          Guides
+        </Link>
         <RepositoryActions
           repository={repository}
           canManage={canManage}

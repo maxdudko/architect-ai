@@ -9,6 +9,7 @@ import { RepositoryStatus } from '@prisma/client';
 import { QueueEvents, Worker } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import { access } from 'node:fs/promises';
+import { OnboardingGuideQueueService } from '../../modules/onboarding/queue/onboarding-guide-queue.service';
 import { RepositoriesRepository } from '../repositories.repository';
 import { RepositoryIndexingQueueService } from '../repository-indexing.queue.service';
 import {
@@ -46,6 +47,7 @@ export class RepositoryIndexingWorkerService
     private readonly chunkService: RepositoryChunkService,
     private readonly embeddingService: RepositoryEmbeddingService,
     private readonly indexingStorageService: IndexingStorageService,
+    private readonly onboardingGuideQueue: OnboardingGuideQueueService,
   ) {
     this.workerEnabled =
       (this.configService.get<string>('INDEXING_WORKER_ENABLED') ?? 'false') ===
@@ -318,5 +320,21 @@ export class RepositoryIndexingWorkerService
       },
     );
     await this.indexingStorageService.cleanupRunDirectory(data.runId);
+    try {
+      await this.onboardingGuideQueue.enqueuePostIndexGeneration({
+        workspaceId: data.workspaceId,
+        repositoryId: data.repositoryId,
+        trigger:
+          data.trigger === 'INITIAL_CONNECT' ? 'INITIAL_INDEX' : 'REINDEX',
+        sourceIndexingRunId: data.runId,
+        sourceCommitSha: commitSha,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Indexing run ${data.runId} succeeded, but automatic onboarding guide generation could not be queued: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 }
