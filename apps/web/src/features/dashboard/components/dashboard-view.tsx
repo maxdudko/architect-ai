@@ -30,7 +30,11 @@ export function DashboardView() {
           <WorkspaceSetupWidget workspaceId={activeWorkspace.id} />
           <PlaceholderWidget
             title="Architecture Explorer"
-            description="Deep understanding of system architecture and visualization of large-scale systems."
+            description="Deep understanding of the system architecture and visualization of the large-scale systems, that leads to better decision-making and knowledge retention."
+          />
+          <PlaceholderWidget
+            title="Decision Memory"
+            description="Deep understanding of the project's evolution and the history of decisions made, enabling preserving architectural knowledge and making better technical decisions in the future."
           />
         </div>
       )}
