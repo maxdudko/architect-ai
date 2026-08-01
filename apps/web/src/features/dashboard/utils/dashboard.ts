@@ -57,6 +57,37 @@ const RELATIVE_TIME_DIVISIONS: Array<{ amount: number; unit: Intl.RelativeTimeFo
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 
+export interface GuideCoverageSummary {
+  readyRepositories: number;
+  withGuides: number;
+  totalGuides: number;
+}
+
+export function summarizeGuideCoverage(
+  entries: Array<{ guideCount: number }>,
+): GuideCoverageSummary {
+  return {
+    readyRepositories: entries.length,
+    withGuides: entries.filter((entry) => entry.guideCount > 0).length,
+    totalGuides: entries.reduce((sum, entry) => sum + entry.guideCount, 0),
+  };
+}
+
+export function formatGuideCoverageSummary(summary: GuideCoverageSummary): string {
+  if (summary.readyRepositories === 0) {
+    return 'No indexed repositories yet';
+  }
+  if (summary.withGuides === 0) {
+    return `${summary.readyRepositories} ready · no guides yet`;
+  }
+  return `${summary.withGuides} of ${summary.readyRepositories} ready have guides · ${summary.totalGuides} total`;
+}
+
+export function formatGuideCountLabel(guideCount: number): string {
+  if (guideCount <= 0) return 'No guides yet';
+  return `${guideCount} guide${guideCount === 1 ? '' : 's'}`;
+}
+
 export function formatRelativeTime(isoDate: string, now: Date = new Date()): string {
   let duration = (new Date(isoDate).getTime() - now.getTime()) / 1000;
 

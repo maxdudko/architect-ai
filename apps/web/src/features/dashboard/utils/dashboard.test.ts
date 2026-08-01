@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Repository, RepositoryStatus } from '@/entities';
 import {
+  formatGuideCountLabel,
+  formatGuideCoverageSummary,
   formatRelativeTime,
   formatRepositoryStatusSummary,
   getRecentItems,
+  summarizeGuideCoverage,
   summarizeRepositoryStatuses,
 } from './dashboard';
 
@@ -77,6 +80,66 @@ describe('getRecentItems', () => {
     getRecentItems(items, 1);
 
     expect(items.map((item) => item.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('summarizeGuideCoverage', () => {
+  it('counts ready repositories, covered repositories, and total guides', () => {
+    expect(
+      summarizeGuideCoverage([{ guideCount: 8 }, { guideCount: 0 }, { guideCount: 3 }]),
+    ).toEqual({
+      readyRepositories: 3,
+      withGuides: 2,
+      totalGuides: 11,
+    });
+  });
+
+  it('returns zeros for an empty list', () => {
+    expect(summarizeGuideCoverage([])).toEqual({
+      readyRepositories: 0,
+      withGuides: 0,
+      totalGuides: 0,
+    });
+  });
+});
+
+describe('formatGuideCoverageSummary', () => {
+  it('describes coverage when guides exist', () => {
+    expect(
+      formatGuideCoverageSummary({
+        readyRepositories: 3,
+        withGuides: 2,
+        totalGuides: 11,
+      }),
+    ).toBe('2 of 3 ready have guides · 11 total');
+  });
+
+  it('describes ready repositories with no guides yet', () => {
+    expect(
+      formatGuideCoverageSummary({
+        readyRepositories: 2,
+        withGuides: 0,
+        totalGuides: 0,
+      }),
+    ).toBe('2 ready · no guides yet');
+  });
+
+  it('falls back when there are no ready repositories', () => {
+    expect(
+      formatGuideCoverageSummary({
+        readyRepositories: 0,
+        withGuides: 0,
+        totalGuides: 0,
+      }),
+    ).toBe('No indexed repositories yet');
+  });
+});
+
+describe('formatGuideCountLabel', () => {
+  it('formats singular and plural guide counts', () => {
+    expect(formatGuideCountLabel(0)).toBe('No guides yet');
+    expect(formatGuideCountLabel(1)).toBe('1 guide');
+    expect(formatGuideCountLabel(4)).toBe('4 guides');
   });
 });
 
