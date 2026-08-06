@@ -9,6 +9,7 @@ import { RepositoryStatus } from '@prisma/client';
 import { QueueEvents, Worker } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import { access } from 'node:fs/promises';
+import { captureError } from '../../common/observability/error-tracker';
 import { OnboardingGuideQueueService } from '../../modules/onboarding/queue/onboarding-guide-queue.service';
 import { RepositoriesRepository } from '../repositories.repository';
 import { RepositoryIndexingQueueService } from '../repository-indexing.queue.service';
@@ -114,7 +115,14 @@ export class RepositoryIndexingWorkerService
 
     this.queueEvents = new QueueEvents(queueName, redisConnection);
     this.queueEvents.on('failed', ({ jobId, failedReason }) => {
-      this.logger.error(`Indexing job failed: ${jobId} - ${failedReason}`);
+      this.logger.error(
+        JSON.stringify({
+          event: 'indexing_job_failed_event',
+          jobId,
+          failedReason,
+          service: 'indexing-worker',
+        }),
+      );
     });
 
     this.worker.on('failed', (job, error) => {
@@ -124,7 +132,16 @@ export class RepositoryIndexingWorkerService
       const maxAttempts = job.opts.attempts ?? 1;
       if (job.attemptsMade < maxAttempts) {
         this.logger.warn(
-          `Indexing job ${job.id} failed attempt ${job.attemptsMade}/${maxAttempts}: ${error.message}`,
+          JSON.stringify({
+            event: 'indexing_job_retry',
+            jobId: job.id,
+            attemptsMade: job.attemptsMade,
+            maxAttempts,
+            workspaceId: (job.data as { workspaceId?: string }).workspaceId,
+            repositoryId: (job.data as { repositoryId?: string }).repositoryId,
+            error: error.message,
+            service: 'indexing-worker',
+          }),
         );
         return;
       }
@@ -170,6 +187,14 @@ export class RepositoryIndexingWorkerService
       workspaceId: data.workspaceId,
       repositoryId: data.repositoryId,
       errorMessage: error.message,
+    });
+    captureError(error, {
+      requestId: null,
+      userId: null,
+      organizationId: data.workspaceId,
+      repositoryId: data.repositoryId,
+      method: 'WORKER',
+      route: 'indexing',
     });
   }
 
@@ -331,9 +356,14 @@ export class RepositoryIndexingWorkerService
       });
     } catch (error) {
       this.logger.error(
-        `Indexing run ${data.runId} succeeded, but automatic onboarding guide generation could not be queued: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        JSON.stringify({
+          event: 'indexing_onboarding_enqueue_failed',
+          runId: data.runId,
+          workspaceId: data.workspaceId,
+          repositoryId: data.repositoryId,
+          error: error instanceof Error ? error.message : String(error),
+          service: 'indexing-worker',
+        }),
       );
     }
   }

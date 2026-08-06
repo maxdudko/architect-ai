@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -7,6 +7,7 @@ import { MembershipsModule } from '../../memberships/memberships.module';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { LlmModule } from '../llm/llm.module';
 import { RetrievalModule } from '../retrieval/retrieval.module';
+import { RepositoriesModule } from '../../repositories/repositories.module';
 import type { GuideGenerator } from './interfaces/guide-generator.interface';
 import {
   GUIDE_GENERATORS,
@@ -57,6 +58,7 @@ const GENERATOR_CLASSES = [
     PrismaModule,
     LlmModule,
     RetrievalModule,
+    forwardRef(() => RepositoriesModule),
   ],
   controllers: [OnboardingGuidesController],
   providers: [

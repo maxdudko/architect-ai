@@ -1,9 +1,8 @@
 import { ConfigService } from '@nestjs/config';
-import { NotFoundException } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import { RepositoryProvider } from '@prisma/client';
 import * as childProcess from 'node:child_process';
 import { GithubAccessTokenService } from '../../integrations/github/github-access-token.service';
-import { MembershipsRepository } from '../../memberships/memberships.repository';
 import { RepositoriesRepository } from '../repositories.repository';
 import { IndexingStorageService } from './indexing-storage.service';
 import { RepositoryCloneService } from './repository-clone.service';
@@ -69,7 +68,6 @@ describe('RepositoryCloneService', () => {
   let configService: jest.Mocked<ConfigService>;
   let repositoriesRepository: jest.Mocked<RepositoriesRepository>;
   let githubAccessTokenService: jest.Mocked<GithubAccessTokenService>;
-  let membershipsRepository: jest.Mocked<MembershipsRepository>;
   let storageService: jest.Mocked<IndexingStorageService>;
   let mockExecFile: jest.MockedFunction<typeof childProcess.execFile>;
   let service: RepositoryCloneService;
@@ -94,12 +92,6 @@ describe('RepositoryCloneService', () => {
       executeWithAccessToken: jest.fn(),
     } as unknown as jest.Mocked<GithubAccessTokenService>;
 
-    membershipsRepository = {
-      listActiveUserIdsByWorkspace: jest
-        .fn()
-        .mockResolvedValue(['user-1', 'user-2']),
-    } as unknown as jest.Mocked<MembershipsRepository>;
-
     storageService = {
       enforceStorageLimit: jest.fn().mockResolvedValue(undefined),
       prepareRunDirectory: jest.fn().mockResolvedValue('/tmp/indexing/run-1'),
@@ -113,7 +105,6 @@ describe('RepositoryCloneService', () => {
       configService,
       repositoriesRepository,
       githubAccessTokenService,
-      membershipsRepository,
       storageService,
     );
   });
@@ -212,88 +203,21 @@ describe('RepositoryCloneService', () => {
     );
   });
 
-  it('falls back to another workspace member token when first is unavailable', async () => {
-    githubAccessTokenService.executeWithAccessToken
-      .mockRejectedValueOnce(
-        new NotFoundException('GitHub account is not connected'),
-      )
-      .mockImplementationOnce(async (_userId, operation) =>
-        operation('gh-token-2'),
-      );
-    mockExecFile
-      .mockImplementationOnce(
-        (_file, _args, _options, callback?: ExecFileCallback) =>
-          invokeExecCallback(callback, null, '', ''),
-      )
-      .mockImplementationOnce(
-        (_file, _args, _options, callback?: ExecFileCallback) =>
-          invokeExecCallback(callback, null, 'def456\n', ''),
-      );
-
-    const result = await service.cloneRepository({
-      workspaceId: 'workspace-1',
-      repositoryId: 'repo-1',
-      runId: 'run-1',
-      userId: 'user-1',
-      trigger: 'MANUAL_RETRY',
-    });
-
-    expect(
-      githubAccessTokenService.executeWithAccessToken,
-    ).toHaveBeenNthCalledWith(1, 'user-1', expect.any(Function));
-    expect(
-      githubAccessTokenService.executeWithAccessToken,
-    ).toHaveBeenNthCalledWith(2, 'user-2', expect.any(Function));
-    expect(result.commitSha).toBe('def456');
-  });
-
-  it('falls back to anonymous clone when member tokens cannot access the repo', async () => {
+  it('fails when the requesting user cannot authorize repository access', async () => {
     githubAccessTokenService.executeWithAccessToken.mockRejectedValue(
-      new NotFoundException('GitHub account is not connected'),
+      new UnauthorizedException('GitHub account is not connected'),
     );
-    mockExecFile
-      .mockImplementationOnce(
-        (_file, _args, _options, callback?: ExecFileCallback) =>
-          invokeExecCallback(callback, null, '', ''),
-      )
-      .mockImplementationOnce(
-        (_file, _args, _options, callback?: ExecFileCallback) =>
-          invokeExecCallback(callback, null, 'pub789\n', ''),
-      );
 
-    const result = await service.cloneRepository({
-      workspaceId: 'workspace-1',
-      repositoryId: 'repo-1',
-      runId: 'run-1',
-      userId: 'user-1',
-      trigger: 'MANUAL_RETRY',
-    });
-
-    expect(mockExecFile).toHaveBeenCalledWith(
-      'git',
-      [
-        'clone',
-        '--depth',
-        '1',
-        '--branch',
-        'main',
-        'https://github.com/acme/platform-api.git',
-        '/tmp/indexing/run-1/repo',
-      ],
-      expect.objectContaining({
-        env: expect.objectContaining({
-          GIT_TERMINAL_PROMPT: '0',
-        }),
+    await expect(
+      service.cloneRepository({
+        workspaceId: 'workspace-1',
+        repositoryId: 'repo-1',
+        runId: 'run-1',
+        userId: 'user-1',
+        trigger: 'MANUAL_RETRY',
       }),
-      expect.any(Function),
+    ).rejects.toThrow(
+      'Repository clone failed because your GitHub authorization does not permit access to this repository.',
     );
-    const anonymousCall = mockExecFile.mock.calls.find(
-      (call) =>
-        Array.isArray(call[1]) &&
-        call[1][0] === 'clone' &&
-        !(call[2] as { env?: { GIT_ASKPASS?: string } })?.env?.GIT_ASKPASS,
-    );
-    expect(anonymousCall).toBeDefined();
-    expect(result.commitSha).toBe('pub789');
   });
 });

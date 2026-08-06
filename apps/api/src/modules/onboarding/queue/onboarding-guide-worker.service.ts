@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Job, QueueEvents, Worker } from 'bullmq';
+import { captureError } from '../../../common/observability/error-tracker';
 import { OnboardingGuideOrchestrator } from '../onboarding-guide.orchestrator';
 import {
   getOnboardingGuideQueueName,
@@ -71,7 +72,12 @@ export class OnboardingGuideWorkerService
     this.queueEvents = new QueueEvents(queueName, connection);
     this.queueEvents.on('failed', ({ jobId, failedReason }) => {
       this.logger.error(
-        `Onboarding guide job failed: ${jobId} - ${failedReason}`,
+        JSON.stringify({
+          event: 'onboarding_job_failed_event',
+          jobId,
+          failedReason,
+          service: 'onboarding-worker',
+        }),
       );
     });
     this.worker.on('failed', (job, error) => {
@@ -81,7 +87,14 @@ export class OnboardingGuideWorkerService
       const maxAttempts = job.opts.attempts ?? 1;
       if (job.attemptsMade < maxAttempts) {
         this.logger.warn(
-          `Onboarding guide job ${job.id} failed attempt ${job.attemptsMade}/${maxAttempts}: ${error.message}`,
+          JSON.stringify({
+            event: 'onboarding_job_retry',
+            jobId: job.id,
+            attemptsMade: job.attemptsMade,
+            maxAttempts,
+            error: error.message,
+            service: 'onboarding-worker',
+          }),
         );
         return;
       }
@@ -103,12 +116,24 @@ export class OnboardingGuideWorkerService
     try {
       await this.orchestrator.recordTerminalFailure(job.data.runId, error);
     } catch (recordError) {
+      captureError(recordError, {
+        requestId: null,
+        userId: null,
+        organizationId: null,
+        repositoryId: null,
+        method: 'WORKER',
+        route: 'onboarding',
+      });
       this.logger.error(
-        `Could not record terminal failure for onboarding guide run ${job.data.runId}: ${
-          recordError instanceof Error
-            ? recordError.message
-            : String(recordError)
-        }`,
+        JSON.stringify({
+          event: 'onboarding_terminal_failure_record_error',
+          runId: job.data.runId,
+          error:
+            recordError instanceof Error
+              ? recordError.message
+              : String(recordError),
+          service: 'onboarding-worker',
+        }),
       );
     }
   }

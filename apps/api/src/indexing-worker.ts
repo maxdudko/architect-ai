@@ -1,9 +1,11 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { initErrorTracker } from './common/observability/error-tracker';
 
 async function bootstrapWorker(): Promise<void> {
   process.env.INDEXING_WORKER_ENABLED = 'true';
+  initErrorTracker();
   const logger = new Logger('IndexingWorker');
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: ['error', 'warn', 'log'],

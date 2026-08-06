@@ -6,6 +6,7 @@ import type { LlmProvider } from '../modules/llm/interfaces/llm-provider.interfa
 import { LLM_PROVIDER } from '../modules/llm/interfaces/tokens';
 import { RetrievalService } from '../modules/retrieval/retrieval.service';
 import type { RetrievedChunkReference } from '../modules/retrieval/types/retrieved-context.type';
+import { RepositoryAccessValidationService } from '../repositories/repository-access-validation.service';
 import { RepositoriesRepository } from '../repositories/repositories.repository';
 import { ChatAnswerResponseDto } from './dto/chat-answer-response.dto';
 import { PromptContextBuilder } from './prompt-context.builder';
@@ -32,6 +33,7 @@ export class ChatService {
   constructor(
     private readonly conversationsService: ConversationsService,
     private readonly repositoriesRepository: RepositoriesRepository,
+    private readonly repositoryAccessValidationService: RepositoryAccessValidationService,
     private readonly retrievalService: RetrievalService,
     @Inject(LLM_PROVIDER)
     private readonly llmProvider: LlmProvider,
@@ -40,11 +42,13 @@ export class ChatService {
   async ask(
     workspaceId: string,
     conversationId: string,
+    userId: string,
     content: string,
   ): Promise<ChatAnswerResponseDto> {
     const prepared = await this.prepareTurn(
       workspaceId,
       conversationId,
+      userId,
       content,
     );
 
@@ -74,12 +78,14 @@ export class ChatService {
   async *stream(
     workspaceId: string,
     conversationId: string,
+    userId: string,
     content: string,
   ): AsyncIterable<ChatStreamEvent> {
     try {
       const prepared = await this.prepareTurn(
         workspaceId,
         conversationId,
+        userId,
         content,
       );
 
@@ -145,6 +151,7 @@ export class ChatService {
   private async prepareTurn(
     workspaceId: string,
     conversationId: string,
+    userId: string,
     content: string,
   ) {
     const conversation = await this.conversationsService.requireConversation(
@@ -169,6 +176,16 @@ export class ChatService {
           conversation.repositoryId,
         )
       : null;
+
+    if (conversation.repositoryId) {
+      await this.repositoryAccessValidationService.assertUserCanAccessRepository(
+        {
+          workspaceId,
+          repositoryId: conversation.repositoryId,
+          userId,
+        },
+      );
+    }
 
     const retrievedContext = await this.retrievalService.retrieve({
       query: content,

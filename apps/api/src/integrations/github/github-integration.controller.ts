@@ -11,6 +11,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RateLimit } from '../../common/decorators/rate-limit.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import { GithubIntegrationService } from './github-integration.service';
@@ -35,6 +36,7 @@ export class GithubIntegrationController {
   ) {}
 
   @Get('connect-url')
+  @RateLimit({ limit: 30, windowMs: 60_000 })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get a GitHub OAuth connect URL' })
@@ -50,6 +52,7 @@ export class GithubIntegrationController {
   }
 
   @Get('callback')
+  @RateLimit({ limit: 30, windowMs: 60_000 })
   @ApiOperation({ summary: 'GitHub OAuth callback endpoint' })
   async callback(
     @Query() query: GithubCallbackQueryDto,
@@ -102,6 +105,7 @@ export class GithubIntegrationController {
   }
 
   @Get('resolve')
+  @RateLimit({ limit: 30, windowMs: 60_000 })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({
@@ -119,6 +123,7 @@ export class GithubIntegrationController {
   }
 
   @Get('repositories')
+  @RateLimit({ limit: 30, windowMs: 60_000 })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'List GitHub repositories available to connect' })
@@ -134,6 +139,7 @@ export class GithubIntegrationController {
   }
 
   @Get('repositories/:externalId/branches')
+  @RateLimit({ limit: 30, windowMs: 60_000 })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'List branches for a GitHub repository' })

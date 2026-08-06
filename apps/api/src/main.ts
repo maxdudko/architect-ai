@@ -1,8 +1,12 @@
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { randomUUID } from 'node:crypto';
+import type { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { resolveRequestLogContext } from './common/logging/request-log-context';
+import { initErrorTracker } from './common/observability/error-tracker';
 
 function getCorsOrigins(): string | string[] {
   const configured = process.env.CORS_ORIGINS;
@@ -24,7 +28,11 @@ function assertRequiredProductionEnv(): void {
     return;
   }
 
-  const requiredVars = ['TOKEN_ENCRYPTION_KEY', 'GITHUB_OAUTH_STATE_SECRET'];
+  const requiredVars = [
+    'TOKEN_ENCRYPTION_KEY',
+    'GITHUB_OAUTH_STATE_SECRET',
+    'GITHUB_CLIENT_SECRET',
+  ];
   const missingVars = requiredVars.filter((name) => {
     const value = process.env[name];
     return !value || value.trim().length === 0;
@@ -39,13 +47,47 @@ function assertRequiredProductionEnv(): void {
 
 async function bootstrap() {
   assertRequiredProductionEnv();
+  initErrorTracker();
   const app = await NestFactory.create(AppModule);
+  const requestLogger = new Logger('RequestLogger');
+
+  app.use((request: Request, response: Response, next: NextFunction) => {
+    const startedAt = Date.now();
+    const headerRequestId = request.header('x-request-id');
+    const requestId = headerRequestId?.trim() || randomUUID();
+    (request as Request & { requestId?: string }).requestId = requestId;
+    response.setHeader('x-request-id', requestId);
+
+    response.on('finish', () => {
+      const context = resolveRequestLogContext(
+        request as Request & {
+          requestId?: string;
+          user?: { sub?: string; activeWorkspaceId?: string };
+          workspace?: { id?: string };
+          params?: Record<string, string | undefined>;
+          body?: Record<string, unknown>;
+        },
+      );
+      requestLogger.log(
+        JSON.stringify({
+          event: 'http_request',
+          ...context,
+          statusCode: response.statusCode,
+          latencyMs: Date.now() - startedAt,
+          service: 'api',
+        }),
+      );
+    });
+
+    next();
+  });
 
   app.enableCors({
     origin: getCorsOrigins(),
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'x-request-id'],
+    exposedHeaders: ['x-request-id'],
   });
 
   app.useGlobalPipes(

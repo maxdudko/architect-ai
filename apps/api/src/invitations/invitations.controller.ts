@@ -13,6 +13,7 @@ import { WorkspaceRole } from '@prisma/client';
 import { AuthCookieService } from '../auth/auth-cookie.service';
 import { toPublicAuthResponse } from '../auth/interfaces/public-auth-response.interface';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RateLimit } from '../common/decorators/rate-limit.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -45,6 +46,7 @@ export class InvitationsController {
   }
 
   @Post('workspaces/:id/invitations')
+  @RateLimit({ limit: 20, windowMs: 60_000 })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, WorkspaceParamGuard, RolesGuard)
   @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
@@ -63,6 +65,7 @@ export class InvitationsController {
   }
 
   @Post('workspaces/:id/invitations/:invitationId/resend')
+  @RateLimit({ limit: 20, windowMs: 60_000 })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, WorkspaceParamGuard, RolesGuard)
   @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
@@ -80,6 +83,7 @@ export class InvitationsController {
   }
 
   @Get('invitations/:token')
+  @RateLimit({ limit: 20, windowMs: 60_000 })
   @ApiOperation({ summary: 'Preview a workspace invitation' })
   getInvitationPreview(
     @Param('token') token: string,
@@ -88,6 +92,7 @@ export class InvitationsController {
   }
 
   @Post('invitations/:token/accept')
+  @RateLimit({ limit: 10, windowMs: 60_000 })
   @ApiOperation({ summary: 'Accept a workspace invitation' })
   async acceptInvitation(
     @Param('token') token: string,

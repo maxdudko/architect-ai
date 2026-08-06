@@ -217,6 +217,11 @@ export class GithubHttpService {
     if (response.status === 401) {
       throw new GithubUnauthorizedError();
     }
+    if (response.status === 404) {
+      throw new NotFoundException(
+        'GitHub repository not found or is not accessible',
+      );
+    }
     if (!response.ok) {
       throw new BadGatewayException(
         'Failed to fetch GitHub repository details',

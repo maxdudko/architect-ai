@@ -13,6 +13,7 @@ import { RepositoryEmbeddingService } from './indexing/repository-embedding.serv
 import { RepositoryIndexingWorkerService } from './indexing/repository-indexing.worker.service';
 import { RepositoryParseService } from './indexing/repository-parse.service';
 import { RepositoriesController } from './repositories.controller';
+import { RepositoryAccessValidationService } from './repository-access-validation.service';
 import { RepositoryIndexingQueueService } from './repository-indexing.queue.service';
 import { RepositoriesRepository } from './repositories.repository';
 import { RepositoriesService } from './repositories.service';
@@ -29,6 +30,7 @@ import { RepositoriesService } from './repositories.service';
   providers: [
     RepositoriesRepository,
     RepositoriesService,
+    RepositoryAccessValidationService,
     RepositoryIndexingQueueService,
     RepositoryIndexingWorkerService,
     RepositoryCloneService,
@@ -42,6 +44,7 @@ import { RepositoriesService } from './repositories.service';
   exports: [
     RepositoriesService,
     RepositoriesRepository,
+    RepositoryAccessValidationService,
     RepositoryIndexingQueueService,
   ],
 })

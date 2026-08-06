@@ -11,6 +11,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { CurrentWorkspace } from '../common/decorators/current-workspace.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RateLimit } from '../common/decorators/rate-limit.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { WorkspaceGuard } from '../common/guards/workspace.guard';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
@@ -34,6 +35,7 @@ export class AuthController {
   ) {}
 
   @Post('signup')
+  @RateLimit({ limit: 10, windowMs: 60_000 })
   @ApiOperation({ summary: 'Register a new user account' })
   async signUp(
     @Body() dto: SignUpDto,
@@ -45,6 +47,7 @@ export class AuthController {
   }
 
   @Post('signin')
+  @RateLimit({ limit: 10, windowMs: 60_000 })
   @ApiOperation({ summary: 'Sign in with email and password' })
   async signIn(
     @Body() dto: SignInDto,
@@ -56,6 +59,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @RateLimit({ limit: 20, windowMs: 60_000 })
   @ApiOperation({
     summary: 'Rotate refresh token and issue a new access token',
   })

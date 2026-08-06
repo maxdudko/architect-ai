@@ -18,10 +18,21 @@ export class GithubTokenCipherService {
   private readonly key: Buffer;
 
   constructor(private readonly configService: ConfigService) {
+    const configuredSecret = this.configService.get<string>(
+      'TOKEN_ENCRYPTION_KEY',
+    );
+    const nodeEnv = this.configService.get<string>('NODE_ENV')?.toLowerCase();
     const secret =
-      this.configService.get<string>('TOKEN_ENCRYPTION_KEY') ??
-      this.configService.get<string>('JWT_REFRESH_SECRET') ??
-      'architect-ai-dev-token-encryption-key';
+      configuredSecret && configuredSecret.trim().length > 0
+        ? configuredSecret
+        : nodeEnv === 'test'
+          ? 'architect-ai-test-token-encryption-key'
+          : null;
+    if (!secret) {
+      throw new InternalServerErrorException(
+        'TOKEN_ENCRYPTION_KEY must be configured',
+      );
+    }
     this.key = createHash('sha256').update(secret).digest();
   }
 

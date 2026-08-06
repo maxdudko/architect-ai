@@ -11,6 +11,7 @@ import {
 import { GithubAccessTokenService } from '../integrations/github/github-access-token.service';
 import { GithubHttpService } from '../integrations/github/github-http.service';
 import { RepositoryEmbeddingService } from './indexing/repository-embedding.service';
+import { RepositoryAccessValidationService } from './repository-access-validation.service';
 import { RepositoryIndexingQueueService } from './repository-indexing.queue.service';
 import { RepositoriesService } from './repositories.service';
 import { RepositoriesRepository } from './repositories.repository';
@@ -42,6 +43,7 @@ describe('RepositoriesService', () => {
   let githubAccessTokenService: jest.Mocked<GithubAccessTokenService>;
   let githubHttpService: jest.Mocked<GithubHttpService>;
   let embeddingService: jest.Mocked<RepositoryEmbeddingService>;
+  let repositoryAccessValidationService: jest.Mocked<RepositoryAccessValidationService>;
   let service: RepositoriesService;
 
   beforeEach(() => {
@@ -87,6 +89,9 @@ describe('RepositoriesService', () => {
       deleteRepositoryVectors: jest.fn(),
       embedRepository: jest.fn(),
     } as unknown as jest.Mocked<RepositoryEmbeddingService>;
+    repositoryAccessValidationService = {
+      assertUserCanAccessRepository: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<RepositoryAccessValidationService>;
 
     service = new RepositoriesService(
       repositoriesRepository,
@@ -94,6 +99,7 @@ describe('RepositoriesService', () => {
       githubAccessTokenService,
       githubHttpService,
       embeddingService,
+      repositoryAccessValidationService,
     );
   });
 
@@ -113,7 +119,7 @@ describe('RepositoriesService', () => {
     repositoriesRepository.findById.mockResolvedValue(null);
 
     await expect(
-      service.getRepository(workspaceB, repositoryId),
+      service.getRepository(workspaceB, repositoryId, 'user-1'),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(repositoriesRepository.findById).toHaveBeenCalledWith(
       workspaceB,
@@ -326,7 +332,11 @@ describe('RepositoriesService', () => {
     repositoriesRepository.softDelete.mockResolvedValue(1);
     embeddingService.deleteRepositoryVectors.mockResolvedValue();
 
-    const result = await service.deleteRepository(workspaceA, repositoryId);
+    const result = await service.deleteRepository(
+      workspaceA,
+      repositoryId,
+      'user-1',
+    );
 
     expect(result).toEqual({ success: true });
     expect(repositoriesRepository.softDelete).toHaveBeenCalledWith(
@@ -494,6 +504,7 @@ describe('RepositoriesService', () => {
     const files = await service.listRepositoryFiles(
       workspaceA,
       repositoryId,
+      'user-1',
       'src/',
     );
 
@@ -539,6 +550,7 @@ describe('RepositoriesService', () => {
     const symbols = await service.listRepositorySymbols(
       workspaceA,
       repositoryId,
+      'user-1',
       { filePath: 'src/auth.ts', type: CodeSymbolType.FUNCTION },
     );
 
@@ -561,7 +573,7 @@ describe('RepositoriesService', () => {
     repositoriesRepository.findById.mockResolvedValue(null);
 
     await expect(
-      service.listRepositoryFiles(workspaceB, repositoryId),
+      service.listRepositoryFiles(workspaceB, repositoryId, 'user-1'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

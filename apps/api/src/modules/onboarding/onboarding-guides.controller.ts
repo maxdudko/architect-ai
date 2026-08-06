@@ -17,10 +17,13 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { WorkspaceRole } from '@prisma/client';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RateLimit } from '../../common/decorators/rate-limit.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { WorkspaceParamGuard } from '../../common/guards/workspace-param.guard';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import { GenerateGuidesDto } from './dto/generate-guides.dto';
 import { GenerationRunResponseDto } from './dto/generation-run-response.dto';
 import { ListGuidesQueryDto } from './dto/list-guides-query.dto';
@@ -59,11 +62,13 @@ export class OnboardingGuidesController {
   listGuides(
     @Param('id') workspaceId: string,
     @Param('repositoryId') repositoryId: string,
+    @CurrentUser() user: RequestUser,
     @Query() query: ListGuidesQueryDto,
   ): Promise<OnboardingGuideListResponseDto> {
     return this.onboardingGuidesService.listGuides(
       workspaceId,
       repositoryId,
+      user.sub,
       query.type,
       query.q,
     );
@@ -76,10 +81,12 @@ export class OnboardingGuidesController {
   getLatestGenerationRun(
     @Param('id') workspaceId: string,
     @Param('repositoryId') repositoryId: string,
+    @CurrentUser() user: RequestUser,
   ): Promise<GenerationRunResponseDto | null> {
     return this.onboardingGuidesService.getLatestGenerationRun(
       workspaceId,
       repositoryId,
+      user.sub,
     );
   }
 
@@ -91,15 +98,18 @@ export class OnboardingGuidesController {
     @Param('id') workspaceId: string,
     @Param('repositoryId') repositoryId: string,
     @Param('guideId') guideId: string,
+    @CurrentUser() user: RequestUser,
   ): Promise<OnboardingGuideResponseDto> {
     return this.onboardingGuidesService.getGuide(
       workspaceId,
       repositoryId,
       guideId,
+      user.sub,
     );
   }
 
   @Post('generate')
+  @RateLimit({ limit: 10, windowMs: 60_000 })
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Queue living onboarding guide generation' })
   @ApiAcceptedResponse({ type: GenerationRunResponseDto })
@@ -107,16 +117,19 @@ export class OnboardingGuidesController {
   generateGuides(
     @Param('id') workspaceId: string,
     @Param('repositoryId') repositoryId: string,
+    @CurrentUser() user: RequestUser,
     @Body() dto: GenerateGuidesDto = {},
   ): Promise<GenerationRunResponseDto> {
     return this.onboardingGuidesService.generateGuides(
       workspaceId,
       repositoryId,
+      user.sub,
       dto.types,
     );
   }
 
   @Post('regenerate')
+  @RateLimit({ limit: 10, windowMs: 60_000 })
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Queue living onboarding guide regeneration' })
   @ApiAcceptedResponse({ type: GenerationRunResponseDto })
@@ -124,11 +137,13 @@ export class OnboardingGuidesController {
   regenerateGuides(
     @Param('id') workspaceId: string,
     @Param('repositoryId') repositoryId: string,
+    @CurrentUser() user: RequestUser,
     @Body() dto: GenerateGuidesDto = {},
   ): Promise<GenerationRunResponseDto> {
     return this.onboardingGuidesService.regenerateGuides(
       workspaceId,
       repositoryId,
+      user.sub,
       dto.types,
     );
   }
