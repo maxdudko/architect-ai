@@ -70,33 +70,48 @@ describe('OnboardingGuidesController', () => {
   });
 
   it('passes route scope and filters through unchanged', async () => {
-    await controller.listGuides('workspace-1', 'repository-1', {
+    const user = { sub: 'user-1' } as never;
+    await controller.listGuides('workspace-1', 'repository-1', user, {
       type: undefined,
       q: 'billing',
     });
-    await controller.getGuide('workspace-1', 'repository-1', 'guide-1');
-    await controller.generateGuides('workspace-1', 'repository-1', {});
-    await controller.regenerateGuides('workspace-1', 'repository-1', {});
+    await controller.getLatestGenerationRun(
+      'workspace-1',
+      'repository-1',
+      user,
+    );
+    await controller.getGuide('workspace-1', 'repository-1', 'guide-1', user);
+    await controller.generateGuides('workspace-1', 'repository-1', user, {});
+    await controller.regenerateGuides('workspace-1', 'repository-1', user, {});
 
     expect(service.listGuides).toHaveBeenCalledWith(
       'workspace-1',
       'repository-1',
+      'user-1',
       undefined,
       'billing',
+    );
+    expect(service.getLatestGenerationRun).toHaveBeenCalledWith(
+      'workspace-1',
+      'repository-1',
+      'user-1',
     );
     expect(service.getGuide).toHaveBeenCalledWith(
       'workspace-1',
       'repository-1',
       'guide-1',
+      'user-1',
     );
     expect(service.generateGuides).toHaveBeenCalledWith(
       'workspace-1',
       'repository-1',
+      'user-1',
       undefined,
     );
     expect(service.regenerateGuides).toHaveBeenCalledWith(
       'workspace-1',
       'repository-1',
+      'user-1',
       undefined,
     );
   });

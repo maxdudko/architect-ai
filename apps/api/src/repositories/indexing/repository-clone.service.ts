@@ -9,7 +9,6 @@ import { execFile } from 'node:child_process';
 import { chmod, rm, writeFile } from 'node:fs/promises';
 import path from 'path';
 import { GithubAccessTokenService } from '../../integrations/github/github-access-token.service';
-import { MembershipsRepository } from '../../memberships/memberships.repository';
 import { RepositoriesRepository } from '../repositories.repository';
 import { CloneJobData } from './indexing-job.types';
 import { IndexingStorageService } from './indexing-storage.service';
@@ -22,7 +21,6 @@ export class RepositoryCloneService {
     private readonly configService: ConfigService,
     private readonly repositoriesRepository: RepositoriesRepository,
     private readonly githubAccessTokenService: GithubAccessTokenService,
-    private readonly membershipsRepository: MembershipsRepository,
     private readonly storageService: IndexingStorageService,
   ) {
     this.cloneTimeoutMs = Number(
@@ -55,79 +53,18 @@ export class RepositoryCloneService {
     }
 
     const cloneUrl = `https://github.com/${repository.fullName}.git`;
-    const candidateUserIds = await this.getCandidateUserIds(
-      data.workspaceId,
-      data.userId,
+    const askPassPath = path.join(
+      runDirectory,
+      `.git-askpass-${data.userId}.sh`,
     );
-
-    let lastError: unknown = null;
-
-    for (const candidateUserId of candidateUserIds) {
-      const askPassPath = path.join(
-        runDirectory,
-        `.git-askpass-${candidateUserId}.sh`,
-      );
-      try {
-        await rm(clonePath, { recursive: true, force: true });
-        const accessToken =
-          await this.githubAccessTokenService.executeWithAccessToken(
-            candidateUserId,
-            (token) => Promise.resolve(token),
-          );
-        await this.writeAskPassScript(askPassPath, accessToken);
-        await this.execFileAsync(
-          'git',
-          ['clone', '--depth', '1', '--branch', branch, cloneUrl, clonePath],
-          {
-            timeout: this.cloneTimeoutMs,
-            env: {
-              ...process.env,
-              GIT_TERMINAL_PROMPT: '0',
-              GIT_ASKPASS: askPassPath,
-            },
-          },
-        );
-        const { stdout } = await this.execFileAsync(
-          'git',
-          ['rev-parse', 'HEAD'],
-          {
-            cwd: clonePath,
-          },
-        );
-
-        return {
-          clonePath,
-          branch,
-          commitSha: stdout.trim(),
-        };
-      } catch (error) {
-        if (this.isMissingGitError(error)) {
-          throw new Error(
-            'Git is not available in the indexing worker runtime. Install git in the worker container.',
-          );
-        }
-        if (this.isCloneTimeoutError(error)) {
-          throw new Error(
-            `Repository clone timed out after ${this.cloneTimeoutMs}ms. Retry with a smaller repository or increase INDEXING_CLONE_TIMEOUT_MS.`,
-          );
-        }
-        if (
-          error instanceof NotFoundException ||
-          error instanceof UnauthorizedException ||
-          this.isGitAuthError(error)
-        ) {
-          lastError = error;
-          continue;
-        }
-        throw this.toError(error);
-      } finally {
-        await rm(askPassPath, { force: true });
-      }
-    }
-
-    // Public repos can be cloned without credentials when no member has access.
     try {
       await rm(clonePath, { recursive: true, force: true });
+      const accessToken =
+        await this.githubAccessTokenService.executeWithAccessToken(
+          data.userId,
+          (token) => Promise.resolve(token),
+        );
+      await this.writeAskPassScript(askPassPath, accessToken);
       await this.execFileAsync(
         'git',
         ['clone', '--depth', '1', '--branch', branch, cloneUrl, clonePath],
@@ -136,6 +73,7 @@ export class RepositoryCloneService {
           env: {
             ...process.env,
             GIT_TERMINAL_PROMPT: '0',
+            GIT_ASKPASS: askPassPath,
           },
         },
       );
@@ -163,37 +101,19 @@ export class RepositoryCloneService {
           `Repository clone timed out after ${this.cloneTimeoutMs}ms. Retry with a smaller repository or increase INDEXING_CLONE_TIMEOUT_MS.`,
         );
       }
-      if (!this.isGitAuthError(error)) {
-        throw this.toError(error);
+      if (
+        error instanceof NotFoundException ||
+        error instanceof UnauthorizedException ||
+        this.isGitAuthError(error)
+      ) {
+        throw new Error(
+          'Repository clone failed because your GitHub authorization does not permit access to this repository.',
+        );
       }
-      // Anonymous clone failed with an auth-style error; report prior token failure below.
+      throw this.toError(error);
+    } finally {
+      await rm(askPassPath, { force: true });
     }
-
-    if (!candidateUserIds.length) {
-      throw new Error(
-        'No active workspace members are available to authorize repository cloning.',
-      );
-    }
-
-    if (lastError) {
-      throw this.toError(lastError);
-    }
-
-    throw new Error(
-      'Repository clone failed because no workspace member has a valid GitHub authorization for this repository.',
-    );
-  }
-
-  private async getCandidateUserIds(
-    workspaceId: string,
-    preferredUserId: string,
-  ): Promise<string[]> {
-    const workspaceUserIds =
-      await this.membershipsRepository.listActiveUserIdsByWorkspace(
-        workspaceId,
-      );
-    const candidates = [preferredUserId, ...workspaceUserIds];
-    return [...new Set(candidates)];
   }
 
   private isMissingGitError(error: unknown): boolean {

@@ -69,6 +69,9 @@ export class GithubAccountsRepository {
         deletedAt: null,
       },
       data: {
+        accessTokenEncrypted: '',
+        refreshTokenEncrypted: null,
+        tokenExpiresAt: null,
         deletedAt: new Date(),
       },
     });

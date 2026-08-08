@@ -1,10 +1,11 @@
 import {
-  BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { Conversation, Message, MessageRole, Prisma } from '@prisma/client';
-import { RepositoriesRepository } from '../repositories/repositories.repository';
+import { RepositoryAccessValidationService } from '../repositories/repository-access-validation.service';
 import {
   ConversationDetailResponseDto,
   ConversationResponseDto,
@@ -21,7 +22,7 @@ import {
 export class ConversationsService {
   constructor(
     private readonly conversationsRepository: ConversationsRepository,
-    private readonly repositoriesRepository: RepositoriesRepository,
+    private readonly repositoryAccessValidationService: RepositoryAccessValidationService,
   ) {}
 
   async createConversation(
@@ -30,13 +31,13 @@ export class ConversationsService {
     dto: CreateConversationDto,
   ): Promise<ConversationResponseDto> {
     if (dto.repositoryId) {
-      const repository = await this.repositoriesRepository.findById(
-        workspaceId,
-        dto.repositoryId,
+      await this.repositoryAccessValidationService.assertUserCanAccessRepository(
+        {
+          workspaceId,
+          repositoryId: dto.repositoryId,
+          userId,
+        },
       );
-      if (!repository) {
-        throw new BadRequestException('Repository not found in this workspace');
-      }
     }
 
     const conversation = await this.conversationsRepository.create({
@@ -51,17 +52,33 @@ export class ConversationsService {
 
   async listConversations(
     workspaceId: string,
+    userId: string,
   ): Promise<ConversationResponseDto[]> {
     const conversations =
       await this.conversationsRepository.listByWorkspace(workspaceId);
-    return conversations.map((conversation) =>
-      this.toConversationResponse(conversation),
+
+    const accessibleRepositoryIds = await this.resolveAccessibleRepositoryIds(
+      workspaceId,
+      userId,
+      conversations
+        .map((conversation) => conversation.repositoryId)
+        .filter((repositoryId): repositoryId is string => repositoryId != null),
     );
+
+    return conversations
+      .filter((conversation) => {
+        if (!conversation.repositoryId) {
+          return true;
+        }
+        return accessibleRepositoryIds.has(conversation.repositoryId);
+      })
+      .map((conversation) => this.toConversationResponse(conversation));
   }
 
   async getConversation(
     workspaceId: string,
     conversationId: string,
+    userId: string,
   ): Promise<ConversationDetailResponseDto> {
     const conversation =
       await this.conversationsRepository.findByIdWithMessages(
@@ -71,15 +88,29 @@ export class ConversationsService {
     if (!conversation) {
       throw new NotFoundException('Conversation not found in this workspace');
     }
+    await this.assertConversationRepositoryAccess(
+      workspaceId,
+      userId,
+      conversation.repositoryId,
+    );
     return this.toConversationDetailResponse(conversation);
   }
 
   async updateConversation(
     workspaceId: string,
     conversationId: string,
+    userId: string,
     dto: UpdateConversationDto,
   ): Promise<ConversationResponseDto> {
-    await this.requireConversation(workspaceId, conversationId);
+    const existing = await this.requireConversation(
+      workspaceId,
+      conversationId,
+    );
+    await this.assertConversationRepositoryAccess(
+      workspaceId,
+      userId,
+      existing.repositoryId,
+    );
 
     const title = dto.title !== undefined ? dto.title.trim() : undefined;
     if (title !== undefined && title.length === 0) {
@@ -104,8 +135,17 @@ export class ConversationsService {
   async deleteConversation(
     workspaceId: string,
     conversationId: string,
+    userId: string,
   ): Promise<{ success: boolean }> {
-    await this.requireConversation(workspaceId, conversationId);
+    const existing = await this.requireConversation(
+      workspaceId,
+      conversationId,
+    );
+    await this.assertConversationRepositoryAccess(
+      workspaceId,
+      userId,
+      existing.repositoryId,
+    );
     const deletedCount = await this.conversationsRepository.softDelete(
       workspaceId,
       conversationId,
@@ -162,6 +202,50 @@ export class ConversationsService {
       metadata: (message.metadata as Record<string, unknown> | null) ?? null,
       createdAt: message.createdAt.toISOString(),
     };
+  }
+
+  private async assertConversationRepositoryAccess(
+    workspaceId: string,
+    userId: string,
+    repositoryId: string | null,
+  ): Promise<void> {
+    if (!repositoryId) {
+      return;
+    }
+    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
+      workspaceId,
+      repositoryId,
+      userId,
+    });
+  }
+
+  private async resolveAccessibleRepositoryIds(
+    workspaceId: string,
+    userId: string,
+    repositoryIds: string[],
+  ): Promise<Set<string>> {
+    const accessible = new Set<string>();
+    const uniqueRepositoryIds = [...new Set(repositoryIds)];
+
+    for (const repositoryId of uniqueRepositoryIds) {
+      try {
+        await this.repositoryAccessValidationService.assertUserCanAccessRepository(
+          {
+            workspaceId,
+            repositoryId,
+            userId,
+          },
+        );
+        accessible.add(repositoryId);
+      } catch (error) {
+        if (error instanceof ForbiddenException) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    return accessible;
   }
 
   private toConversationResponse(

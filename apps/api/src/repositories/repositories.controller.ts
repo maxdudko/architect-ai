@@ -12,6 +12,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CodeSymbolType, WorkspaceRole } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RateLimit } from '../common/decorators/rate-limit.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -57,11 +58,13 @@ export class RepositoriesController {
   listRepositoryFiles(
     @Param('id') workspaceId: string,
     @Param('repositoryId') repositoryId: string,
+    @CurrentUser() user: RequestUser,
     @Query('pathPrefix') pathPrefix?: string,
   ): Promise<RepositoryFileResponseDto[]> {
     return this.repositoriesService.listRepositoryFiles(
       workspaceId,
       repositoryId,
+      user.sub,
       pathPrefix,
     );
   }
@@ -77,12 +80,14 @@ export class RepositoriesController {
   listRepositorySymbols(
     @Param('id') workspaceId: string,
     @Param('repositoryId') repositoryId: string,
+    @CurrentUser() user: RequestUser,
     @Query('filePath') filePath?: string,
     @Query('type') type?: CodeSymbolType,
   ): Promise<CodeSymbolResponseDto[]> {
     return this.repositoriesService.listRepositorySymbols(
       workspaceId,
       repositoryId,
+      user.sub,
       { filePath, type },
     );
   }
@@ -98,11 +103,17 @@ export class RepositoriesController {
   getRepository(
     @Param('id') workspaceId: string,
     @Param('repositoryId') repositoryId: string,
+    @CurrentUser() user: RequestUser,
   ): Promise<RepositoryResponseDto> {
-    return this.repositoriesService.getRepository(workspaceId, repositoryId);
+    return this.repositoriesService.getRepository(
+      workspaceId,
+      repositoryId,
+      user.sub,
+    );
   }
 
   @Post()
+  @RateLimit({ limit: 15, windowMs: 60_000 })
   @ApiOperation({ summary: 'Connect a repository to a workspace' })
   @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.MEMBER)
   createRepository(
@@ -123,11 +134,13 @@ export class RepositoriesController {
   updateRepository(
     @Param('id') workspaceId: string,
     @Param('repositoryId') repositoryId: string,
+    @CurrentUser() user: RequestUser,
     @Body() dto: UpdateRepositoryDto,
   ): Promise<RepositoryResponseDto> {
     return this.repositoriesService.updateRepository(
       workspaceId,
       repositoryId,
+      user.sub,
       dto,
     );
   }
@@ -138,11 +151,17 @@ export class RepositoriesController {
   async deleteRepository(
     @Param('id') workspaceId: string,
     @Param('repositoryId') repositoryId: string,
+    @CurrentUser() user: RequestUser,
   ): Promise<{ success: boolean }> {
-    return this.repositoriesService.deleteRepository(workspaceId, repositoryId);
+    return this.repositoriesService.deleteRepository(
+      workspaceId,
+      repositoryId,
+      user.sub,
+    );
   }
 
   @Post(':repositoryId/retry')
+  @RateLimit({ limit: 10, windowMs: 60_000 })
   @ApiOperation({ summary: 'Retry repository indexing pipeline' })
   @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.MEMBER)
   retryIndexing(
@@ -160,6 +179,7 @@ export class RepositoriesController {
   }
 
   @Post(':repositoryId/reindex')
+  @RateLimit({ limit: 10, windowMs: 60_000 })
   @ApiOperation({ summary: 'Manually reindex a repository' })
   @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.MEMBER)
   reindexRepository(

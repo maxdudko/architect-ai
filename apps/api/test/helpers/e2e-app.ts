@@ -80,6 +80,8 @@ export function configureTestEnvironment(): void {
   process.env.RETRIEVAL_CACHE_DRIVER = 'memory';
   process.env.LLM_PROVIDER = 'mock';
   process.env.EMBEDDING_PROVIDER = 'mock';
+  process.env.RATE_LIMIT_ENABLED = 'false';
+  process.env.REPOSITORY_ACCESS_VALIDATION_ENABLED = 'false';
   delete process.env.REDIS_URL;
 }
 

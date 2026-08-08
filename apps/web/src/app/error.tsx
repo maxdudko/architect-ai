@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
+import { loadAuthState } from '@/lib/auth/storage';
+import { captureClientError } from '@/lib/monitoring/error-tracking';
 import { Button, ErrorState } from '@/shared/components';
 
 export default function Error({
@@ -12,6 +14,11 @@ export default function Error({
 }) {
   useEffect(() => {
     console.error(error);
+    const authState = loadAuthState();
+    void captureClientError(error, {
+      userId: authState?.user.id ?? null,
+      organizationId: authState?.activeWorkspace.id ?? null,
+    });
   }, [error]);
 
   return (

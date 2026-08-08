@@ -29,4 +29,19 @@ describe('GithubTokenCipherService', () => {
       InternalServerErrorException,
     );
   });
+
+  it('fails fast when TOKEN_ENCRYPTION_KEY is missing outside test', () => {
+    const strictConfigService = {
+      get: jest.fn((key: string) => {
+        if (key === 'NODE_ENV') {
+          return 'production';
+        }
+        return undefined;
+      }),
+    } as unknown as ConfigService;
+
+    expect(() => new GithubTokenCipherService(strictConfigService)).toThrow(
+      InternalServerErrorException,
+    );
+  });
 });

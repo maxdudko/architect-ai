@@ -16,6 +16,7 @@ import {
 import type { OnboardingGuideStorage } from './interfaces/onboarding-guide-storage.interface';
 import { ONBOARDING_GUIDE_STORAGE } from './interfaces/tokens';
 import { OnboardingGuideQueueService } from './queue/onboarding-guide-queue.service';
+import { RepositoryAccessValidationService } from '../../repositories/repository-access-validation.service';
 import type { OnboardingGuideGenerationRun } from './types/guide-generation-run.type';
 import type { OnboardingGuide } from './types/onboarding-guide.type';
 
@@ -25,14 +26,17 @@ export class OnboardingGuidesService {
     @Inject(ONBOARDING_GUIDE_STORAGE)
     private readonly storage: OnboardingGuideStorage,
     private readonly queue: OnboardingGuideQueueService,
+    private readonly repositoryAccessValidationService: RepositoryAccessValidationService,
   ) {}
 
   async listGuides(
     workspaceId: string,
     repositoryId: string,
+    userId: string,
     type?: GuideType,
     search?: string,
   ): Promise<OnboardingGuideListResponseDto> {
+    await this.assertRepositoryAccess(workspaceId, repositoryId, userId);
     const guides = await this.storage.listGuides(workspaceId, repositoryId, {
       ...(type ? { types: [type] } : {}),
       ...(search?.trim() ? { search: search.trim() } : {}),
@@ -48,7 +52,9 @@ export class OnboardingGuidesService {
     workspaceId: string,
     repositoryId: string,
     guideId: string,
+    userId: string,
   ): Promise<OnboardingGuideResponseDto> {
+    await this.assertRepositoryAccess(workspaceId, repositoryId, userId);
     const guide = await this.storage.getGuide(
       workspaceId,
       repositoryId,
@@ -63,7 +69,9 @@ export class OnboardingGuidesService {
   async getLatestGenerationRun(
     workspaceId: string,
     repositoryId: string,
+    userId: string,
   ): Promise<GenerationRunResponseDto | null> {
+    await this.assertRepositoryAccess(workspaceId, repositoryId, userId);
     const run = await this.storage.findLatestGenerationRun(
       workspaceId,
       repositoryId,
@@ -74,11 +82,13 @@ export class OnboardingGuidesService {
   generateGuides(
     workspaceId: string,
     repositoryId: string,
+    userId: string,
     requestedTypes?: GuideType[],
   ): Promise<GenerationRunResponseDto> {
     return this.enqueueGeneration(
       workspaceId,
       repositoryId,
+      userId,
       requestedTypes,
       false,
     );
@@ -87,11 +97,13 @@ export class OnboardingGuidesService {
   regenerateGuides(
     workspaceId: string,
     repositoryId: string,
+    userId: string,
     requestedTypes?: GuideType[],
   ): Promise<GenerationRunResponseDto> {
     return this.enqueueGeneration(
       workspaceId,
       repositoryId,
+      userId,
       requestedTypes,
       true,
     );
@@ -100,9 +112,11 @@ export class OnboardingGuidesService {
   private async enqueueGeneration(
     workspaceId: string,
     repositoryId: string,
+    userId: string,
     requestedTypes: GuideType[] | undefined,
     regenerate: boolean,
   ): Promise<GenerationRunResponseDto> {
+    await this.assertRepositoryAccess(workspaceId, repositoryId, userId);
     await this.assertRepositoryReady(workspaceId, repositoryId);
 
     const active = await this.storage.findActiveGenerationRun(
@@ -166,6 +180,18 @@ export class OnboardingGuidesService {
     return error instanceof Error
       ? error.message
       : 'Onboarding guide generation is unavailable';
+  }
+
+  private async assertRepositoryAccess(
+    workspaceId: string,
+    repositoryId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
+      workspaceId,
+      repositoryId,
+      userId,
+    });
   }
 
   private toGuideResponse(guide: OnboardingGuide): OnboardingGuideResponseDto {

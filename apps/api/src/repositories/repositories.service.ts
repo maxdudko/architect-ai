@@ -23,6 +23,7 @@ import { RetryIndexingDto } from './dto/retry-indexing.dto';
 import { UpdateRepositoryDto } from './dto/update-repository.dto';
 import { RepositoryEmbeddingService } from './indexing/repository-embedding.service';
 import { RepositoryIndexingQueueService } from './repository-indexing.queue.service';
+import { RepositoryAccessValidationService } from './repository-access-validation.service';
 import { RepositoriesRepository } from './repositories.repository';
 
 @Injectable()
@@ -42,6 +43,7 @@ export class RepositoriesService {
     private readonly githubAccessTokenService: GithubAccessTokenService,
     private readonly githubHttpService: GithubHttpService,
     private readonly embeddingService: RepositoryEmbeddingService,
+    private readonly repositoryAccessValidationService: RepositoryAccessValidationService,
   ) {}
 
   async listRepositories(
@@ -55,7 +57,13 @@ export class RepositoriesService {
   async getRepository(
     workspaceId: string,
     repositoryId: string,
+    userId: string,
   ): Promise<RepositoryResponseDto> {
+    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
+      workspaceId,
+      repositoryId,
+      userId,
+    });
     const repository = await this.findRepositoryInWorkspace(
       workspaceId,
       repositoryId,
@@ -66,8 +74,14 @@ export class RepositoriesService {
   async listRepositoryFiles(
     workspaceId: string,
     repositoryId: string,
+    userId: string,
     pathPrefix?: string,
   ): Promise<RepositoryFileResponseDto[]> {
+    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
+      workspaceId,
+      repositoryId,
+      userId,
+    });
     await this.findRepositoryInWorkspace(workspaceId, repositoryId);
     const files = await this.repositoriesRepository.listCurrentRepositoryFiles(
       repositoryId,
@@ -79,8 +93,14 @@ export class RepositoriesService {
   async listRepositorySymbols(
     workspaceId: string,
     repositoryId: string,
+    userId: string,
     options?: { filePath?: string; type?: CodeSymbolType },
   ): Promise<CodeSymbolResponseDto[]> {
+    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
+      workspaceId,
+      repositoryId,
+      userId,
+    });
     await this.findRepositoryInWorkspace(workspaceId, repositoryId);
     const symbols = await this.repositoriesRepository.listCurrentCodeSymbols(
       repositoryId,
@@ -200,9 +220,14 @@ export class RepositoriesService {
   async updateRepository(
     workspaceId: string,
     repositoryId: string,
+    userId: string,
     dto: UpdateRepositoryDto,
   ): Promise<RepositoryResponseDto> {
-    await this.findRepositoryInWorkspace(workspaceId, repositoryId);
+    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
+      workspaceId,
+      repositoryId,
+      userId,
+    });
 
     const data: { defaultBranch?: string } = {};
     if (dto.defaultBranch !== undefined) {
@@ -225,8 +250,13 @@ export class RepositoriesService {
   async deleteRepository(
     workspaceId: string,
     repositoryId: string,
+    userId: string,
   ): Promise<{ success: boolean }> {
-    await this.findRepositoryInWorkspace(workspaceId, repositoryId);
+    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
+      workspaceId,
+      repositoryId,
+      userId,
+    });
 
     const deletedCount = await this.repositoriesRepository.softDelete(
       workspaceId,
@@ -260,6 +290,11 @@ export class RepositoriesService {
       workspaceId,
       repositoryId,
     );
+    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
+      workspaceId,
+      repositoryId,
+      userId,
+    });
     this.assertNotIndexingInProgress(repository);
     if (repository.status !== RepositoryStatus.FAILED) {
       throw new BadRequestException(
@@ -283,6 +318,11 @@ export class RepositoriesService {
       workspaceId,
       repositoryId,
     );
+    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
+      workspaceId,
+      repositoryId,
+      userId,
+    });
     this.assertNotIndexingInProgress(repository);
     if (repository.status !== RepositoryStatus.READY) {
       throw new BadRequestException(

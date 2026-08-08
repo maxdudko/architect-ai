@@ -278,10 +278,26 @@ pnpm install
 
 cp .env.example .env
 cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env
 ```
 
 The root `.env` is used primarily for local infrastructure and web settings.  
 The API reads runtime secrets and OAuth credentials from `apps/api/.env`.
+
+For production-ready observability and abuse protection, configure:
+
+```bash
+# apps/api/.env
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_DEFAULT_LIMIT=120
+RATE_LIMIT_DEFAULT_WINDOW_MS=60000
+SENTRY_DSN=
+SENTRY_ENVIRONMENT=production
+
+# apps/web/.env
+NEXT_PUBLIC_SENTRY_DSN=
+NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
+```
 
 ---
 

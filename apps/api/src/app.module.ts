@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { ChatModule } from './chat/chat.module';
+import { RateLimitGuard } from './common/guards/rate-limit.guard';
 import { ConversationsModule } from './conversations/conversations.module';
 import { GithubIntegrationModule } from './integrations/github/github-integration.module';
 import { InvitationsModule } from './invitations/invitations.module';
@@ -33,6 +35,11 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     AuthModule,
   ],
   controllers: [AppController],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: RateLimitGuard,
+    },
+  ],
 })
 export class AppModule {}

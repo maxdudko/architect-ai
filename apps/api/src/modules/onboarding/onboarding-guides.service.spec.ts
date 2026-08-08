@@ -12,6 +12,7 @@ import {
 } from '@prisma/client';
 import { Queue } from 'bullmq';
 import type { OnboardingGuideStorage } from './interfaces/onboarding-guide-storage.interface';
+import { RepositoryAccessValidationService } from '../../repositories/repository-access-validation.service';
 import { OnboardingGuidesService } from './onboarding-guides.service';
 import { OnboardingGuideQueueService } from './queue/onboarding-guide-queue.service';
 import { ONBOARDING_GUIDE_JOB_NAME } from './queue/onboarding-guide-queue.types';
@@ -49,6 +50,7 @@ describe('OnboardingGuidesService', () => {
 
   let storage: jest.Mocked<OnboardingGuideStorage>;
   let queue: jest.Mocked<OnboardingGuideQueueService>;
+  let repositoryAccessValidationService: jest.Mocked<RepositoryAccessValidationService>;
   let service: OnboardingGuidesService;
 
   beforeEach(() => {
@@ -74,7 +76,14 @@ describe('OnboardingGuidesService', () => {
         trigger: GuideGenerationTrigger.MANUAL_REGENERATE,
       }),
     } as unknown as jest.Mocked<OnboardingGuideQueueService>;
-    service = new OnboardingGuidesService(storage, queue);
+    repositoryAccessValidationService = {
+      assertUserCanAccessRepository: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<RepositoryAccessValidationService>;
+    service = new OnboardingGuidesService(
+      storage,
+      queue,
+      repositoryAccessValidationService,
+    );
   });
 
   it('returns the active run without checking or adding to the queue', async () => {
@@ -86,6 +95,7 @@ describe('OnboardingGuidesService', () => {
     const response = await service.generateGuides(
       run.workspaceId,
       run.repositoryId,
+      'user-1',
       [GuideType.GLOSSARY],
     );
 
@@ -100,11 +110,13 @@ describe('OnboardingGuidesService', () => {
     const generated = await service.generateGuides(
       run.workspaceId,
       run.repositoryId,
+      'user-1',
       requested,
     );
     const regenerated = await service.regenerateGuides(
       run.workspaceId,
       run.repositoryId,
+      'user-1',
       requested,
     );
 
@@ -129,13 +141,13 @@ describe('OnboardingGuidesService', () => {
       new Error('Repository must be READY before generating'),
     );
     await expect(
-      service.generateGuides(run.workspaceId, run.repositoryId),
+      service.generateGuides(run.workspaceId, run.repositoryId, 'user-1'),
     ).rejects.toBeInstanceOf(ConflictException);
 
     storage.validateRepositoryReady.mockResolvedValue(undefined);
     queue.waitUntilReady.mockRejectedValueOnce(new Error('Redis unavailable'));
     await expect(
-      service.generateGuides(run.workspaceId, run.repositoryId),
+      service.generateGuides(run.workspaceId, run.repositoryId, 'user-1'),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
 
     queue.waitUntilReady.mockResolvedValue(undefined);
@@ -143,7 +155,7 @@ describe('OnboardingGuidesService', () => {
       new Error('At least one onboarding guide type must be requested'),
     );
     await expect(
-      service.generateGuides(run.workspaceId, run.repositoryId, []),
+      service.generateGuides(run.workspaceId, run.repositoryId, 'user-1', []),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -170,6 +182,7 @@ describe('OnboardingGuidesService', () => {
     const listed = await service.listGuides(
       run.workspaceId,
       run.repositoryId,
+      'user-1',
       GuideType.MODULE,
       ' billing ',
     );
@@ -177,6 +190,7 @@ describe('OnboardingGuidesService', () => {
       run.workspaceId,
       run.repositoryId,
       guide.id,
+      'user-1',
     );
 
     expect(storage.listGuides).toHaveBeenCalledWith(
@@ -194,7 +208,7 @@ describe('OnboardingGuidesService', () => {
 
     storage.getGuide.mockResolvedValue(null);
     await expect(
-      service.getGuide('other-workspace', run.repositoryId, guide.id),
+      service.getGuide('other-workspace', run.repositoryId, guide.id, 'user-1'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

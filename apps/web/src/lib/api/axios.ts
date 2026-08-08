@@ -20,6 +20,9 @@ function withAuthHeader(config: InternalAxiosRequestConfig): InternalAxiosReques
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  if (!config.headers['x-request-id']) {
+    config.headers['x-request-id'] = createRequestId();
+  }
   return config;
 }
 
@@ -72,4 +75,11 @@ apiClient.interceptors.response.use(
 
 export function registerApiRefreshHandler(handler: RefreshHandler | null): void {
   refreshHandler = handler;
+}
+
+function createRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }

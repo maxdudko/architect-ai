@@ -20,6 +20,7 @@ import {
   saveAuthState,
   setAccessTokenCookie,
 } from '@/lib/auth/storage';
+import { configureErrorTracking, setErrorTrackingIdentity } from '@/lib/monitoring/error-tracking';
 
 interface AuthContextValue {
   isAuthenticated: boolean;
@@ -119,6 +120,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     registerApiRefreshHandler(refreshAccessToken);
     return () => registerApiRefreshHandler(null);
   }, [refreshAccessToken]);
+
+  useEffect(() => {
+    void configureErrorTracking();
+  }, []);
+
+  useEffect(() => {
+    void setErrorTrackingIdentity({
+      userId: user?.id ?? null,
+      organizationId: activeWorkspace?.id ?? null,
+    });
+  }, [activeWorkspace?.id, user?.id]);
 
   useEffect(() => {
     const bootstrapSession = async () => {
