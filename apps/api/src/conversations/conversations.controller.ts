@@ -56,8 +56,9 @@ export class ConversationsController {
   )
   listConversations(
     @Param('id') workspaceId: string,
+    @CurrentUser() user: RequestUser,
   ): Promise<ConversationResponseDto[]> {
-    return this.conversationsService.listConversations(workspaceId);
+    return this.conversationsService.listConversations(workspaceId, user.sub);
   }
 
   @Get(':conversationId')
@@ -71,10 +72,12 @@ export class ConversationsController {
   getConversation(
     @Param('id') workspaceId: string,
     @Param('conversationId') conversationId: string,
+    @CurrentUser() user: RequestUser,
   ): Promise<ConversationDetailResponseDto> {
     return this.conversationsService.getConversation(
       workspaceId,
       conversationId,
+      user.sub,
     );
   }
 
@@ -84,11 +87,13 @@ export class ConversationsController {
   updateConversation(
     @Param('id') workspaceId: string,
     @Param('conversationId') conversationId: string,
+    @CurrentUser() user: RequestUser,
     @Body() dto: UpdateConversationDto,
   ): Promise<ConversationResponseDto> {
     return this.conversationsService.updateConversation(
       workspaceId,
       conversationId,
+      user.sub,
       dto,
     );
   }
@@ -99,10 +104,12 @@ export class ConversationsController {
   deleteConversation(
     @Param('id') workspaceId: string,
     @Param('conversationId') conversationId: string,
+    @CurrentUser() user: RequestUser,
   ): Promise<{ success: boolean }> {
     return this.conversationsService.deleteConversation(
       workspaceId,
       conversationId,
+      user.sub,
     );
   }
 }
