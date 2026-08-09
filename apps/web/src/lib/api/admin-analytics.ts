@@ -83,9 +83,8 @@ export async function listAdminTokenUsage(
 export async function listAdminActiveUsage(
   params: AdminActiveUsageParams = {},
 ): Promise<AdminActiveUsagePage> {
-  const { data } = await adminApiClient.get<AdminActiveUsagePage>(
-    '/admin/analytics/active-usage',
-    { params },
-  );
+  const { data } = await adminApiClient.get<AdminActiveUsagePage>('/admin/analytics/active-usage', {
+    params,
+  });
   return data;
 }

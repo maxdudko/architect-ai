@@ -39,14 +39,11 @@ export class ListUsersQueryDto {
     description: 'Include soft-deleted users when true',
   })
   @IsOptional()
-  @Transform(({ value }) => {
+  @Transform(({ value }): boolean => {
     if (value === true || value === 'true' || value === '1') {
       return true;
     }
-    if (value === false || value === 'false' || value === '0') {
-      return false;
-    }
-    return value;
+    return false;
   })
   @IsBoolean()
   includeDeleted = false;

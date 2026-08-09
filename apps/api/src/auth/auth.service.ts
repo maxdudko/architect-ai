@@ -7,7 +7,12 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
-import { SystemLogCategory, SystemLogLevel, User, WorkspaceRole } from '@prisma/client';
+import {
+  SystemLogCategory,
+  SystemLogLevel,
+  User,
+  WorkspaceRole,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { RequestUser } from '../common/interfaces/request-user.interface';
 import { SystemLogsService } from '../system-logs/system-logs.service';

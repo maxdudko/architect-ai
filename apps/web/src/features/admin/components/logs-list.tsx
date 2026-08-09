@@ -1,11 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type {
-  AdminListedLog,
-  AdminSystemLogCategory,
-  AdminSystemLogLevel,
-} from '@/entities';
+import type { AdminListedLog, AdminSystemLogCategory, AdminSystemLogLevel } from '@/entities';
 import {
   Badge,
   Button,
@@ -49,9 +45,7 @@ function levelVariant(level: AdminSystemLogLevel): 'default' | 'secondary' | 'ou
 
 function LogRow({ log }: { log: AdminListedLog }) {
   const routeLine =
-    log.method && log.route
-      ? `${log.method} ${log.route}`
-      : (log.message ?? log.event);
+    log.method && log.route ? `${log.method} ${log.route}` : (log.message ?? log.event);
 
   return (
     <div className="grid gap-2 border-b py-3 last:border-b-0 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_auto] lg:items-start lg:gap-4">

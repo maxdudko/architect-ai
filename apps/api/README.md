@@ -85,10 +85,10 @@ pnpm --filter api prisma:seed
 
 ### Seed credentials (local / non-production only)
 
-| Role | Email | Password |
-|------|-------|----------|
-| Workspace owner user | `owner@architect.ai` | `Password123!` |
-| Platform admin | `admin@architect.ai` | `AdminPassword123!` |
+| Role                 | Email                | Password            |
+| -------------------- | -------------------- | ------------------- |
+| Workspace owner user | `owner@architect.ai` | `Password123!`      |
+| Platform admin       | `admin@architect.ai` | `AdminPassword123!` |
 
 Platform admin signs in at `/admin/sign-in` (separate from user auth).
 

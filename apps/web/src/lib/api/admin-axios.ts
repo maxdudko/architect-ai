@@ -28,10 +28,7 @@ function withAdminAuthHeader(config: InternalAxiosRequestConfig): InternalAxiosR
 
 adminApiClient.interceptors.request.use(withAdminAuthHeader);
 
-const ADMIN_AUTH_ENDPOINTS_WITHOUT_REFRESH = [
-  '/admin/auth/signin',
-  '/admin/auth/refresh',
-];
+const ADMIN_AUTH_ENDPOINTS_WITHOUT_REFRESH = ['/admin/auth/signin', '/admin/auth/refresh'];
 
 function shouldAttemptTokenRefresh(config: InternalAxiosRequestConfig): boolean {
   const url = config.url ?? '';

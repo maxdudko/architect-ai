@@ -54,7 +54,9 @@ export class SystemLogsService {
     return SystemLogLevel.INFO;
   }
 
-  private async persist(input: SystemLogCreateInput): Promise<SystemLog | null> {
+  private async persist(
+    input: SystemLogCreateInput,
+  ): Promise<SystemLog | null> {
     try {
       return await this.systemLogsRepository.create({
         ...input,

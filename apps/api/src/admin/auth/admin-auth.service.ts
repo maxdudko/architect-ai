@@ -1,11 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
-import {
-  Admin,
-  SystemLogCategory,
-  SystemLogLevel,
-} from '@prisma/client';
+import { Admin, SystemLogCategory, SystemLogLevel } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { SystemLogsService } from '../../system-logs/system-logs.service';
 import { AdminsService } from '../admins.service';

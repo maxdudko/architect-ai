@@ -10,7 +10,9 @@ describe('SystemLogsService', () => {
     repository = {
       create: jest.fn(),
     };
-    service = new SystemLogsService(repository as unknown as SystemLogsRepository);
+    service = new SystemLogsService(
+      repository as unknown as SystemLogsRepository,
+    );
   });
 
   it('does not throw when repository create fails', async () => {

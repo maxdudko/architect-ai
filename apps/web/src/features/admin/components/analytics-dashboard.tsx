@@ -443,8 +443,7 @@ export function AnalyticsDashboard() {
                 </div>
                 <Badge variant="outline">{source.citationCount} citations</Badge>
                 <p className="text-xs text-muted-foreground md:text-right">
-                  avg score{' '}
-                  {source.averageScore == null ? '—' : source.averageScore.toFixed(3)}
+                  avg score {source.averageScore == null ? '—' : source.averageScore.toFixed(3)}
                 </p>
               </div>
             ))}
@@ -533,9 +532,7 @@ export function AnalyticsDashboard() {
                 className="grid gap-2 border-b py-3 last:border-b-0 md:grid-cols-[minmax(0,1.2fr)_repeat(3,auto)] md:items-center md:gap-4"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-medium">
-                    {row.workspaceName ?? row.workspaceId}
-                  </p>
+                  <p className="truncate font-medium">{row.workspaceName ?? row.workspaceId}</p>
                   <p className="truncate text-xs text-muted-foreground">
                     {row.workspaceSlug ?? row.workspaceId} · {row.answersWithUsage}/
                     {row.answerCount} answers with usage

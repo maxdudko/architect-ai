@@ -84,7 +84,9 @@ export class ChatController {
 
   @Post('messages/:messageId/feedback')
   @RateLimit({ limit: 60, windowMs: 60_000 })
-  @ApiOperation({ summary: 'Rate an assistant answer as helpful or not helpful' })
+  @ApiOperation({
+    summary: 'Rate an assistant answer as helpful or not helpful',
+  })
   @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.MEMBER)
   upsertFeedback(
     @Param('id') workspaceId: string,

@@ -167,7 +167,8 @@ export class AdminAnalyticsService {
         repositoryId: item.repositoryId,
         repositoryFullName: item.repositoryId
           ? (repositoryById.get(item.repositoryId)?.fullName ??
-            ((item.payload as { fullName?: string } | null)?.fullName ?? null))
+            (item.payload as { fullName?: string } | null)?.fullName ??
+            null)
           : null,
         payload: item.payload,
         createdAt: item.createdAt.toISOString(),
@@ -282,8 +283,12 @@ export class AdminAnalyticsService {
       params.page * params.pageSize,
     );
 
-    const repositoryIds = [...new Set(pageItems.map((item) => item.repositoryId))];
-    const workspaceIds = [...new Set(pageItems.map((item) => item.workspaceId))];
+    const repositoryIds = [
+      ...new Set(pageItems.map((item) => item.repositoryId)),
+    ];
+    const workspaceIds = [
+      ...new Set(pageItems.map((item) => item.workspaceId)),
+    ];
 
     const [repositories, workspaces] = await Promise.all([
       repositoryIds.length

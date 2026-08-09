@@ -1,8 +1,4 @@
-import type {
-  AdminLogsPage,
-  AdminSystemLogCategory,
-  AdminSystemLogLevel,
-} from '@/entities';
+import type { AdminLogsPage, AdminSystemLogCategory, AdminSystemLogLevel } from '@/entities';
 import { adminApiClient } from './admin-axios';
 
 export interface ListAdminLogsParams {

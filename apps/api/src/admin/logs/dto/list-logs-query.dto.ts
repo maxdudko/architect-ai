@@ -46,13 +46,17 @@ export class ListLogsQueryDto {
   @IsEnum(SystemLogLevel)
   level?: SystemLogLevel;
 
-  @ApiPropertyOptional({ description: 'Inclusive start of createdAt range (ISO)' })
+  @ApiPropertyOptional({
+    description: 'Inclusive start of createdAt range (ISO)',
+  })
   @IsOptional()
   @Transform(({ value }) => (value ? new Date(value) : undefined))
   @IsDate()
   from?: Date;
 
-  @ApiPropertyOptional({ description: 'Inclusive end of createdAt range (ISO)' })
+  @ApiPropertyOptional({
+    description: 'Inclusive end of createdAt range (ISO)',
+  })
   @IsOptional()
   @Transform(({ value }) => (value ? new Date(value) : undefined))
   @IsDate()
