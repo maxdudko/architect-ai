@@ -1,4 +1,5 @@
 import type {
+  AnswerFeedback,
   ChatAnswerResponse,
   Conversation,
   ConversationDetail,
@@ -91,6 +92,19 @@ export async function askChatMessage(
   const { data } = await apiClient.post<ChatAnswerResponse>(
     `/workspaces/${workspaceId}/conversations/${conversationId}/messages`,
     payload,
+  );
+  return data;
+}
+
+export async function submitAnswerFeedback(
+  workspaceId: string,
+  conversationId: string,
+  messageId: string,
+  rating: 'HELPFUL' | 'NOT_HELPFUL',
+): Promise<AnswerFeedback> {
+  const { data } = await apiClient.post<AnswerFeedback>(
+    `/workspaces/${workspaceId}/conversations/${conversationId}/messages/${messageId}/feedback`,
+    { rating },
   );
   return data;
 }

@@ -193,18 +193,22 @@ export class ConversationsService {
     return this.conversationsRepository.touchUpdatedAt(conversationId);
   }
 
-  toMessageResponse(message: Message): MessageResponseDto {
+  toMessageResponse(
+    message: Message,
+    options?: { feedbackRating?: 'HELPFUL' | 'NOT_HELPFUL' | null },
+  ): MessageResponseDto {
     return {
       id: message.id,
       conversationId: message.conversationId,
       role: message.role,
       content: message.content,
       metadata: (message.metadata as Record<string, unknown> | null) ?? null,
+      feedbackRating: options?.feedbackRating ?? null,
       createdAt: message.createdAt.toISOString(),
     };
   }
 
-  private async assertConversationRepositoryAccess(
+  async assertConversationRepositoryAccess(
     workspaceId: string,
     userId: string,
     repositoryId: string | null,

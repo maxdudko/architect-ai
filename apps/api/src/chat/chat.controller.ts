@@ -1,9 +1,12 @@
 import { Body, Controller, Param, Post, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { WorkspaceRole } from '@prisma/client';
+import type { Response } from 'express';
+import { AnswerFeedbackService } from '../analytics/answer-feedback.service';
+import { AnswerFeedbackResponseDto } from '../analytics/dto/answer-feedback-response.dto';
+import { UpsertAnswerFeedbackDto } from '../analytics/dto/upsert-answer-feedback.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RateLimit } from '../common/decorators/rate-limit.decorator';
-import type { Response } from 'express';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -18,7 +21,10 @@ import { CreateChatMessageDto } from './dto/create-chat-message.dto';
 @Controller('workspaces/:id/conversations/:conversationId')
 @UseGuards(JwtAuthGuard, WorkspaceParamGuard, RolesGuard)
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly answerFeedbackService: AnswerFeedbackService,
+  ) {}
 
   @Post('messages')
   @RateLimit({ limit: 20, windowMs: 60_000 })
@@ -74,5 +80,27 @@ export class ChatController {
     } finally {
       res.end();
     }
+  }
+
+  @Post('messages/:messageId/feedback')
+  @RateLimit({ limit: 60, windowMs: 60_000 })
+  @ApiOperation({
+    summary: 'Rate an assistant answer as helpful or not helpful',
+  })
+  @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.MEMBER)
+  upsertFeedback(
+    @Param('id') workspaceId: string,
+    @Param('conversationId') conversationId: string,
+    @Param('messageId') messageId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpsertAnswerFeedbackDto,
+  ): Promise<AnswerFeedbackResponseDto> {
+    return this.answerFeedbackService.upsertFeedback({
+      workspaceId,
+      conversationId,
+      messageId,
+      userId: user.sub,
+      rating: dto.rating,
+    });
   }
 }

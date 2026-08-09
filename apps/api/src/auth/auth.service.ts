@@ -7,9 +7,15 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
-import { User, WorkspaceRole } from '@prisma/client';
+import {
+  SystemLogCategory,
+  SystemLogLevel,
+  User,
+  WorkspaceRole,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { RequestUser } from '../common/interfaces/request-user.interface';
+import { SystemLogsService } from '../system-logs/system-logs.service';
 import { UsersService } from '../users/users.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { RefreshDto } from './dto/refresh.dto';
@@ -29,6 +35,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly sessionStoreService: SessionStoreService,
+    private readonly systemLogsService: SystemLogsService,
   ) {}
 
   async signUp(dto: SignUpDto): Promise<AuthResponse> {
@@ -53,12 +60,30 @@ export class AuthService {
         user.firstName,
       );
 
+    this.systemLogsService.record({
+      category: SystemLogCategory.AUDIT,
+      level: SystemLogLevel.INFO,
+      event: 'user.auth.signup.success',
+      actorType: 'user',
+      actorId: user.id,
+      message: 'User signed up',
+      metadata: { email: user.email },
+    });
+
     return this.buildAuthResponse(user, personalWorkspace.id);
   }
 
   async signIn(dto: SignInDto): Promise<AuthResponse> {
-    const user = await this.usersService.findByEmail(dto.email.toLowerCase());
+    const email = dto.email.toLowerCase();
+    const user = await this.usersService.findByEmail(email);
     if (!user || user.deletedAt) {
+      this.systemLogsService.record({
+        category: SystemLogCategory.AUDIT,
+        level: SystemLogLevel.WARN,
+        event: 'user.auth.signin.failure',
+        message: 'Invalid email or password',
+        metadata: { email },
+      });
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -67,6 +92,15 @@ export class AuthService {
       user.passwordHash,
     );
     if (!isValidPassword) {
+      this.systemLogsService.record({
+        category: SystemLogCategory.AUDIT,
+        level: SystemLogLevel.WARN,
+        event: 'user.auth.signin.failure',
+        actorType: 'user',
+        actorId: user.id,
+        message: 'Invalid email or password',
+        metadata: { email },
+      });
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -80,6 +114,16 @@ export class AuthService {
         'No workspace memberships found for this user',
       );
     }
+
+    this.systemLogsService.record({
+      category: SystemLogCategory.AUDIT,
+      level: SystemLogLevel.INFO,
+      event: 'user.auth.signin.success',
+      actorType: 'user',
+      actorId: authenticatedUser.id,
+      message: 'User signed in',
+      metadata: { email: authenticatedUser.email },
+    });
 
     return this.buildAuthResponse(authenticatedUser, workspaces[0].id);
   }

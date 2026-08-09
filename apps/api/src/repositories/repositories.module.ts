@@ -1,4 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { AnalyticsModule } from '../analytics/analytics.module';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { GithubIntegrationModule } from '../integrations/github/github-integration.module';
 import { WorkspaceParamGuard } from '../common/guards/workspace-param.guard';
@@ -25,6 +26,7 @@ import { RepositoriesService } from './repositories.service';
     CodeIntelligenceModule,
     RetrievalModule,
     OnboardingModule,
+    forwardRef(() => AnalyticsModule),
   ],
   controllers: [RepositoriesController],
   providers: [

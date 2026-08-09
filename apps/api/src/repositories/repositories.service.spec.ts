@@ -33,6 +33,7 @@ describe('RepositoriesService', () => {
     status: RepositoryStatus.PENDING,
     lastIndexedAt: null,
     indexingError: null,
+    connectedByUserId: null,
     createdAt: new Date('2026-06-24T00:00:00.000Z'),
     updatedAt: new Date('2026-06-24T00:00:00.000Z'),
     deletedAt: null,
@@ -93,6 +94,11 @@ describe('RepositoriesService', () => {
       assertUserCanAccessRepository: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<RepositoryAccessValidationService>;
 
+    const analyticsService = {
+      recordEvent: jest.fn().mockResolvedValue(null),
+      recordSourceCitations: jest.fn().mockResolvedValue([]),
+    };
+
     service = new RepositoriesService(
       repositoriesRepository,
       repositoryIndexingQueueService,
@@ -100,6 +106,7 @@ describe('RepositoriesService', () => {
       githubHttpService,
       embeddingService,
       repositoryAccessValidationService,
+      analyticsService as never,
     );
   });
 
@@ -171,6 +178,12 @@ describe('RepositoriesService', () => {
       fullName: 'acme/platform-api',
     });
 
+    expect(repositoriesRepository.create).toHaveBeenCalledWith(
+      workspaceA,
+      expect.objectContaining({
+        connectedByUserId: 'user-1',
+      }),
+    );
     expect(
       repositoryIndexingQueueService.enqueueInitialIndexing,
     ).toHaveBeenCalledWith(
@@ -322,6 +335,7 @@ describe('RepositoriesService', () => {
       expect.objectContaining({
         status: RepositoryStatus.PENDING,
         indexingError: null,
+        connectedByUserId: 'user-1',
       }),
     );
     expect(result.id).toBe(repository.id);

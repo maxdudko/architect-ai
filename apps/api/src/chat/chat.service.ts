@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { MessageRole, Prisma } from '@prisma/client';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { ConversationsService } from '../conversations/conversations.service';
 import { MessageResponseDto } from '../conversations/dto/message-response.dto';
 import type { LlmProvider } from '../modules/llm/interfaces/llm-provider.interface';
@@ -35,6 +36,7 @@ export class ChatService {
     private readonly repositoriesRepository: RepositoriesRepository,
     private readonly repositoryAccessValidationService: RepositoryAccessValidationService,
     private readonly retrievalService: RetrievalService,
+    private readonly analyticsService: AnalyticsService,
     @Inject(LLM_PROVIDER)
     private readonly llmProvider: LlmProvider,
   ) {}
@@ -58,6 +60,7 @@ export class ChatService {
 
     const assistantMessage = await this.persistAssistantMessage({
       conversationId,
+      workspaceId,
       content: generation.content,
       sources: prepared.sources,
       model: generation.model,
@@ -121,6 +124,7 @@ export class ChatService {
 
       const assistantMessage = await this.persistAssistantMessage({
         conversationId,
+        workspaceId,
         content: fullContent,
         sources: prepared.sources,
         model,
@@ -214,6 +218,7 @@ export class ChatService {
 
   private async persistAssistantMessage(params: {
     conversationId: string;
+    workspaceId: string;
     content: string;
     sources: RetrievedChunkReference[];
     model: string;
@@ -233,6 +238,12 @@ export class ChatService {
       role: MessageRole.ASSISTANT,
       content: params.content,
       metadata,
+    });
+
+    await this.analyticsService.recordSourceCitations({
+      messageId: assistantMessage.id,
+      workspaceId: params.workspaceId,
+      sources: params.sources,
     });
 
     await this.conversationsService.touchUpdatedAt(params.conversationId);

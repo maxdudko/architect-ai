@@ -1,5 +1,7 @@
 export type MessageRole = 'USER' | 'ASSISTANT' | 'SYSTEM';
 
+export type AnswerFeedbackRating = 'HELPFUL' | 'NOT_HELPFUL';
+
 export interface ChatSourceReference {
   chunkId: string;
   repositoryId: string;
@@ -22,6 +24,7 @@ export interface ChatMessage {
     truncated?: boolean;
     provider?: string;
   } | null;
+  feedbackRating?: AnswerFeedbackRating | null;
   createdAt: string;
 }
 
@@ -43,4 +46,15 @@ export interface ChatAnswerResponse {
   userMessage: ChatMessage;
   assistantMessage: ChatMessage;
   sources: ChatSourceReference[];
+}
+
+export interface AnswerFeedback {
+  id: string;
+  messageId: string;
+  conversationId: string;
+  workspaceId: string;
+  userId: string;
+  rating: AnswerFeedbackRating;
+  createdAt: string;
+  updatedAt: string;
 }

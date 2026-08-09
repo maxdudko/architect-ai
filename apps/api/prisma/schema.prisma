@@ -119,24 +119,61 @@ enum OAuthProvider {
   GITHUB
 }
 
+enum AnalyticsEventType {
+  REPOSITORY_CONNECTED
+  REPOSITORY_INDEXING_SUCCEEDED
+  REPOSITORY_INDEXING_FAILED
+}
+
+enum AnswerFeedbackRating {
+  HELPFUL
+  NOT_HELPFUL
+}
+
+enum SystemLogCategory {
+  HTTP
+  AUDIT
+}
+
+enum SystemLogLevel {
+  INFO
+  WARN
+  ERROR
+}
+
 model User {
-  id            String         @id @default(uuid()) @db.Uuid
-  email         String         @unique
-  passwordHash  String         @map("password_hash")
-  firstName     String         @map("first_name")
-  lastName      String         @map("last_name")
-  avatarUrl     String?        @map("avatar_url")
-  emailVerified Boolean        @default(false) @map("email_verified")
+  id            String           @id @default(uuid()) @db.Uuid
+  email         String           @unique
+  passwordHash  String           @map("password_hash")
+  firstName     String           @map("first_name")
+  lastName      String           @map("last_name")
+  avatarUrl     String?          @map("avatar_url")
+  emailVerified Boolean          @default(false) @map("email_verified")
   memberships   Membership[]
   conversations Conversation[]
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-  deletedAt     DateTime?      @map("deleted_at")
-  lastLoginAt   DateTime?      @map("last_login_at")
+  answerFeedback AnswerFeedback[]
+  connectedRepositories Repository[] @relation("RepositoryConnectedBy")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  deletedAt     DateTime?        @map("deleted_at")
+  lastLoginAt   DateTime?        @map("last_login_at")
   oauthAccounts OAuthAccount[]
 
   @@index([createdAt], map: "users_created_at_idx")
   @@map("users")
+}
+
+model Admin {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  firstName    String    @map("first_name")
+  lastName     String    @map("last_name")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  lastLoginAt  DateTime? @map("last_login_at")
+
+  @@map("admins")
 }
 
 model OAuthAccount {
@@ -228,10 +265,12 @@ model Repository {
   status              RepositoryStatus
   lastIndexedAt       DateTime?
   indexingError       String?
+  connectedByUserId   String?              @map("connected_by_user_id") @db.Uuid
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   deletedAt           DateTime?
   workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  connectedBy         User?                @relation("RepositoryConnectedBy", fields: [connectedByUserId], references: [id], onDelete: SetNull)
   conversations       Conversation[]
   indexingRuns        IndexingRun[]
   files               RepositoryFile[]
@@ -243,6 +282,7 @@ model Repository {
 
   @@unique([provider, externalId])
   @@index([workspaceId])
+  @@index([connectedByUserId])
   @@map("repositories")
 }
 
@@ -456,14 +496,94 @@ model Conversation {
 }
 
 model Message {
-  id             String       @id @default(uuid()) @db.Uuid
-  conversationId String       @db.Uuid
+  id             String                  @id @default(uuid()) @db.Uuid
+  conversationId String                  @db.Uuid
   role           MessageRole
-  content        String       @db.Text
+  content        String                  @db.Text
   metadata       Json?
-  createdAt      DateTime     @default(now())
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime                @default(now())
+  conversation   Conversation            @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sourceCitations MessageSourceCitation[]
+  answerFeedback  AnswerFeedback[]
 
   @@index([conversationId])
+  @@index([role, createdAt])
   @@map("messages")
+}
+
+model AnalyticsEvent {
+  id           String             @id @default(uuid()) @db.Uuid
+  type         AnalyticsEventType
+  workspaceId  String             @map("workspace_id") @db.Uuid
+  actorUserId  String?            @map("actor_user_id") @db.Uuid
+  repositoryId String?            @map("repository_id") @db.Uuid
+  payload      Json?
+  createdAt    DateTime           @default(now()) @map("created_at")
+
+  @@index([type, createdAt])
+  @@index([workspaceId, createdAt])
+  @@map("analytics_events")
+}
+
+model MessageSourceCitation {
+  id             String   @id @default(uuid()) @db.Uuid
+  messageId      String   @map("message_id") @db.Uuid
+  workspaceId    String   @map("workspace_id") @db.Uuid
+  repositoryId   String   @map("repository_id") @db.Uuid
+  chunkId        String   @map("chunk_id") @db.Uuid
+  filePath       String   @map("file_path")
+  startLine      Int?     @map("start_line")
+  endLine        Int?     @map("end_line")
+  score          Float
+  rank           Int
+  createdAt      DateTime @default(now()) @map("created_at")
+  message        Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([repositoryId, filePath])
+  @@index([messageId])
+  @@map("message_source_citations")
+}
+
+model AnswerFeedback {
+  id             String               @id @default(uuid()) @db.Uuid
+  workspaceId    String               @map("workspace_id") @db.Uuid
+  conversationId String               @map("conversation_id") @db.Uuid
+  messageId      String               @map("message_id") @db.Uuid
+  userId         String               @map("user_id") @db.Uuid
+  rating         AnswerFeedbackRating
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  message        Message              @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([workspaceId, createdAt])
+  @@map("answer_feedback")
+}
+
+model SystemLog {
+  id           String            @id @default(uuid()) @db.Uuid
+  category     SystemLogCategory
+  level        SystemLogLevel    @default(INFO)
+  event        String
+  message      String?
+  requestId    String?           @map("request_id")
+  actorType    String?           @map("actor_type")
+  actorId      String?           @map("actor_id") @db.Uuid
+  workspaceId  String?           @map("workspace_id") @db.Uuid
+  repositoryId String?           @map("repository_id") @db.Uuid
+  method       String?
+  route        String?
+  statusCode   Int?              @map("status_code")
+  latencyMs    Int?              @map("latency_ms")
+  metadata     Json?
+  createdAt    DateTime          @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([category, createdAt])
+  @@index([level, createdAt])
+  @@index([event, createdAt])
+  @@index([requestId])
+  @@map("system_logs")
 }

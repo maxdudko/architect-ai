@@ -1,12 +1,16 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SystemLogCategory } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { resolveRequestLogContext } from './common/logging/request-log-context';
 import { initErrorTracker } from './common/observability/error-tracker';
+import { SystemLogsService } from './system-logs/system-logs.service';
+
+const SKIP_SYSTEM_LOG_PATH_PREFIXES = ['/docs', '/health'];
 
 function getCorsOrigins(): string | string[] {
   const configured = process.env.CORS_ORIGINS;
@@ -45,11 +49,22 @@ function assertRequiredProductionEnv(): void {
   }
 }
 
+function shouldSkipSystemLog(path: string | undefined): boolean {
+  if (!path) {
+    return false;
+  }
+  const normalized = path.split('?')[0] ?? path;
+  return SKIP_SYSTEM_LOG_PATH_PREFIXES.some(
+    (prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`),
+  );
+}
+
 async function bootstrap() {
   assertRequiredProductionEnv();
   initErrorTracker();
   const app = await NestFactory.create(AppModule);
   const requestLogger = new Logger('RequestLogger');
+  const systemLogsService = app.get(SystemLogsService);
 
   app.use((request: Request, response: Response, next: NextFunction) => {
     const startedAt = Date.now();
@@ -62,21 +77,57 @@ async function bootstrap() {
       const context = resolveRequestLogContext(
         request as Request & {
           requestId?: string;
-          user?: { sub?: string; activeWorkspaceId?: string };
+          user?: {
+            sub?: string;
+            tokenType?: string;
+            activeWorkspaceId?: string;
+          };
           workspace?: { id?: string };
           params?: Record<string, string | undefined>;
           body?: Record<string, unknown>;
         },
       );
+      const latencyMs = Date.now() - startedAt;
       requestLogger.log(
         JSON.stringify({
           event: 'http_request',
           ...context,
           statusCode: response.statusCode,
-          latencyMs: Date.now() - startedAt,
+          latencyMs,
           service: 'api',
         }),
       );
+
+      if (shouldSkipSystemLog(context.route ?? request.path)) {
+        return;
+      }
+
+      const user = (
+        request as Request & {
+          user?: { sub?: string; tokenType?: string };
+        }
+      ).user;
+      const actor =
+        user?.tokenType === 'admin'
+          ? { actorType: 'admin', actorId: user.sub ?? null }
+          : user?.sub
+            ? { actorType: 'user', actorId: user.sub }
+            : { actorType: null, actorId: null };
+
+      systemLogsService.record({
+        category: SystemLogCategory.HTTP,
+        level: systemLogsService.levelFromStatusCode(response.statusCode),
+        event: 'http_request',
+        requestId: context.requestId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
+        workspaceId: context.organizationId,
+        repositoryId: context.repositoryId,
+        method: context.method,
+        route: context.route,
+        statusCode: response.statusCode,
+        latencyMs,
+      });
     });
 
     next();
@@ -100,7 +151,7 @@ async function bootstrap() {
       },
     }),
   );
-  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalFilters(new HttpExceptionFilter(systemLogsService));
 
   const config = new DocumentBuilder()
     .setTitle('Architect AI API')

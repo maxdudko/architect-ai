@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { WorkspaceRole } from '@prisma/client';
+import { AnswerFeedbackService } from '../analytics/answer-feedback.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -29,7 +30,10 @@ import { UpdateConversationDto } from './dto/update-conversation.dto';
 @Controller('workspaces/:id/conversations')
 @UseGuards(JwtAuthGuard, WorkspaceParamGuard, RolesGuard)
 export class ConversationsController {
-  constructor(private readonly conversationsService: ConversationsService) {}
+  constructor(
+    private readonly conversationsService: ConversationsService,
+    private readonly answerFeedbackService: AnswerFeedbackService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a conversation in a workspace' })
@@ -69,16 +73,28 @@ export class ConversationsController {
     WorkspaceRole.MEMBER,
     WorkspaceRole.VIEWER,
   )
-  getConversation(
+  async getConversation(
     @Param('id') workspaceId: string,
     @Param('conversationId') conversationId: string,
     @CurrentUser() user: RequestUser,
   ): Promise<ConversationDetailResponseDto> {
-    return this.conversationsService.getConversation(
+    const detail = await this.conversationsService.getConversation(
       workspaceId,
       conversationId,
       user.sub,
     );
+    const feedbackByMessageId =
+      await this.answerFeedbackService.listRatingsForUser(
+        detail.messages.map((message) => message.id),
+        user.sub,
+      );
+    return {
+      ...detail,
+      messages: detail.messages.map((message) => ({
+        ...message,
+        feedbackRating: feedbackByMessageId.get(message.id) ?? null,
+      })),
+    };
   }
 
   @Patch(':conversationId')

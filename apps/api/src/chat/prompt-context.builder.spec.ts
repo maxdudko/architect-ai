@@ -59,6 +59,7 @@ describe('PromptContextBuilder', () => {
         status: RepositoryStatus.READY,
         lastIndexedAt: null,
         indexingError: null,
+        connectedByUserId: null,
         createdAt: new Date(),
         updatedAt: new Date(),
         deletedAt: null,
