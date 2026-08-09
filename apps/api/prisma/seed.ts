@@ -12,23 +12,23 @@ async function main(): Promise<void> {
   const passwordHash = await bcrypt.hash('Password123!', 12);
 
   const user = await prisma.user.upsert({
-    where: { email: 'owner@architect.ai' },
+    where: { email: 'user@email.com' },
     update: {},
     create: {
-      email: 'owner@architect.ai',
+      email: 'user@email.com',
       passwordHash,
-      firstName: 'Owner',
-      lastName: 'User',
+      firstName: 'User',
+      lastName: 'X',
       emailVerified: true,
     },
   });
 
   const workspace = await prisma.workspace.upsert({
-    where: { slug: 'owner-workspace' },
+    where: { slug: 'main-workspace' },
     update: {},
     create: {
-      name: "Owner's Workspace",
-      slug: 'owner-workspace',
+      name: 'Main Workspace',
+      slug: 'main-workspace',
       plan: WorkspacePlan.PRO,
     },
   });

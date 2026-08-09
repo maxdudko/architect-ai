@@ -27,7 +27,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:migrate:reset": "prisma migrate reset",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "ts-node prisma/seed.ts"
+    "prisma:seed": "node --env-file=.env -r ts-node/register prisma/seed.ts"
   },
   "dependencies": {
     "@architect-ai/shared": "workspace:*",
