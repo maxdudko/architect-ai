@@ -5,10 +5,11 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { RepositoryStatus } from '@prisma/client';
+import { AnalyticsEventType, RepositoryStatus } from '@prisma/client';
 import { QueueEvents, Worker } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import { access } from 'node:fs/promises';
+import { AnalyticsService } from '../../analytics/analytics.service';
 import { captureError } from '../../common/observability/error-tracker';
 import { OnboardingGuideQueueService } from '../../modules/onboarding/queue/onboarding-guide-queue.service';
 import { RepositoriesRepository } from '../repositories.repository';
@@ -49,6 +50,7 @@ export class RepositoryIndexingWorkerService
     private readonly embeddingService: RepositoryEmbeddingService,
     private readonly indexingStorageService: IndexingStorageService,
     private readonly onboardingGuideQueue: OnboardingGuideQueueService,
+    private readonly analyticsService: AnalyticsService,
   ) {
     this.workerEnabled =
       (this.configService.get<string>('INDEXING_WORKER_ENABLED') ?? 'false') ===
@@ -188,6 +190,19 @@ export class RepositoryIndexingWorkerService
       repositoryId: data.repositoryId,
       errorMessage: error.message,
     });
+    if (data.trigger === 'INITIAL_CONNECT') {
+      await this.analyticsService.recordEvent({
+        type: AnalyticsEventType.REPOSITORY_INDEXING_FAILED,
+        workspaceId: data.workspaceId,
+        actorUserId: data.userId ?? null,
+        repositoryId: data.repositoryId,
+        payload: {
+          trigger: data.trigger,
+          runId: data.runId ?? null,
+          error: error.message,
+        },
+      });
+    }
     captureError(error, {
       requestId: null,
       userId: null,
@@ -344,6 +359,19 @@ export class RepositoryIndexingWorkerService
         lastIndexedAt: new Date(),
       },
     );
+    if (data.trigger === 'INITIAL_CONNECT') {
+      await this.analyticsService.recordEvent({
+        type: AnalyticsEventType.REPOSITORY_INDEXING_SUCCEEDED,
+        workspaceId: data.workspaceId,
+        actorUserId: data.userId,
+        repositoryId: data.repositoryId,
+        payload: {
+          trigger: data.trigger,
+          runId: data.runId,
+          embeddingCount: embedResult.embeddedCount,
+        },
+      });
+    }
     await this.indexingStorageService.cleanupRunDirectory(data.runId);
     try {
       await this.onboardingGuideQueue.enqueuePostIndexGeneration({

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AnalyticsModule } from '../analytics/analytics.module';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { WorkspaceParamGuard } from '../common/guards/workspace-param.guard';
 import { MembershipsModule } from '../memberships/memberships.module';
@@ -8,7 +9,7 @@ import { ConversationsRepository } from './conversations.repository';
 import { ConversationsService } from './conversations.service';
 
 @Module({
-  imports: [MembershipsModule, RepositoriesModule],
+  imports: [MembershipsModule, RepositoriesModule, AnalyticsModule],
   controllers: [ConversationsController],
   providers: [
     ConversationsRepository,

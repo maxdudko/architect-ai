@@ -1,7 +1,10 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import type { ChatMessage, ChatSourceReference } from '@/entities';
+import { ThumbsDown, ThumbsUp } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import type { AnswerFeedbackRating, ChatMessage, ChatSourceReference } from '@/entities';
+import { submitAnswerFeedback } from '@/lib/api';
+import { Button } from '@/shared/components';
 
 function formatSource(source: ChatSourceReference): string {
   const lineRange =
@@ -11,14 +14,82 @@ function formatSource(source: ChatSourceReference): string {
   return `${source.filePath}${lineRange}`;
 }
 
+function AnswerFeedbackControls({
+  workspaceId,
+  conversationId,
+  message,
+  onRated,
+}: {
+  workspaceId: string;
+  conversationId: string;
+  message: ChatMessage;
+  onRated: (messageId: string, rating: AnswerFeedbackRating) => void;
+}) {
+  const [pending, setPending] = useState<AnswerFeedbackRating | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function rate(rating: AnswerFeedbackRating) {
+    if (pending) {
+      return;
+    }
+    setPending(rating);
+    setError(null);
+    try {
+      await submitAnswerFeedback(workspaceId, conversationId, message.id, rating);
+      onRated(message.id, rating);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save feedback');
+    } finally {
+      setPending(null);
+    }
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-2">
+      <span className="text-xs text-muted-foreground">Was this helpful?</span>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        className={message.feedbackRating === 'HELPFUL' ? 'text-green-500' : ''}
+        disabled={pending != null}
+        aria-label="Helpful"
+        aria-pressed={message.feedbackRating === 'HELPFUL'}
+        onClick={() => void rate('HELPFUL')}
+      >
+        <ThumbsUp className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        className={message.feedbackRating === 'NOT_HELPFUL' ? 'text-red-500' : ''}
+        disabled={pending != null}
+        aria-label="Not helpful"
+        aria-pressed={message.feedbackRating === 'NOT_HELPFUL'}
+        onClick={() => void rate('NOT_HELPFUL')}
+      >
+        <ThumbsDown className="h-4 w-4" />
+      </Button>
+      {error ? <span className="text-xs text-destructive">{error}</span> : null}
+    </div>
+  );
+}
+
 export function ChatMessageList({
+  workspaceId,
+  conversationId,
   messages,
   streamingContent,
   pendingSources,
+  onFeedbackRated,
 }: {
+  workspaceId: string;
+  conversationId: string;
   messages: ChatMessage[];
   streamingContent?: string;
   pendingSources?: ChatSourceReference[];
+  onFeedbackRated: (messageId: string, rating: AnswerFeedbackRating) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -67,6 +138,14 @@ export function ChatMessageList({
                   ))}
                 </ul>
               </div>
+            ) : null}
+            {message.role === 'ASSISTANT' && !message.id.startsWith('temp-') ? (
+              <AnswerFeedbackControls
+                workspaceId={workspaceId}
+                conversationId={conversationId}
+                message={message}
+                onRated={onFeedbackRated}
+              />
             ) : null}
           </div>
         );

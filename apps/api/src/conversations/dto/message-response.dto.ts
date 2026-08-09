@@ -19,6 +19,12 @@ export class MessageResponseDto {
   })
   metadata?: Record<string, unknown> | null;
 
+  @ApiPropertyOptional({
+    description: 'Current user feedback rating for assistant messages',
+    enum: ['HELPFUL', 'NOT_HELPFUL'],
+  })
+  feedbackRating?: 'HELPFUL' | 'NOT_HELPFUL' | null;
+
   @ApiProperty({ example: '2026-07-24T00:00:00.000Z' })
   createdAt!: string;
 }

@@ -28,6 +28,7 @@ export class RepositoriesRepository {
       name: string;
       fullName: string;
       defaultBranch: string;
+      connectedByUserId?: string | null;
     },
   ): Promise<Repository> {
     return this.prisma.repository.create({
@@ -39,6 +40,7 @@ export class RepositoriesRepository {
         name: data.name,
         fullName: data.fullName,
         defaultBranch: data.defaultBranch,
+        connectedByUserId: data.connectedByUserId ?? null,
         status: RepositoryStatus.PENDING,
       },
     });
@@ -154,6 +156,7 @@ export class RepositoriesRepository {
       status: RepositoryStatus;
       lastIndexedAt?: Date | null;
       indexingError?: string | null;
+      connectedByUserId?: string | null;
     },
   ): Promise<Repository | null> {
     const result = await this.prisma.repository.updateMany({
@@ -172,6 +175,7 @@ export class RepositoriesRepository {
         status: data.status,
         lastIndexedAt: data.lastIndexedAt,
         indexingError: data.indexingError,
+        connectedByUserId: data.connectedByUserId ?? null,
         deletedAt: null,
       },
     });

@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AnalyticsEventType,
   CodeSymbol,
   CodeSymbolType,
   Repository,
@@ -13,6 +14,7 @@ import {
   RepositoryProvider,
   RepositoryStatus,
 } from '@prisma/client';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { GithubAccessTokenService } from '../integrations/github/github-access-token.service';
 import { GithubHttpService } from '../integrations/github/github-http.service';
 import { CodeSymbolResponseDto } from './dto/code-symbol-response.dto';
@@ -44,6 +46,7 @@ export class RepositoriesService {
     private readonly githubHttpService: GithubHttpService,
     private readonly embeddingService: RepositoryEmbeddingService,
     private readonly repositoryAccessValidationService: RepositoryAccessValidationService,
+    private readonly analyticsService: AnalyticsService,
   ) {}
 
   async listRepositories(
@@ -153,6 +156,7 @@ export class RepositoriesService {
           status: RepositoryStatus.PENDING,
           lastIndexedAt: null,
           indexingError: null,
+          connectedByUserId: userId,
         })
       : await this.repositoriesRepository.create(workspaceId, {
           provider: dto.provider,
@@ -161,6 +165,7 @@ export class RepositoriesService {
           name: metadata.name,
           fullName: metadata.fullName,
           defaultBranch: metadata.defaultBranch,
+          connectedByUserId: userId,
         });
 
     if (!repository) {
@@ -168,6 +173,17 @@ export class RepositoriesService {
         'This repository is already connected to another workspace',
       );
     }
+
+    await this.analyticsService.recordEvent({
+      type: AnalyticsEventType.REPOSITORY_CONNECTED,
+      workspaceId,
+      actorUserId: userId,
+      repositoryId: repository.id,
+      payload: {
+        fullName: repository.fullName,
+        provider: repository.provider,
+      },
+    });
 
     const queuedRepository = await this.enqueueOrMarkFailed({
       workspaceId,

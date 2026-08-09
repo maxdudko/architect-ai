@@ -1,12 +1,15 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import type { AnswerFeedbackRating, ChatMessage } from '@/entities';
 import { useAuth } from '@/providers/auth-provider';
 import { Button, EmptyState, ErrorState, Skeleton } from '@/shared/components';
 import { useRepositoriesQuery } from '@/features/repository';
 import { useChatStream } from '../hooks/use-chat-stream';
 import { isDefaultConversationTitle, titleFromMessage } from '../schemas/chat.schema';
 import {
+  CHAT_QUERY_KEYS,
   useConversationQuery,
   useConversationsQuery,
   useCreateConversationMutation,
@@ -24,6 +27,7 @@ interface ChatWindowProps {
 
 export function ChatWindow({ initialRepositoryId = '' }: ChatWindowProps) {
   const { activeWorkspace } = useAuth();
+  const queryClient = useQueryClient();
   const workspaceId = activeWorkspace?.id ?? '';
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<string>(initialRepositoryId);
@@ -46,6 +50,23 @@ export function ChatWindow({ initialRepositoryId = '' }: ChatWindowProps) {
     () => conversations.find((conversation) => conversation.id === conversationId),
     [conversationId, conversations],
   );
+
+  function handleFeedbackRated(messageId: string, rating: AnswerFeedbackRating) {
+    queryClient.setQueryData(
+      CHAT_QUERY_KEYS.detail(workspaceId, conversationId),
+      (current: { messages?: ChatMessage[] } | undefined) => {
+        if (!current) {
+          return current;
+        }
+        return {
+          ...current,
+          messages: (current.messages ?? []).map((message) =>
+            message.id === messageId ? { ...message, feedbackRating: rating } : message,
+          ),
+        };
+      },
+    );
+  }
 
   async function handleCreateConversation(title: string) {
     const conversation = await createMutation.mutateAsync({
@@ -187,9 +208,12 @@ export function ChatWindow({ initialRepositoryId = '' }: ChatWindowProps) {
               </div>
             ) : (
               <ChatMessageList
+                workspaceId={workspaceId}
+                conversationId={conversationId}
                 messages={messages}
                 streamingContent={stream.streamingContent}
                 pendingSources={stream.pendingSources}
+                onFeedbackRated={handleFeedbackRated}
               />
             )}
 

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AnalyticsModule } from '../analytics/analytics.module';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { WorkspaceParamGuard } from '../common/guards/workspace-param.guard';
 import { ConversationsModule } from '../conversations/conversations.module';
@@ -16,6 +17,7 @@ import { ChatService } from './chat.service';
     RepositoriesModule,
     RetrievalModule,
     LlmModule,
+    AnalyticsModule,
   ],
   controllers: [ChatController],
   providers: [ChatService, WorkspaceParamGuard, RolesGuard],

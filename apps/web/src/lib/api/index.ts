@@ -3,6 +3,7 @@ export * from './auth';
 export * from './admin-axios';
 export * from './admin-auth';
 export * from './admin-users';
+export * from './admin-analytics';
 export * from './workspace';
 export * from './membership';
 export * from './invitation';
