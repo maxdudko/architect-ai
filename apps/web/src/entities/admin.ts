@@ -26,6 +26,35 @@ export interface AdminUsersPage {
   pageSize: number;
 }
 
+export type AdminSystemLogCategory = 'HTTP' | 'AUDIT';
+export type AdminSystemLogLevel = 'INFO' | 'WARN' | 'ERROR';
+
+export interface AdminListedLog {
+  id: string;
+  category: AdminSystemLogCategory;
+  level: AdminSystemLogLevel;
+  event: string;
+  message: string | null;
+  requestId: string | null;
+  actorType: string | null;
+  actorId: string | null;
+  workspaceId: string | null;
+  repositoryId: string | null;
+  method: string | null;
+  route: string | null;
+  statusCode: number | null;
+  latencyMs: number | null;
+  metadata: unknown;
+  createdAt: string;
+}
+
+export interface AdminLogsPage {
+  items: AdminListedLog[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export type AdminAnalyticsEventType =
   | 'REPOSITORY_CONNECTED'
   | 'REPOSITORY_INDEXING_SUCCEEDED'

@@ -5,6 +5,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AppModule } from '../../src/app.module';
 import { HttpExceptionFilter } from '../../src/common/filters/http-exception.filter';
 import { PrismaService } from '../../src/prisma/prisma.service';
+import { SystemLogsService } from '../../src/system-logs/system-logs.service';
 
 export interface E2eContext {
   app: INestApplication;
@@ -117,7 +118,7 @@ export async function createE2eApp(): Promise<E2eContext> {
       },
     }),
   );
-  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalFilters(new HttpExceptionFilter(app.get(SystemLogsService)));
   await app.init();
 
   const prisma = app.get(PrismaService);
@@ -136,7 +137,8 @@ export async function resetDatabase(prisma: PrismaService): Promise<void> {
       memberships,
       workspaces,
       users,
-      admins
+      admins,
+      system_logs
     RESTART IDENTITY CASCADE;
   `);
 }

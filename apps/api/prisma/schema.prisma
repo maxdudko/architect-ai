@@ -130,6 +130,17 @@ enum AnswerFeedbackRating {
   NOT_HELPFUL
 }
 
+enum SystemLogCategory {
+  HTTP
+  AUDIT
+}
+
+enum SystemLogLevel {
+  INFO
+  WARN
+  ERROR
+}
+
 model User {
   id            String           @id @default(uuid()) @db.Uuid
   email         String           @unique
@@ -549,4 +560,30 @@ model AnswerFeedback {
   @@unique([messageId, userId])
   @@index([workspaceId, createdAt])
   @@map("answer_feedback")
+}
+
+model SystemLog {
+  id           String            @id @default(uuid()) @db.Uuid
+  category     SystemLogCategory
+  level        SystemLogLevel    @default(INFO)
+  event        String
+  message      String?
+  requestId    String?           @map("request_id")
+  actorType    String?           @map("actor_type")
+  actorId      String?           @map("actor_id") @db.Uuid
+  workspaceId  String?           @map("workspace_id") @db.Uuid
+  repositoryId String?           @map("repository_id") @db.Uuid
+  method       String?
+  route        String?
+  statusCode   Int?              @map("status_code")
+  latencyMs    Int?              @map("latency_ms")
+  metadata     Json?
+  createdAt    DateTime          @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([category, createdAt])
+  @@index([level, createdAt])
+  @@index([event, createdAt])
+  @@index([requestId])
+  @@map("system_logs")
 }

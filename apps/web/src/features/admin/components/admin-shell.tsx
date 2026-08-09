@@ -28,6 +28,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               >
                 Users
               </Link>
+              <Link
+                href="/admin/logs"
+                className="text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Logs
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-3">

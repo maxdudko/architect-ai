@@ -13,6 +13,7 @@ import { AdminCookieService } from './auth/admin-cookie.service';
 import { AdminSessionStoreService } from './auth/admin-session-store.service';
 import { AdminJwtStrategy } from './auth/strategies/admin-jwt.strategy';
 import { AdminJwtAuthGuard } from './guards/admin-jwt-auth.guard';
+import { AdminLogsController } from './logs/admin-logs.controller';
 import { AdminUsersController } from './users/admin-users.controller';
 
 @Module({
@@ -21,6 +22,7 @@ import { AdminUsersController } from './users/admin-users.controller';
     AdminAuthController,
     AdminUsersController,
     AdminAnalyticsController,
+    AdminLogsController,
   ],
   providers: [
     AdminsRepository,

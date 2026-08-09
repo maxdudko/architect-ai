@@ -14,6 +14,7 @@ import { MembershipsModule } from './memberships/memberships.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RepositoriesModule } from './repositories/repositories.module';
+import { SystemLogsModule } from './system-logs/system-logs.module';
 import { UsersModule } from './users/users.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 
@@ -23,6 +24,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
       isGlobal: true,
     }),
     PrismaModule,
+    SystemLogsModule,
     UsersModule,
     MembershipsModule,
     WorkspacesModule,

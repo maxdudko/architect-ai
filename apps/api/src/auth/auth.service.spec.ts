@@ -9,6 +9,7 @@ import { User, WorkspacePlan, WorkspaceRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { SessionStoreService } from './session-store.service';
+import { SystemLogsService } from '../system-logs/system-logs.service';
 import { UsersService } from '../users/users.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 
@@ -58,6 +59,7 @@ describe('AuthService', () => {
   let usersService: jest.Mocked<UsersService>;
   let workspacesService: jest.Mocked<WorkspacesService>;
   let sessionStoreService: jest.Mocked<SessionStoreService>;
+  let systemLogsService: jest.Mocked<Pick<SystemLogsService, 'record'>>;
   let configService: { get: jest.Mock };
   let jwtService: JwtService;
   let service: AuthService;
@@ -82,6 +84,10 @@ describe('AuthService', () => {
       removeRefreshToken: jest.fn(),
     } as unknown as jest.Mocked<SessionStoreService>;
 
+    systemLogsService = {
+      record: jest.fn(),
+    };
+
     configService = {
       get: jest.fn((key: string) => {
         const values: Record<string, string> = {
@@ -101,6 +107,7 @@ describe('AuthService', () => {
       jwtService,
       configService as never,
       sessionStoreService,
+      systemLogsService as unknown as SystemLogsService,
     );
 
     jest.clearAllMocks();

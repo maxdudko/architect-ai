@@ -1,8 +1,13 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
-import { Admin } from '@prisma/client';
+import {
+  Admin,
+  SystemLogCategory,
+  SystemLogLevel,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { SystemLogsService } from '../../system-logs/system-logs.service';
 import { AdminsService } from '../admins.service';
 import { AdminSessionStoreService } from './admin-session-store.service';
 import { AdminRefreshDto } from './dto/admin-refresh.dto';
@@ -19,11 +24,20 @@ export class AdminAuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly sessionStoreService: AdminSessionStoreService,
+    private readonly systemLogsService: SystemLogsService,
   ) {}
 
   async signIn(dto: AdminSignInDto): Promise<AdminAuthResponse> {
-    const admin = await this.adminsService.findByEmail(dto.email.toLowerCase());
+    const email = dto.email.toLowerCase();
+    const admin = await this.adminsService.findByEmail(email);
     if (!admin) {
+      this.systemLogsService.record({
+        category: SystemLogCategory.AUDIT,
+        level: SystemLogLevel.WARN,
+        event: 'admin.auth.signin.failure',
+        message: 'Invalid email or password',
+        metadata: { email },
+      });
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -32,12 +46,32 @@ export class AdminAuthService {
       admin.passwordHash,
     );
     if (!isValidPassword) {
+      this.systemLogsService.record({
+        category: SystemLogCategory.AUDIT,
+        level: SystemLogLevel.WARN,
+        event: 'admin.auth.signin.failure',
+        actorType: 'admin',
+        actorId: admin.id,
+        message: 'Invalid email or password',
+        metadata: { email },
+      });
       throw new UnauthorizedException('Invalid email or password');
     }
 
     const authenticatedAdmin = await this.adminsService.touchLastLoginAt(
       admin.id,
     );
+
+    this.systemLogsService.record({
+      category: SystemLogCategory.AUDIT,
+      level: SystemLogLevel.INFO,
+      event: 'admin.auth.signin.success',
+      actorType: 'admin',
+      actorId: authenticatedAdmin.id,
+      message: 'Admin signed in',
+      metadata: { email: authenticatedAdmin.email },
+    });
+
     return this.buildAuthResponse(authenticatedAdmin);
   }
 
@@ -85,6 +119,14 @@ export class AdminAuthService {
     refreshToken?: string,
   ): Promise<{ success: boolean }> {
     await this.sessionStoreService.removeRefreshToken(adminId, refreshToken);
+    this.systemLogsService.record({
+      category: SystemLogCategory.AUDIT,
+      level: SystemLogLevel.INFO,
+      event: 'admin.auth.logout',
+      actorType: 'admin',
+      actorId: adminId,
+      message: 'Admin logged out',
+    });
     return { success: true };
   }
 
