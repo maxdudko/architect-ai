@@ -1,4 +1,5 @@
 export * from './user';
+export * from './admin';
 export * from './workspace';
 export * from './membership';
 export * from './invitation';

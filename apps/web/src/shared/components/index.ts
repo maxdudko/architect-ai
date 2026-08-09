@@ -1,4 +1,5 @@
 export * from './auth-guard';
+export * from './admin-auth-guard';
 export * from './confirmation-dialog';
 export * from './empty-state';
 export * from './error-state';

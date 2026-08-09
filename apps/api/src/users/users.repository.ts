@@ -28,4 +28,40 @@ export class UsersRepository {
       data: { lastLoginAt: new Date() },
     });
   }
+
+  async findManyPaginated(params: {
+    page: number;
+    pageSize: number;
+    search?: string;
+    includeDeleted?: boolean;
+  }): Promise<{ items: User[]; total: number }> {
+    const where: Prisma.UserWhereInput = {};
+
+    if (!params.includeDeleted) {
+      where.deletedAt = null;
+    }
+
+    const search = params.search?.trim();
+    if (search) {
+      where.OR = [
+        { email: { contains: search, mode: 'insensitive' } },
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const skip = (params.page - 1) * params.pageSize;
+
+    const [items, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: params.pageSize,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return { items, total };
+  }
 }

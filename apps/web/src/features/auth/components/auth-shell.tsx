@@ -5,9 +5,9 @@ interface AuthShellProps {
   title: string;
   description: string;
   children: React.ReactNode;
-  footerText: string;
-  footerHref: string;
-  footerAction: string;
+  footerText?: string;
+  footerHref?: string;
+  footerAction?: string;
 }
 
 export function AuthShell({
@@ -18,6 +18,8 @@ export function AuthShell({
   footerHref,
   footerAction,
 }: AuthShellProps) {
+  const showFooter = Boolean(footerText && footerHref && footerAction);
+
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
@@ -26,15 +28,17 @@ export function AuthShell({
       </CardHeader>
       <CardContent className="space-y-4">
         {children}
-        <p className="text-sm text-muted-foreground">
-          {footerText}{' '}
-          <Link
-            href={footerHref}
-            className="font-medium text-foreground underline underline-offset-4"
-          >
-            {footerAction}
-          </Link>
-        </p>
+        {showFooter ? (
+          <p className="text-sm text-muted-foreground">
+            {footerText}{' '}
+            <Link
+              href={footerHref!}
+              className="font-medium text-foreground underline underline-offset-4"
+            >
+              {footerAction}
+            </Link>
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );

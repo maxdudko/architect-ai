@@ -48,6 +48,18 @@ async function main(): Promise<void> {
       status: MembershipStatus.ACTIVE,
     },
   });
+
+  const adminPasswordHash = await bcrypt.hash('AdminPassword123!', 12);
+  await prisma.admin.upsert({
+    where: { email: 'admin@architect.ai' },
+    update: {},
+    create: {
+      email: 'admin@architect.ai',
+      passwordHash: adminPasswordHash,
+      firstName: 'Platform',
+      lastName: 'Admin',
+    },
+  });
 }
 
 void main()

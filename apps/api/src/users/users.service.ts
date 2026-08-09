@@ -21,4 +21,13 @@ export class UsersService {
   touchLastLoginAt(userId: string): Promise<User> {
     return this.usersRepository.touchLastLoginAt(userId);
   }
+
+  findManyPaginated(params: {
+    page: number;
+    pageSize: number;
+    search?: string;
+    includeDeleted?: boolean;
+  }): Promise<{ items: User[]; total: number }> {
+    return this.usersRepository.findManyPaginated(params);
+  }
 }

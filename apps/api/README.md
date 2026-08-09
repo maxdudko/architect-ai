@@ -70,6 +70,8 @@ Required for production:
 - `DATABASE_URL`
 - `JWT_ACCESS_SECRET`
 - `JWT_REFRESH_SECRET`
+- `JWT_ADMIN_ACCESS_SECRET`
+- `JWT_ADMIN_REFRESH_SECRET`
 - `REDIS_URL` (recommended for session persistence)
 
 ## Local Commands
@@ -80,6 +82,15 @@ pnpm --filter api prisma:generate
 pnpm --filter api prisma:migrate:dev
 pnpm --filter api prisma:seed
 ```
+
+### Seed credentials (local / non-production only)
+
+| Role | Email | Password |
+|------|-------|----------|
+| Workspace owner user | `owner@architect.ai` | `Password123!` |
+| Platform admin | `admin@architect.ai` | `AdminPassword123!` |
+
+Platform admin signs in at `/admin/sign-in` (separate from user auth).
 
 ## Testing
 

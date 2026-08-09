@@ -139,6 +139,19 @@ model User {
   @@map("users")
 }
 
+model Admin {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  firstName    String    @map("first_name")
+  lastName     String    @map("last_name")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  lastLoginAt  DateTime? @map("last_login_at")
+
+  @@map("admins")
+}
+
 model OAuthAccount {
   id                    String        @id @default(uuid()) @db.Uuid
   userId                String        @map("user_id") @db.Uuid

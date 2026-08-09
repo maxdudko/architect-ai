@@ -77,6 +77,10 @@ export function configureTestEnvironment(): void {
   process.env.JWT_REFRESH_SECRET ??= 'test-refresh-secret';
   process.env.JWT_ACCESS_TTL ??= '15m';
   process.env.JWT_REFRESH_TTL ??= '30d';
+  process.env.JWT_ADMIN_ACCESS_SECRET ??= 'test-admin-access-secret';
+  process.env.JWT_ADMIN_REFRESH_SECRET ??= 'test-admin-refresh-secret';
+  process.env.JWT_ADMIN_ACCESS_TTL ??= '15m';
+  process.env.JWT_ADMIN_REFRESH_TTL ??= '30d';
   process.env.RETRIEVAL_CACHE_DRIVER = 'memory';
   process.env.LLM_PROVIDER = 'mock';
   process.env.EMBEDDING_PROVIDER = 'mock';
@@ -131,7 +135,8 @@ export async function resetDatabase(prisma: PrismaService): Promise<void> {
       invitations,
       memberships,
       workspaces,
-      users
+      users,
+      admins
     RESTART IDENTITY CASCADE;
   `);
 }

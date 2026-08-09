@@ -55,7 +55,8 @@ services:
     environment:
       NODE_ENV: development
       PORT: ${API_PORT:-5000}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://architect-ai-user:architect-ai-password@postgres:5432/architect-ai-db}
+      # Prefer DOCKER_DATABASE_URL so host-oriented DATABASE_URL (localhost:5433) is not injected into containers.
+      DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://architect-ai-user:architect-ai-password@postgres:5432/architect-ai-db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
       QDRANT_COLLECTION: ${QDRANT_COLLECTION:-repository_chunks}
@@ -102,7 +103,7 @@ services:
     command: pnpm --filter api dev:worker
     environment:
       NODE_ENV: development
-      DATABASE_URL: ${DATABASE_URL:-postgresql://architect-ai-user:architect-ai-password@postgres:5432/architect-ai-db}
+      DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://architect-ai-user:architect-ai-password@postgres:5432/architect-ai-db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
       QDRANT_COLLECTION: ${QDRANT_COLLECTION:-repository_chunks}
