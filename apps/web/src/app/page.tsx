@@ -1,9 +1,7 @@
-import { redirect } from 'next/navigation';
 import { getServerAccessToken } from '@/lib/auth/cookies.server';
+import { LandingPage } from '@/features/landing/components/landing-page';
 
 export default async function Home() {
-  if (await getServerAccessToken()) {
-    redirect('/dashboard');
-  }
-  redirect('/sign-in');
+  const isAuthenticated = Boolean(await getServerAccessToken());
+  return <LandingPage isAuthenticated={isAuthenticated} />;
 }
