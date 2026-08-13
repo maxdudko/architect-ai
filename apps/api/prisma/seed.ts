@@ -29,7 +29,7 @@ async function main(): Promise<void> {
     create: {
       name: 'Main Workspace',
       slug: 'main-workspace',
-      plan: WorkspacePlan.PRO,
+      plan: WorkspacePlan.FREE,
     },
   });
 

@@ -100,4 +100,46 @@ describe('RetrievalIndexingService', () => {
       }),
     ]);
   });
+
+  it('still creates the vector collection when there are no chunks', async () => {
+    const embeddingProvider: EmbeddingProvider = {
+      model: 'hash-embedding-v1',
+      dimensions: 4,
+      embed: jest.fn(),
+      embedBatch: jest.fn(),
+    };
+    const vectorStore: VectorStore = {
+      createCollection: jest.fn().mockResolvedValue(undefined),
+      upsert: jest.fn(),
+      delete: jest.fn(),
+      deleteByRepository: jest.fn(),
+      search: jest.fn(),
+    };
+    const chunkDataSource: ChunkDataSource = {
+      listChunksForIndexing: jest.fn().mockResolvedValue([]),
+      getChunksByIds: jest.fn(),
+    };
+
+    const service = new RetrievalIndexingService(
+      embeddingProvider,
+      vectorStore,
+      chunkDataSource,
+      new RetrievalMetricsService(),
+      {
+        get: () => undefined,
+      } as ConfigService,
+    );
+
+    const result = await service.indexRepositoryChunks({
+      workspaceId: 'ws-1',
+      repositoryId: 'repo-1',
+      indexingRunId: 'run-1',
+      branch: 'main',
+    });
+
+    expect(result.embeddedCount).toBe(0);
+    expect(vectorStore.createCollection).toHaveBeenCalledWith(4);
+    expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
+    expect(vectorStore.upsert).not.toHaveBeenCalled();
+  });
 });

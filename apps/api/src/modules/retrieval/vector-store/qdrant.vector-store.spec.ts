@@ -118,4 +118,25 @@ describe('QdrantVectorStore', () => {
       match: { value: 'repo-1' },
     });
   });
+
+  it('returns empty search hits when the collection is missing', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      text: () =>
+        Promise.resolve(
+          JSON.stringify({
+            status: {
+              error: "Not found: Collection `architect_chunks` doesn't exist!",
+            },
+          }),
+        ),
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    const store = createStore();
+    const hits = await store.search([0.1], undefined, { topK: 5 });
+
+    expect(hits).toEqual([]);
+  });
 });
