@@ -32,11 +32,10 @@ export class OnboardingGuidesService {
   async listGuides(
     workspaceId: string,
     repositoryId: string,
-    userId: string,
+    _userId: string,
     type?: GuideType,
     search?: string,
   ): Promise<OnboardingGuideListResponseDto> {
-    await this.assertRepositoryAccess(workspaceId, repositoryId, userId);
     const guides = await this.storage.listGuides(workspaceId, repositoryId, {
       ...(type ? { types: [type] } : {}),
       ...(search?.trim() ? { search: search.trim() } : {}),
@@ -52,9 +51,8 @@ export class OnboardingGuidesService {
     workspaceId: string,
     repositoryId: string,
     guideId: string,
-    userId: string,
+    _userId: string,
   ): Promise<OnboardingGuideResponseDto> {
-    await this.assertRepositoryAccess(workspaceId, repositoryId, userId);
     const guide = await this.storage.getGuide(
       workspaceId,
       repositoryId,
@@ -69,9 +67,8 @@ export class OnboardingGuidesService {
   async getLatestGenerationRun(
     workspaceId: string,
     repositoryId: string,
-    userId: string,
+    _userId: string,
   ): Promise<GenerationRunResponseDto | null> {
-    await this.assertRepositoryAccess(workspaceId, repositoryId, userId);
     const run = await this.storage.findLatestGenerationRun(
       workspaceId,
       repositoryId,

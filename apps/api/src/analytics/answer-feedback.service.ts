@@ -9,15 +9,11 @@ import {
   MessageRole,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { RepositoryAccessValidationService } from '../repositories/repository-access-validation.service';
 import { AnswerFeedbackResponseDto } from './dto/answer-feedback-response.dto';
 
 @Injectable()
 export class AnswerFeedbackService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly repositoryAccessValidationService: RepositoryAccessValidationService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async upsertFeedback(params: {
     workspaceId: string;
@@ -36,16 +32,6 @@ export class AnswerFeedbackService {
 
     if (!conversation) {
       throw new NotFoundException('Conversation not found in this workspace');
-    }
-
-    if (conversation.repositoryId) {
-      await this.repositoryAccessValidationService.assertUserCanAccessRepository(
-        {
-          workspaceId: params.workspaceId,
-          repositoryId: conversation.repositoryId,
-          userId: params.userId,
-        },
-      );
     }
 
     const message = await this.prisma.message.findFirst({

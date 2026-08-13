@@ -60,13 +60,8 @@ export class RepositoriesService {
   async getRepository(
     workspaceId: string,
     repositoryId: string,
-    userId: string,
+    _userId: string,
   ): Promise<RepositoryResponseDto> {
-    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
-      workspaceId,
-      repositoryId,
-      userId,
-    });
     const repository = await this.findRepositoryInWorkspace(
       workspaceId,
       repositoryId,
@@ -77,14 +72,9 @@ export class RepositoriesService {
   async listRepositoryFiles(
     workspaceId: string,
     repositoryId: string,
-    userId: string,
+    _userId: string,
     pathPrefix?: string,
   ): Promise<RepositoryFileResponseDto[]> {
-    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
-      workspaceId,
-      repositoryId,
-      userId,
-    });
     await this.findRepositoryInWorkspace(workspaceId, repositoryId);
     const files = await this.repositoriesRepository.listCurrentRepositoryFiles(
       repositoryId,
@@ -96,14 +86,9 @@ export class RepositoriesService {
   async listRepositorySymbols(
     workspaceId: string,
     repositoryId: string,
-    userId: string,
+    _userId: string,
     options?: { filePath?: string; type?: CodeSymbolType },
   ): Promise<CodeSymbolResponseDto[]> {
-    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
-      workspaceId,
-      repositoryId,
-      userId,
-    });
     await this.findRepositoryInWorkspace(workspaceId, repositoryId);
     const symbols = await this.repositoriesRepository.listCurrentCodeSymbols(
       repositoryId,

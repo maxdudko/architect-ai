@@ -122,6 +122,9 @@ describe('OnboardingGuidesService', () => {
 
     expect(storage.validateRepositoryReady).toHaveBeenCalledTimes(2);
     expect(queue.waitUntilReady).toHaveBeenCalledTimes(2);
+    expect(
+      repositoryAccessValidationService.assertUserCanAccessRepository,
+    ).toHaveBeenCalled();
     expect(queue.enqueueManualGenerate).toHaveBeenCalledWith({
       workspaceId: run.workspaceId,
       repositoryId: run.repositoryId,
@@ -205,6 +208,9 @@ describe('OnboardingGuidesService', () => {
     );
     expect(listed.total).toBe(1);
     expect(fetched.generationVersion).toBe(2);
+    expect(
+      repositoryAccessValidationService.assertUserCanAccessRepository,
+    ).not.toHaveBeenCalled();
 
     storage.getGuide.mockResolvedValue(null);
     await expect(
