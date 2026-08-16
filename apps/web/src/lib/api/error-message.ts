@@ -6,7 +6,10 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
   }
 
   const payload = error.response?.data as
-    | { error?: { message?: string | string[]; code?: string } | string; message?: string | string[] }
+    | {
+        error?: { message?: string | string[]; code?: string } | string;
+        message?: string | string[];
+      }
     | undefined;
 
   const nestedError = payload?.error;

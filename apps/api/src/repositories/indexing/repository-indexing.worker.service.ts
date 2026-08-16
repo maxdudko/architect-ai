@@ -5,7 +5,11 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AnalyticsEventType, RepositoryStatus, UsageMetric } from '@prisma/client';
+import {
+  AnalyticsEventType,
+  RepositoryStatus,
+  UsageMetric,
+} from '@prisma/client';
 import { QueueEvents, Worker } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import { access } from 'node:fs/promises';

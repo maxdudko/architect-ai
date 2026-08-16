@@ -1,6 +1,11 @@
 'use client';
 
-import { WorkspaceAiSettingsCard, WorkspaceSettingsForm, WorkspaceUsageCard, useWorkspaceUsageQuery } from '@/features/workspace';
+import {
+  WorkspaceAiSettingsCard,
+  WorkspaceSettingsForm,
+  WorkspaceUsageCard,
+  useWorkspaceUsageQuery,
+} from '@/features/workspace';
 import { useAuth } from '@/providers/auth-provider';
 import { EmptyState, PageHeader } from '@/shared/components';
 import { canManageWorkspaceAi } from '@/features/workspace/utils/workspace-permissions';

@@ -1,4 +1,9 @@
-import type { AdminPaginated, AdminPlanLimit, AdminWorkspaceUsageRow, WorkspacePlan } from '@/entities';
+import type {
+  AdminPaginated,
+  AdminPlanLimit,
+  AdminWorkspaceUsageRow,
+  WorkspacePlan,
+} from '@/entities';
 import { adminApiClient } from './admin-axios';
 
 export interface AdminUsageListParams {

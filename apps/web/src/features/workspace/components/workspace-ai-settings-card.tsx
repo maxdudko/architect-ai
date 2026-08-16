@@ -34,8 +34,7 @@ export function WorkspaceAiSettingsCard({ workspaceId }: { workspaceId: string }
   const isByok = settings?.mode === 'BYOK';
   const pastedKey = apiKey.trim();
   const canTestPasted = pastedKey.length >= 8;
-  const isBusy =
-    upsertMutation.isPending || deleteMutation.isPending || testMutation.isPending;
+  const isBusy = upsertMutation.isPending || deleteMutation.isPending || testMutation.isPending;
 
   const onConnect = async () => {
     setErrorMessage(null);
@@ -133,7 +132,12 @@ export function WorkspaceAiSettingsCard({ workspaceId }: { workspaceId: string }
                 Test key
               </Button>
               {isByok ? (
-                <Button type="button" variant="outline" disabled={isBusy} onClick={() => void onRemove()}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isBusy}
+                  onClick={() => void onRemove()}
+                >
                   {deleteMutation.isPending ? <Loader className="mr-2 h-4 w-4" /> : null}
                   Use Hosted AI
                 </Button>

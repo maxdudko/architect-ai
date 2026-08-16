@@ -11,7 +11,13 @@ import { InvitationsRepository } from './invitations.repository';
 import { InvitationsService } from './invitations.service';
 
 @Module({
-  imports: [MembershipsModule, UsersModule, AuthModule, MailModule, UsageModule],
+  imports: [
+    MembershipsModule,
+    UsersModule,
+    AuthModule,
+    MailModule,
+    UsageModule,
+  ],
   controllers: [InvitationsController],
   providers: [
     InvitationsRepository,

@@ -61,7 +61,8 @@ function PlanLimitsForm() {
   const [edits, setEdits] = useState<Record<UsageMetric, string> | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const values = edits ?? (limitsQuery.data ? limitsToValues(limitsQuery.data) : EMPTY_LIMIT_VALUES);
+  const values =
+    edits ?? (limitsQuery.data ? limitsToValues(limitsQuery.data) : EMPTY_LIMIT_VALUES);
 
   const onSave = async () => {
     if (!limitsQuery.data) {
@@ -198,10 +199,7 @@ function WorkspaceUsageTable() {
           <EmptyState title="No workspaces" description="No matching workspaces were found." />
         ) : null}
         {items.map((workspace: AdminWorkspaceUsageRow) => (
-          <div
-            key={workspace.workspaceId}
-            className="space-y-2 border-b py-4 last:border-b-0"
-          >
+          <div key={workspace.workspaceId} className="space-y-2 border-b py-4 last:border-b-0">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="font-medium">{workspace.name}</p>

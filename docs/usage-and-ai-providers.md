@@ -6,13 +6,13 @@ Phase 1 monetization foundation: plan-based usage limits, workspace usage visibi
 
 Limits are stored in `plan_limits` and keyed by `Workspace.plan` + metric. Business logic never hardcodes Free-plan numbers. Admins change limits from `/admin/usage`; the next request uses the new values.
 
-| Metric | What is counted | Period |
-|---|---|---|
-| `REPOSITORIES` | Non-deleted connected repositories | Current |
-| `INDEXING_RUNS` | Indexing runs started | Calendar month (UTC) |
-| `GUIDE_GENERATIONS` | Onboarding guide generation runs created | Calendar month (UTC) |
-| `AI_QUESTIONS` | User chat messages on non-deleted conversations | Calendar month (UTC) |
-| `MEMBERS` | Active members + pending (unexpired) invitations | Current |
+| Metric              | What is counted                                  | Period               |
+| ------------------- | ------------------------------------------------ | -------------------- |
+| `REPOSITORIES`      | Non-deleted connected repositories               | Current              |
+| `INDEXING_RUNS`     | Indexing runs started                            | Calendar month (UTC) |
+| `GUIDE_GENERATIONS` | Onboarding guide generation runs created         | Calendar month (UTC) |
+| `AI_QUESTIONS`      | User chat messages on non-deleted conversations  | Calendar month (UTC) |
+| `MEMBERS`           | Active members + pending (unexpired) invitations | Current              |
 
 `max_value = null` means unlimited. New workspaces are always `FREE`. `PRO` and `ENTERPRISE` exist as unlimited stubs so a future billing system can flip `Workspace.plan` without changing usage code.
 

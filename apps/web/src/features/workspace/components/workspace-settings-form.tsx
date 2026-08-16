@@ -1,6 +1,14 @@
 'use client';
 
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Loader } from '@/shared/components';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Input,
+  Loader,
+} from '@/shared/components';
 import { useWorkspaceSettingsForm } from '../hooks/use-workspace-settings-form';
 
 interface WorkspaceSettingsFormProps {

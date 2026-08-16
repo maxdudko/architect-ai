@@ -52,7 +52,6 @@ export function getRepositoryActionVisibility(
   return {
     showRetry: status === 'FAILED' || status === 'PENDING',
     showReindex: status === 'READY',
-    allowDisconnect:
-      !isRepositoryIndexingActive(status) || status === 'PENDING',
+    allowDisconnect: !isRepositoryIndexingActive(status) || status === 'PENDING',
   };
 }

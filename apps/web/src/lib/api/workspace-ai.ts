@@ -1,9 +1,7 @@
 import type { WorkspaceAiKeyTestResult, WorkspaceAiSettings } from '@/entities';
 import { apiClient } from './axios';
 
-export async function getWorkspaceAiSettings(
-  workspaceId: string,
-): Promise<WorkspaceAiSettings> {
+export async function getWorkspaceAiSettings(workspaceId: string): Promise<WorkspaceAiSettings> {
   const { data } = await apiClient.get<WorkspaceAiSettings>(
     `/workspaces/${workspaceId}/ai-settings`,
   );
@@ -21,9 +19,7 @@ export async function upsertWorkspaceAiSettings(
   return data;
 }
 
-export async function deleteWorkspaceAiSettings(
-  workspaceId: string,
-): Promise<WorkspaceAiSettings> {
+export async function deleteWorkspaceAiSettings(workspaceId: string): Promise<WorkspaceAiSettings> {
   const { data } = await apiClient.delete<WorkspaceAiSettings>(
     `/workspaces/${workspaceId}/ai-settings`,
   );

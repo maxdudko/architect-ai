@@ -97,8 +97,7 @@ export class UsageService {
           period: limit.period,
           used,
           limit: effective,
-          remaining:
-            effective == null ? null : Math.max(effective - used, 0),
+          remaining: effective == null ? null : Math.max(effective - used, 0),
         };
       }),
     );

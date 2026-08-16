@@ -67,7 +67,7 @@ describe('RetrievalIndexingService', () => {
       {
         get: (key: string) =>
           key === 'EMBEDDING_BATCH_SIZE' ? '64' : undefined,
-      } as ConfigService,
+      } as unknown as ConfigService,
     );
 
     const result = await service.indexRepositoryChunks({
@@ -127,7 +127,7 @@ describe('RetrievalIndexingService', () => {
       new RetrievalMetricsService(),
       {
         get: () => undefined,
-      } as ConfigService,
+      } as unknown as ConfigService,
     );
 
     const result = await service.indexRepositoryChunks({

@@ -1,7 +1,15 @@
 'use client';
 
 import type { UsageMetric, UsageMetricSnapshot, WorkspacePlan } from '@/entities';
-import { Card, CardContent, CardHeader, CardTitle, EmptyState, ErrorState, Skeleton } from '@/shared/components';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  ErrorState,
+  Skeleton,
+} from '@/shared/components';
 import { useWorkspaceUsageQuery } from '../services/workspace.service';
 
 const METRIC_LABELS: Record<UsageMetric, string> = {
@@ -21,8 +29,7 @@ function formatPlan(plan: WorkspacePlan): string {
 function formatLimit(metric: UsageMetricSnapshot): string {
   const limitLabel = metric.limit == null ? 'Unlimited' : String(metric.limit);
   const periodLabel = metric.period === 'MONTHLY' ? ' / month' : '';
-  const remainingLabel =
-    metric.remaining == null ? '' : ` · ${metric.remaining} remaining`;
+  const remainingLabel = metric.remaining == null ? '' : ` · ${metric.remaining} remaining`;
   return `${metric.used} / ${limitLabel}${periodLabel}${remainingLabel}`;
 }
 
@@ -42,10 +49,7 @@ export function WorkspaceUsageCard({ workspaceId }: { workspaceId: string }) {
           </div>
         ) : null}
         {usageQuery.isError ? (
-          <ErrorState
-            title="Unable to load usage"
-            description="Refresh the page to try again."
-          />
+          <ErrorState title="Unable to load usage" description="Refresh the page to try again." />
         ) : null}
         {usageQuery.data ? (
           <div className="space-y-4">
@@ -68,7 +72,10 @@ export function WorkspaceUsageCard({ workspaceId }: { workspaceId: string }) {
           </div>
         ) : null}
         {!usageQuery.isLoading && !usageQuery.isError && !usageQuery.data ? (
-          <EmptyState title="No usage data" description="Usage will appear after workspace activity." />
+          <EmptyState
+            title="No usage data"
+            description="Usage will appear after workspace activity."
+          />
         ) : null}
       </CardContent>
     </Card>
