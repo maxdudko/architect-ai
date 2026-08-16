@@ -7,9 +7,12 @@ import {
   CodeSymbolType,
   RepositoryProvider,
   RepositoryStatus,
+  UsageMetric,
+  UsagePeriod,
 } from '@prisma/client';
 import { GithubAccessTokenService } from '../integrations/github/github-access-token.service';
 import { GithubHttpService } from '../integrations/github/github-http.service';
+import { UsageLimitExceededException } from '../usage/usage-limit.exception';
 import { RepositoryEmbeddingService } from './indexing/repository-embedding.service';
 import { RepositoryAccessValidationService } from './repository-access-validation.service';
 import { RepositoryIndexingQueueService } from './repository-indexing.queue.service';
@@ -45,6 +48,7 @@ describe('RepositoriesService', () => {
   let githubHttpService: jest.Mocked<GithubHttpService>;
   let embeddingService: jest.Mocked<RepositoryEmbeddingService>;
   let repositoryAccessValidationService: jest.Mocked<RepositoryAccessValidationService>;
+  let usageService: { assertWithinLimit: jest.Mock; hasRemaining: jest.Mock };
   let service: RepositoriesService;
 
   beforeEach(() => {
@@ -98,6 +102,10 @@ describe('RepositoriesService', () => {
       recordEvent: jest.fn().mockResolvedValue(null),
       recordSourceCitations: jest.fn().mockResolvedValue([]),
     };
+    usageService = {
+      assertWithinLimit: jest.fn().mockResolvedValue(undefined),
+      hasRemaining: jest.fn().mockResolvedValue(true),
+    };
 
     service = new RepositoriesService(
       repositoriesRepository,
@@ -107,6 +115,7 @@ describe('RepositoriesService', () => {
       embeddingService,
       repositoryAccessValidationService,
       analyticsService as never,
+      usageService as never,
     );
   });
 
@@ -148,6 +157,28 @@ describe('RepositoriesService', () => {
         fullName: 'acme/platform-api',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('does not create a repository when the workspace is over the limit', async () => {
+    usageService.assertWithinLimit.mockRejectedValue(
+      new UsageLimitExceededException({
+        metric: UsageMetric.REPOSITORIES,
+        used: 1,
+        limit: 1,
+        period: UsagePeriod.CURRENT,
+      }),
+    );
+
+    await expect(
+      service.createRepository(workspaceA, 'user-1', {
+        provider: RepositoryProvider.GITHUB,
+        externalId: '123',
+        owner: 'acme',
+        name: 'platform-api',
+        fullName: 'acme/platform-api',
+      }),
+    ).rejects.toBeInstanceOf(UsageLimitExceededException);
+    expect(repositoriesRepository.create).not.toHaveBeenCalled();
   });
 
   it('queues indexing after connecting a repository', async () => {
@@ -443,6 +474,23 @@ describe('RepositoriesService', () => {
     ).not.toHaveBeenCalled();
   });
 
+  it('allows retry indexing for a stuck pending repository', async () => {
+    repositoriesRepository.findById.mockResolvedValue({
+      ...repository,
+      status: RepositoryStatus.PENDING,
+    });
+    repositoriesRepository.updateStatus.mockResolvedValue({
+      ...repository,
+      status: RepositoryStatus.PENDING,
+    });
+
+    await service.retryIndexing(workspaceA, repositoryId, 'user-1');
+
+    expect(
+      repositoryIndexingQueueService.enqueueRetryIndexing,
+    ).toHaveBeenCalled();
+  });
+
   it('queues manual reindex with optional branch', async () => {
     repositoriesRepository.findById.mockResolvedValue({
       ...repository,
@@ -467,6 +515,29 @@ describe('RepositoriesService', () => {
         branch: 'release/2026.07',
       }),
     );
+  });
+
+  it('does not leave the repository pending when the indexing limit is exceeded', async () => {
+    usageService.assertWithinLimit.mockRejectedValue(
+      new UsageLimitExceededException({
+        metric: UsageMetric.INDEXING_RUNS,
+        used: 5,
+        limit: 5,
+        period: UsagePeriod.MONTHLY,
+      }),
+    );
+    repositoriesRepository.findById.mockResolvedValue({
+      ...repository,
+      status: RepositoryStatus.READY,
+    });
+
+    await expect(
+      service.reindexRepository(workspaceA, repositoryId, 'user-1'),
+    ).rejects.toBeInstanceOf(UsageLimitExceededException);
+    expect(repositoriesRepository.updateStatus).not.toHaveBeenCalled();
+    expect(
+      repositoryIndexingQueueService.enqueueManualReindex,
+    ).not.toHaveBeenCalled();
   });
 
   it('rejects reindex when repository is not ready', async () => {

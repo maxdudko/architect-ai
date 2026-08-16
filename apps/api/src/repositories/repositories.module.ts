@@ -7,6 +7,7 @@ import { MembershipsModule } from '../memberships/memberships.module';
 import { CodeIntelligenceModule } from '../modules/code-intelligence/code-intelligence.module';
 import { OnboardingModule } from '../modules/onboarding/onboarding.module';
 import { RetrievalModule } from '../modules/retrieval/retrieval.module';
+import { UsageModule } from '../usage/usage.module';
 import { IndexingStorageService } from './indexing/indexing-storage.service';
 import { RepositoryChunkService } from './indexing/repository-chunk.service';
 import { RepositoryCloneService } from './indexing/repository-clone.service';
@@ -26,6 +27,7 @@ import { RepositoriesService } from './repositories.service';
     CodeIntelligenceModule,
     RetrievalModule,
     OnboardingModule,
+    UsageModule,
     forwardRef(() => AnalyticsModule),
   ],
   controllers: [RepositoriesController],

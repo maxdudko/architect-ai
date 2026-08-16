@@ -6,6 +6,7 @@ import { AppModule } from '../../src/app.module';
 import { HttpExceptionFilter } from '../../src/common/filters/http-exception.filter';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { SystemLogsService } from '../../src/system-logs/system-logs.service';
+import { upsertDefaultPlanLimits } from '../../src/usage/plan-limit.defaults';
 
 export interface E2eContext {
   app: INestApplication;
@@ -135,12 +136,15 @@ export async function resetDatabase(prisma: PrismaService): Promise<void> {
       oauth_accounts,
       invitations,
       memberships,
+      workspace_ai_settings,
       workspaces,
       users,
       admins,
-      system_logs
+      system_logs,
+      plan_limits
     RESTART IDENTITY CASCADE;
   `);
+  await upsertDefaultPlanLimits(prisma);
 }
 
 export async function closeE2eApp(

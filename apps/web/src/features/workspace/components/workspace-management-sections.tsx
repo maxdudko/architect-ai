@@ -9,7 +9,7 @@ const sections = [
   {
     href: '/workspace/settings',
     title: 'Workspace Settings',
-    description: 'Update workspace name and plan.',
+    description: 'Update workspace name, review usage, and connect an AI key.',
     invitationAccessOnly: false,
   },
   {

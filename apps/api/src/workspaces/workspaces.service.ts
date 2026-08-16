@@ -11,6 +11,8 @@ import {
   WorkspaceRole,
 } from '@prisma/client';
 import { MembershipsRepository } from '../memberships/memberships.repository';
+import { UsageService } from '../usage/usage.service';
+import { WorkspaceUsageResponseDto } from '../usage/dto/workspace-usage-response.dto';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import { WorkspacesRepository } from './workspaces.repository';
@@ -20,6 +22,7 @@ export class WorkspacesService {
   constructor(
     private readonly workspacesRepository: WorkspacesRepository,
     private readonly membershipsRepository: MembershipsRepository,
+    private readonly usageService: UsageService,
   ) {}
 
   async createPersonalWorkspace(
@@ -31,7 +34,6 @@ export class WorkspacesService {
       userId,
       {
         name: workspaceName,
-        plan: WorkspacePlan.FREE,
       },
       WorkspaceRole.OWNER,
     );
@@ -46,7 +48,7 @@ export class WorkspacesService {
     const workspace = await this.workspacesRepository.create({
       name: dto.name,
       slug,
-      plan: dto.plan ?? WorkspacePlan.FREE,
+      plan: WorkspacePlan.FREE,
     });
 
     await this.membershipsRepository.create({
@@ -102,17 +104,22 @@ export class WorkspacesService {
       );
     }
 
-    const data: { name?: string; slug?: string; plan?: WorkspacePlan } = {};
+    const data: { name?: string; slug?: string } = {};
 
     if (dto.name) {
       data.name = dto.name;
       data.slug = await this.generateUniqueSlug(dto.name, workspaceId);
     }
-    if (dto.plan) {
-      data.plan = dto.plan;
-    }
 
     return this.workspacesRepository.update(workspaceId, data);
+  }
+
+  async getWorkspaceUsage(
+    workspaceId: string,
+    userId: string,
+  ): Promise<WorkspaceUsageResponseDto> {
+    await this.getWorkspaceForUser(workspaceId, userId);
+    return this.usageService.getWorkspaceUsage(workspaceId);
   }
 
   private async generateUniqueSlug(

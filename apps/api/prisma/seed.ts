@@ -5,6 +5,7 @@ import {
   WorkspacePlan,
   WorkspaceRole,
 } from '@prisma/client';
+import { upsertDefaultPlanLimits } from '../src/usage/plan-limit.defaults';
 
 const prisma = new PrismaClient();
 
@@ -60,6 +61,8 @@ async function main(): Promise<void> {
       lastName: 'Admin',
     },
   });
+
+  await upsertDefaultPlanLimits(prisma);
 }
 
 void main()

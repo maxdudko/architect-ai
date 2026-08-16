@@ -318,6 +318,8 @@ TOKEN_ENCRYPTION_KEY=replace-with-strong-random-secret
 GITHUB_OAUTH_STATE_SECRET=replace-with-strong-random-secret
 ```
 
+`TOKEN_ENCRYPTION_KEY` encrypts GitHub OAuth tokens and workspace OpenAI keys (BYOK). See [docs/usage-and-ai-providers.md](docs/usage-and-ai-providers.md).
+
 If `GITHUB_CLIENT_ID` is missing, `GET /integrations/github/connect-url` returns `503` with a configuration error.
 
 ---

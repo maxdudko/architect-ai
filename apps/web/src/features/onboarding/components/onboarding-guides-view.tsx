@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { AlertTriangle, BookOpen, Bot, RefreshCw, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { getApiErrorMessage } from '@/lib/api/error-message';
 import { useAuth } from '@/providers/auth-provider';
 import { useRepositoryQuery } from '@/features/repository';
 import {
@@ -85,8 +86,8 @@ export function OnboardingGuidesView({ repositoryId, guideId }: OnboardingGuides
       if (regenerate) await regenerateMutation.mutateAsync(undefined);
       else await generateMutation.mutateAsync(undefined);
       toast.success(regenerate ? 'Guide regeneration started.' : 'Guide generation started.');
-    } catch {
-      toast.error('Unable to start guide generation.');
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Unable to start guide generation.'));
     }
   }
 

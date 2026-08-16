@@ -7,3 +7,4 @@ export * from './repository';
 export * from './github';
 export * from './conversation';
 export * from './onboarding-guide';
+export * from './usage';

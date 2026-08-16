@@ -50,8 +50,9 @@ export function getRepositoryActionVisibility(
   }
 
   return {
-    showRetry: status === 'FAILED',
+    showRetry: status === 'FAILED' || status === 'PENDING',
     showReindex: status === 'READY',
-    allowDisconnect: !isRepositoryIndexingActive(status),
+    allowDisconnect:
+      !isRepositoryIndexingActive(status) || status === 'PENDING',
   };
 }

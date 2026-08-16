@@ -7,7 +7,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { GuideType } from '@prisma/client';
+import { GuideType, UsageMetric } from '@prisma/client';
 import { GenerationRunResponseDto } from './dto/generation-run-response.dto';
 import {
   OnboardingGuideListResponseDto,
@@ -17,6 +17,7 @@ import type { OnboardingGuideStorage } from './interfaces/onboarding-guide-stora
 import { ONBOARDING_GUIDE_STORAGE } from './interfaces/tokens';
 import { OnboardingGuideQueueService } from './queue/onboarding-guide-queue.service';
 import { RepositoryAccessValidationService } from '../../repositories/repository-access-validation.service';
+import { UsageService } from '../../usage/usage.service';
 import type { OnboardingGuideGenerationRun } from './types/guide-generation-run.type';
 import type { OnboardingGuide } from './types/onboarding-guide.type';
 
@@ -27,6 +28,7 @@ export class OnboardingGuidesService {
     private readonly storage: OnboardingGuideStorage,
     private readonly queue: OnboardingGuideQueueService,
     private readonly repositoryAccessValidationService: RepositoryAccessValidationService,
+    private readonly usageService: UsageService,
   ) {}
 
   async listGuides(
@@ -123,6 +125,11 @@ export class OnboardingGuidesService {
     if (active) {
       return this.toGenerationRunResponse(active);
     }
+
+    await this.usageService.assertWithinLimit(
+      workspaceId,
+      UsageMetric.GUIDE_GENERATIONS,
+    );
 
     try {
       await this.queue.waitUntilReady();

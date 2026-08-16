@@ -23,6 +23,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 Analytics
               </Link>
               <Link
+                href="/admin/usage"
+                className="text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Usage
+              </Link>
+              <Link
                 href="/admin/users"
                 className="text-muted-foreground transition-colors hover:text-foreground"
               >

@@ -5,9 +5,10 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { WorkspaceParamGuard } from '../../common/guards/workspace-param.guard';
 import { MembershipsModule } from '../../memberships/memberships.module';
 import { PrismaModule } from '../../prisma/prisma.module';
-import { LlmModule } from '../llm/llm.module';
 import { RetrievalModule } from '../retrieval/retrieval.module';
 import { RepositoriesModule } from '../../repositories/repositories.module';
+import { UsageModule } from '../../usage/usage.module';
+import { WorkspaceAiModule } from '../../workspace-ai/workspace-ai.module';
 import type { GuideGenerator } from './interfaces/guide-generator.interface';
 import {
   GUIDE_GENERATORS,
@@ -56,8 +57,9 @@ const GENERATOR_CLASSES = [
     ConfigModule,
     MembershipsModule,
     PrismaModule,
-    LlmModule,
     RetrievalModule,
+    UsageModule,
+    WorkspaceAiModule,
     forwardRef(() => RepositoriesModule),
   ],
   controllers: [OnboardingGuidesController],

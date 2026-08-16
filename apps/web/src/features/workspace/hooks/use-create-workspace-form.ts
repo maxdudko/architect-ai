@@ -16,7 +16,6 @@ export function useCreateWorkspaceForm() {
     resolver: zodResolver(createWorkspaceSchema),
     defaultValues: {
       name: '',
-      plan: 'FREE',
     },
   });
 

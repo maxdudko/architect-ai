@@ -4,6 +4,8 @@ export * from './components/invitations-list';
 export * from './components/members-list';
 export * from './components/workspace-list';
 export * from './components/workspace-settings-form';
+export * from './components/workspace-usage-card';
+export * from './components/workspace-ai-settings-card';
 export * from './components/workspace-management-sections';
 export * from './components/workspace-switcher';
 export * from './hooks/use-create-invitation-form';

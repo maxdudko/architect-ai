@@ -1,14 +1,12 @@
-import type { Workspace, WorkspaceDetails, WorkspacePlan } from '@/entities';
+import type { Workspace, WorkspaceDetails } from '@/entities';
 import { apiClient } from './axios';
 
 export interface CreateWorkspacePayload {
   name: string;
-  plan?: WorkspacePlan;
 }
 
 export interface UpdateWorkspacePayload {
   name?: string;
-  plan?: WorkspacePlan;
 }
 
 export async function listWorkspaces(): Promise<Workspace[]> {

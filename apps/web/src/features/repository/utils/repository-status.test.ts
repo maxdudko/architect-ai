@@ -32,6 +32,11 @@ describe('repository status helpers', () => {
       showReindex: false,
       allowDisconnect: false,
     });
+    expect(getRepositoryActionVisibility('PENDING', true)).toEqual({
+      showRetry: true,
+      showReindex: false,
+      allowDisconnect: true,
+    });
     expect(getRepositoryActionVisibility('READY', false)).toEqual({
       showRetry: false,
       showReindex: false,

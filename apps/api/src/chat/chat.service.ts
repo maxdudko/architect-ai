@@ -1,13 +1,13 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { MessageRole, Prisma } from '@prisma/client';
+import { Injectable, Logger } from '@nestjs/common';
+import { MessageRole, Prisma, UsageMetric } from '@prisma/client';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { ConversationsService } from '../conversations/conversations.service';
 import { MessageResponseDto } from '../conversations/dto/message-response.dto';
-import type { LlmProvider } from '../modules/llm/interfaces/llm-provider.interface';
-import { LLM_PROVIDER } from '../modules/llm/interfaces/tokens';
 import { RetrievalService } from '../modules/retrieval/retrieval.service';
 import type { RetrievedChunkReference } from '../modules/retrieval/types/retrieved-context.type';
 import { RepositoriesRepository } from '../repositories/repositories.repository';
+import { UsageService } from '../usage/usage.service';
+import { WorkspaceLlmResolver } from '../workspace-ai/workspace-llm.resolver';
 import { ChatAnswerResponseDto } from './dto/chat-answer-response.dto';
 import { PromptContextBuilder } from './prompt-context.builder';
 
@@ -35,8 +35,8 @@ export class ChatService {
     private readonly repositoriesRepository: RepositoriesRepository,
     private readonly retrievalService: RetrievalService,
     private readonly analyticsService: AnalyticsService,
-    @Inject(LLM_PROVIDER)
-    private readonly llmProvider: LlmProvider,
+    private readonly usageService: UsageService,
+    private readonly workspaceLlmResolver: WorkspaceLlmResolver,
   ) {}
 
   async ask(
@@ -45,14 +45,18 @@ export class ChatService {
     userId: string,
     content: string,
   ): Promise<ChatAnswerResponseDto> {
+    await this.usageService.assertWithinLimit(
+      workspaceId,
+      UsageMetric.AI_QUESTIONS,
+    );
     const prepared = await this.prepareTurn(
       workspaceId,
       conversationId,
       userId,
       content,
     );
-
-    const generation = await this.llmProvider.generate({
+    const llmProvider = await this.workspaceLlmResolver.resolve(workspaceId);
+    const generation = await llmProvider.generate({
       messages: prepared.messages,
     });
 
@@ -62,6 +66,7 @@ export class ChatService {
       content: generation.content,
       sources: prepared.sources,
       model: generation.model,
+      provider: llmProvider.name,
       usage: generation.usage,
       truncated: false,
     });
@@ -83,22 +88,27 @@ export class ChatService {
     content: string,
   ): AsyncIterable<ChatStreamEvent> {
     try {
+      await this.usageService.assertWithinLimit(
+        workspaceId,
+        UsageMetric.AI_QUESTIONS,
+      );
       const prepared = await this.prepareTurn(
         workspaceId,
         conversationId,
         userId,
         content,
       );
+      const llmProvider = await this.workspaceLlmResolver.resolve(workspaceId);
 
       yield { type: 'sources', sources: prepared.sources };
 
       let fullContent = '';
-      let model = this.llmProvider.name;
+      let model = llmProvider.name;
       let usage: { inputTokens?: number; outputTokens?: number } | undefined;
       let truncated = false;
 
       try {
-        for await (const event of this.llmProvider.stream({
+        for await (const event of llmProvider.stream({
           messages: prepared.messages,
         })) {
           if (event.type === 'token') {
@@ -126,6 +136,7 @@ export class ChatService {
         content: fullContent,
         sources: prepared.sources,
         model,
+        provider: llmProvider.name,
         usage,
         truncated,
       });
@@ -210,6 +221,7 @@ export class ChatService {
     content: string;
     sources: RetrievedChunkReference[];
     model: string;
+    provider: string;
     usage?: { inputTokens?: number; outputTokens?: number };
     truncated: boolean;
   }) {
@@ -218,7 +230,7 @@ export class ChatService {
       model: params.model,
       usage: params.usage ?? null,
       truncated: params.truncated,
-      provider: this.llmProvider.name,
+      provider: params.provider,
     } as unknown as Prisma.InputJsonValue;
 
     const assistantMessage = await this.conversationsService.createMessage({

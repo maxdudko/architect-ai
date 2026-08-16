@@ -163,16 +163,55 @@ describe('living guide generators', () => {
       stream: jest.fn(),
     };
     const promptBuilder = new GuidePromptBuilder(new RetrievalContextBuilder());
+    const workspaceLlmResolver = {
+      resolve: jest.fn().mockResolvedValue(llm),
+    };
     generators = [
-      new ExecutiveSummaryGuideGenerator(retrieval, llm, promptBuilder),
-      new ProjectOverviewGuideGenerator(retrieval, llm, promptBuilder),
-      new FolderGuideGenerator(retrieval, llm, promptBuilder),
-      new ModuleGuideGenerator(retrieval, llm, promptBuilder),
-      new ServiceGuideGenerator(retrieval, llm, promptBuilder),
-      new TechnologyStackGuideGenerator(retrieval, llm, promptBuilder),
-      new ReadingOrderGuideGenerator(retrieval, llm, promptBuilder),
-      new GlossaryGuideGenerator(retrieval, llm, promptBuilder),
-      new CommonPitfallsGuideGenerator(retrieval, llm, promptBuilder),
+      new ExecutiveSummaryGuideGenerator(
+        retrieval,
+        workspaceLlmResolver as never,
+        promptBuilder,
+      ),
+      new ProjectOverviewGuideGenerator(
+        retrieval,
+        workspaceLlmResolver as never,
+        promptBuilder,
+      ),
+      new FolderGuideGenerator(
+        retrieval,
+        workspaceLlmResolver as never,
+        promptBuilder,
+      ),
+      new ModuleGuideGenerator(
+        retrieval,
+        workspaceLlmResolver as never,
+        promptBuilder,
+      ),
+      new ServiceGuideGenerator(
+        retrieval,
+        workspaceLlmResolver as never,
+        promptBuilder,
+      ),
+      new TechnologyStackGuideGenerator(
+        retrieval,
+        workspaceLlmResolver as never,
+        promptBuilder,
+      ),
+      new ReadingOrderGuideGenerator(
+        retrieval,
+        workspaceLlmResolver as never,
+        promptBuilder,
+      ),
+      new GlossaryGuideGenerator(
+        retrieval,
+        workspaceLlmResolver as never,
+        promptBuilder,
+      ),
+      new CommonPitfallsGuideGenerator(
+        retrieval,
+        workspaceLlmResolver as never,
+        promptBuilder,
+      ),
     ];
   });
 

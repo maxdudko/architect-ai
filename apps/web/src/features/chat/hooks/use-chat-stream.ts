@@ -98,6 +98,20 @@ export function useChatStream(workspaceId: string, conversationId: string) {
             },
             onError: (message) => {
               setError(message);
+              queryClient.setQueryData(
+                CHAT_QUERY_KEYS.detail(workspaceId, conversationId),
+                (current: { messages?: ChatMessage[] } | undefined) => {
+                  if (!current) {
+                    return current;
+                  }
+                  return {
+                    ...current,
+                    messages: (current.messages ?? []).filter(
+                      (messageItem) => messageItem.id !== optimisticUser.id,
+                    ),
+                  };
+                },
+              );
             },
             onDone: () => {
               setIsStreaming(false);
@@ -112,6 +126,20 @@ export function useChatStream(workspaceId: string, conversationId: string) {
         if ((streamError as Error).name !== 'AbortError') {
           setError(
             streamError instanceof Error ? streamError.message : 'Failed to stream response',
+          );
+          queryClient.setQueryData(
+            CHAT_QUERY_KEYS.detail(workspaceId, conversationId),
+            (current: { messages?: ChatMessage[] } | undefined) => {
+              if (!current) {
+                return current;
+              }
+              return {
+                ...current,
+                messages: (current.messages ?? []).filter(
+                  (messageItem) => messageItem.id !== optimisticUser.id,
+                ),
+              };
+            },
           );
         }
       } finally {

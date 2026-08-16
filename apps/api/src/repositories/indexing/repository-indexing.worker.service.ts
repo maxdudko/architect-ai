@@ -5,13 +5,14 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AnalyticsEventType, RepositoryStatus } from '@prisma/client';
+import { AnalyticsEventType, RepositoryStatus, UsageMetric } from '@prisma/client';
 import { QueueEvents, Worker } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import { access } from 'node:fs/promises';
 import { AnalyticsService } from '../../analytics/analytics.service';
 import { captureError } from '../../common/observability/error-tracker';
 import { OnboardingGuideQueueService } from '../../modules/onboarding/queue/onboarding-guide-queue.service';
+import { UsageService } from '../../usage/usage.service';
 import { RepositoriesRepository } from '../repositories.repository';
 import { RepositoryIndexingQueueService } from '../repository-indexing.queue.service';
 import {
@@ -51,6 +52,7 @@ export class RepositoryIndexingWorkerService
     private readonly indexingStorageService: IndexingStorageService,
     private readonly onboardingGuideQueue: OnboardingGuideQueueService,
     private readonly analyticsService: AnalyticsService,
+    private readonly usageService: UsageService,
   ) {
     this.workerEnabled =
       (this.configService.get<string>('INDEXING_WORKER_ENABLED') ?? 'false') ===
@@ -374,6 +376,22 @@ export class RepositoryIndexingWorkerService
     }
     await this.indexingStorageService.cleanupRunDirectory(data.runId);
     try {
+      const canGenerateGuides = await this.usageService.hasRemaining(
+        data.workspaceId,
+        UsageMetric.GUIDE_GENERATIONS,
+      );
+      if (!canGenerateGuides) {
+        this.logger.warn(
+          JSON.stringify({
+            event: 'indexing_onboarding_skipped_usage_limit',
+            runId: data.runId,
+            workspaceId: data.workspaceId,
+            repositoryId: data.repositoryId,
+            service: 'indexing-worker',
+          }),
+        );
+        return;
+      }
       await this.onboardingGuideQueue.enqueuePostIndexGeneration({
         workspaceId: data.workspaceId,
         repositoryId: data.repositoryId,
