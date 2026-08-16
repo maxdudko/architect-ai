@@ -1,329 +1,148 @@
 # Architect AI
 
-> **The collective engineering memory for software teams.**
+> The collective engineering memory for software teams.
 
-Architect AI is an AI-powered platform that helps engineering teams understand large codebases, preserve architectural knowledge, and make better technical decisions.
+Architect AI is an open-source MVP for onboarding developers into unfamiliar codebases. It connects to GitHub, indexes source code, and provides repository chat and generated onboarding guides backed by file and line references.
 
-Unlike traditional AI coding assistants, Architect AI focuses on **understanding systems**, not just generating code.
+This repository currently implements the **AI Onboarding Assistant** phase. Architecture exploration, decision memory, and impact analysis remain roadmap items.
 
----
+## What works today
 
-## Vision
+- Email/password authentication with rotating refresh sessions
+- Multi-workspace membership, roles, invitations, and workspace switching
+- GitHub OAuth, repository discovery, branch selection, and encrypted tokens
+- Asynchronous repository indexing with BullMQ and a dedicated worker
+- Tree-sitter parsing for TypeScript and JavaScript
+- File, symbol, static-relation, and semantic-chunk persistence
+- OpenAI or deterministic local embeddings with Qdrant vector search
+- Repository-scoped and workspace-scoped chat with SSE streaming
+- Persisted conversations, source citations, and answer feedback
+- Generated onboarding guides for overviews, folders, modules, services, stack, reading order, glossary, and pitfalls
+- Mock, OpenAI, and Anthropic LLM adapters
+- Workspace OpenAI BYOK for chat and guide generation
+- Plan-based usage limits plus admin analytics and system logs
+- Development and single-host production Docker Compose stacks
 
-Modern software teams lose valuable engineering knowledge every day.
+Not implemented yet:
 
-Code remains in Git repositories, but the context behind architectural decisions often disappears when engineers leave, documentation becomes outdated, or systems evolve over time.
+- GitLab and Bitbucket ingestion
+- GitHub webhooks or incremental indexing
+- Languages other than TypeScript/JavaScript
+- Hybrid/lexical search, model reranking, or knowledge-graph retrieval
+- Architecture diagrams/explorer
+- ADR and decision-memory ingestion
+- Change-impact analysis
+- Billing, SSO, or multi-node production orchestration
 
-Architect AI aims to become the **digital Staff Engineer** for every engineering organization.
+See [MVP Architecture](docs/Architecture.md) for the current system and its trade-offs, and [Roadmap](docs/Roadmap.md) for the longer-term product direction.
 
-Our mission is simple:
-
-> **Engineering knowledge should never leave the company.**
-
----
-
-# Why Architect AI?
-
-Today's AI tools help developers write code faster.
-
-Architect AI helps teams answer much harder questions:
-
-- How does this system work?
-- Why was it designed this way?
-- What will break if we change this?
-- Where should new functionality be implemented?
-- Why was this architectural decision made?
-
-The goal is not replacing engineers.
-
-The goal is making engineering knowledge permanent.
-
----
-
-# Product Evolution
-
-## Phase 1 — AI Onboarding Assistant
-
-Accelerate onboarding by allowing developers to ask questions about an existing codebase.
-
-Example questions:
-
-- How does authentication work?
-- Where is payment processing implemented?
-- Which services use Redis?
-- Where should I add a new API endpoint?
-
-Features:
-
-- GitHub integration
-- Repository indexing
-- AI-powered codebase chat
-- Source references
-- Automatic onboarding guides
-
----
-
-## Phase 2 — Architecture Explorer
-
-Understand system structure.
-
-Features:
-
-- Dependency visualization
-- Module relationships
-- Service mapping
-- Architecture search
-
----
-
-## Phase 3 — Decision Memory
-
-Preserve engineering decisions.
-
-Features:
-
-- ADR generation
-- Decision search
-- Jira integration
-- Notion integration
-- Architectural history
-
----
-
-## Phase 4 — Impact Analysis
-
-Predict consequences before making changes.
-
-Features:
-
-- Change impact analysis
-- Dependency analysis
-- Test recommendations
-- Team ownership mapping
-
----
-
-## Phase 5 — AI Staff Engineer
-
-Support engineering leaders during technical decision making.
-
-Features:
-
-- Design reviews
-- Architecture validation
-- ADR recommendations
-- Pull request guidance
-- Technical planning assistance
-
----
-
-# Core Principles
-
-## Engineering Memory
-
-Store knowledge, not just documents.
-
----
-
-## Explainability
-
-Every AI answer includes source references.
-
----
-
-## Human-Centered AI
-
-Architect AI assists engineers rather than replacing them.
-
----
-
-## Vendor Independence
-
-AI providers can be swapped without affecting the platform architecture.
-
----
-
-## Modular Architecture
-
-Every subsystem is independently scalable.
-
----
-
-# High-Level Architecture
+## Architecture at a glance
 
 ```text
-                     GitHub
-                        │
-                        ▼
-
-             Repository Indexing Pipeline
-
-                        │
-
-        Tree-sitter Code Intelligence Layer
-
-                        │
-
-              Chunking & Embeddings
-
-                        │
-
-                    Qdrant
-
-                        │
-
-               Retrieval Engine
-
-                        │
-
-                Context Builder
-
-                        │
-
-                LLM Provider Layer
-
-                        │
-
-                  Chat Service
-
-                        │
-
-                 Next.js Frontend
+GitHub
+   │
+   ▼
+NestJS API ──enqueue──► Redis / BullMQ ──consume──► Indexing worker
+   │                                                      │
+   │                                                      ├─ clone
+   │                                                      ├─ parse
+   │                                                      ├─ chunk
+   │                                                      ├─ embed
+   │                                                      └─ generate guides
+   │
+   ├────────► PostgreSQL (identity, tenancy, code metadata, chat, guides)
+   ├────────► Qdrant (chunk vectors)
+   └────────► OpenAI / Anthropic / mock providers
+   ▲
+   │ REST + SSE
+Next.js web app
 ```
 
----
-
-# Technology Stack
-
-## Frontend
-
-- Next.js
-- React
-- TypeScript
-- Tailwind CSS
-
-## Backend
-
-- NestJS
-- Node.js
-
-## Database
-
-- PostgreSQL
-
-## Vector Database
-
-- Qdrant
-
-## Queue
-
-- BullMQ
-- Redis
-
-## Code Intelligence
-
-- Tree-sitter
-
-## AI
-
-- Anthropic Claude
-- OpenAI GPT
-- Provider abstraction layer
-
----
-
-# Repository Structure
+The MVP is a pnpm/Turborepo monorepo:
 
 ```text
 apps/
-    web/
-    api/
-
+  api/                  NestJS API, Prisma, and background worker
+  web/                  Next.js application
 packages/
-    shared/
-    ui/
-    ai/
-    code-intelligence/
-
-infrastructure/
-    docker/
-
-.github/
-    workflows/
-
+  shared/
+  ui/
+  ai/
+  code-intelligence/
 docs/
+  Architecture.md
+  Roadmap.md
+  features/
+infrastructure/
+  docker/
+  caddy/
 ```
 
----
+Core technology:
 
-# Getting Started
+- Next.js 16, React 19, TypeScript, Tailwind CSS
+- NestJS 11, Prisma, PostgreSQL 16
+- BullMQ and Redis 7
+- Tree-sitter for TypeScript/JavaScript analysis
+- Qdrant for vector search
+- OpenAI and Anthropic provider adapters
 
-## Requirements
+## Quick start with Docker
 
-- Node.js 20+
-- pnpm
-- Docker
-- Docker Compose
+### Requirements
 
----
+- Docker with Compose support
+- A GitHub OAuth App to connect repositories
 
-## Installation
+Node.js and pnpm are only required when running apps on the host.
+
+### 1. Configure the environment
 
 ```bash
-git clone <repository>
-
+git clone <repository-url>
 cd architect-ai
-
-pnpm install
-
 cp .env.example .env
 cp apps/api/.env.example apps/api/.env
 ```
 
-The root `.env` is used primarily for local infrastructure and web settings (`NEXT_PUBLIC_API_BASE_URL`).  
-The API reads runtime secrets and OAuth credentials from `apps/api/.env`.
-
-For production-ready observability and abuse protection, configure:
-
-```bash
-# apps/api/.env
-RATE_LIMIT_ENABLED=true
-RATE_LIMIT_DEFAULT_LIMIT=120
-RATE_LIMIT_DEFAULT_WINDOW_MS=60000
-SENTRY_DSN=
-SENTRY_ENVIRONMENT=production
-
-# apps/web/.env
-NEXT_PUBLIC_SENTRY_DSN=
-NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
-```
-
----
-
-## GitHub OAuth Setup (Required for Repository Connect)
-
-Create a GitHub OAuth App and configure:
-
-- Homepage URL: `http://localhost:3000`
-- Authorization callback URL: `http://localhost:5000/integrations/github/callback`
-
-Then set these values in `apps/api/.env`:
+The root file supplies Docker Compose values; `apps/api/.env` is loaded by the NestJS API and worker. Before connecting GitHub, set the same real credentials in both files:
 
 ```bash
 GITHUB_CLIENT_ID=your-client-id
 GITHUB_CLIENT_SECRET=your-client-secret
-GITHUB_OAUTH_REDIRECT_URI=http://localhost:5000/integrations/github/callback
-TOKEN_ENCRYPTION_KEY=replace-with-strong-random-secret
-GITHUB_OAUTH_STATE_SECRET=replace-with-strong-random-secret
+TOKEN_ENCRYPTION_KEY=replace-with-a-random-secret-at-least-32-bytes
+GITHUB_OAUTH_STATE_SECRET=replace-with-a-strong-random-secret
 ```
 
-`TOKEN_ENCRYPTION_KEY` encrypts GitHub OAuth tokens and workspace OpenAI keys (BYOK). See [docs/usage-and-ai-providers.md](docs/usage-and-ai-providers.md).
+Create the GitHub OAuth App with:
 
-If `GITHUB_CLIENT_ID` is missing, `GET /integrations/github/connect-url` returns `503` with a configuration error.
+- Homepage URL: `http://localhost:3000`
+- Authorization callback URL: `http://localhost:5000/integrations/github/callback`
 
----
+The default `mock` LLM and embedding providers let the full flow run without AI credentials. They are for development and smoke testing, not useful semantic answers.
 
-## Local Infrastructure and Containers
+For real retrieval and answers, a typical OpenAI-only configuration is:
+
+```bash
+EMBEDDING_PROVIDER=openai
+LLM_PROVIDER=openai
+OPENAI_API_KEY=your-openai-key
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_CHAT_MODEL=gpt-4o-mini
+```
+
+Anthropic can be used for generation while OpenAI supplies embeddings:
+
+```bash
+EMBEDDING_PROVIDER=openai
+OPENAI_API_KEY=your-openai-key
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=your-anthropic-key
+```
+
+Workspace BYOK replaces only the generation provider with a workspace OpenAI key; embeddings still use the server's `EMBEDDING_PROVIDER`.
+
+### 2. Start the stack
 
 ```bash
 docker compose up -d --build
@@ -331,237 +150,166 @@ docker compose up -d --build
 
 This starts:
 
-- PostgreSQL
-- Redis
-- Qdrant
-- API container
-- Web container
+- Web: <http://localhost:3000>
+- API: <http://localhost:5000>
+- Swagger (development): <http://localhost:5000/docs>
+- PostgreSQL: `localhost:5433`
+- Redis: `localhost:6380`
+- Qdrant HTTP: `localhost:6335`
+- a dedicated indexing/onboarding worker
 
-Default host ports:
+The API container applies committed Prisma migrations automatically. Create an account in the web app; sign-up creates a personal Free workspace.
 
-- Web: `3000`
-- API: `5000`
-- PostgreSQL: `5433`
-- Redis: `6380`
-- Qdrant: `6335` (HTTP), `6336` (gRPC)
-
----
-
-## Production (AWS EC2)
-
-Local `docker-compose.yml` is development-only (bind mounts and `next`/`nest` watch). Production uses multi-stage images, Caddy TLS, and internal-only data stores.
-
-See [docs/deploy-ec2.md](docs/deploy-ec2.md) for instance sizing, security group, `.env.production`, GitHub OAuth URLs, backups, and upgrades.
+Follow service health and worker activity with:
 
 ```bash
-cp .env.production.example .env.production
-docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+docker compose ps
+docker compose logs -f api indexing-worker web
 ```
 
----
+### 3. Use the MVP
 
-## Start Development (Host Apps)
+1. Sign up or sign in.
+2. Connect your GitHub account from the repository flow.
+3. Select a repository and branch.
+4. Wait for `PENDING → CLONING → PARSING → CHUNKING → EMBEDDING → READY`.
+5. Browse indexed files and symbols.
+6. Ask questions from Chat and inspect source citations.
+7. Open the repository's Guides section. Initial guide generation is queued after indexing; it can also be run manually.
+
+If indexing ends in `FAILED`, the repository page exposes retry/reindex actions and the stored error.
+
+## Run applications on the host
+
+### Requirements
+
+- Node.js 20+
+- pnpm 10.11.1 (the pinned package-manager version)
+- Docker Compose for PostgreSQL, Redis, and Qdrant
+- `git` available to the worker
+
+Install and configure:
+
+```bash
+pnpm install
+cp .env.example .env
+cp apps/api/.env.example apps/api/.env
+docker compose up -d postgres redis qdrant
+pnpm --filter api prisma:migrate:deploy
+```
+
+The API reads `apps/api/.env`. The web app defaults to `http://localhost:5000`; create `apps/web/.env.local` if the API uses another URL:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
+```
+
+Run the web and API watch processes:
 
 ```bash
 pnpm dev
 ```
 
-This runs workspace `dev` tasks for both `apps/web` and `apps/api`.
+Run the background worker in a second terminal:
 
----
+```bash
+pnpm --filter api dev:worker
+```
 
-## GitHub Connectivity Flow (MVP)
+The worker is required for indexing and onboarding-guide generation. `pnpm dev` alone starts only the web and HTTP API workspace tasks.
 
-1. Web requests `GET /integrations/github/connect-url?workspaceId=<id>`
-2. User completes GitHub consent screen
-3. GitHub redirects to `GET /integrations/github/callback`
-4. API stores OAuth tokens encrypted at rest
-5. Web loads `GET /integrations/github/repositories?workspaceId=<id>`
-6. User selects a repository and connects it to the workspace
-7. Initial indexing is triggered asynchronously
+## Configuration
 
-Repository indexing statuses:
+The checked-in examples are:
 
-- `PENDING`
-- `CLONING`
-- `PARSING`
-- `EMBEDDING`
-- `READY`
-- `FAILED`
+- `.env.example` for the Docker development stack
+- `apps/api/.env.example` for a host-run API/worker
+- `.env.production.example` for the production Compose stack
 
-On `FAILED`, users can trigger retry from the repositories UI.
+Important configuration groups:
 
----
+- data: `DATABASE_URL`, `REDIS_URL`, `QDRANT_URL`, `QDRANT_COLLECTION`;
+- authentication: `JWT_*`, `TOKEN_ENCRYPTION_KEY`, cookie and CORS values;
+- GitHub: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_OAUTH_REDIRECT_URI`, `GITHUB_OAUTH_STATE_SECRET`;
+- indexing: `INDEXING_WORKER_*`, `INDEXING_TMP_*`, clone size/time limits;
+- retrieval: `EMBEDDING_PROVIDER`, embedding model/dimensions/batch size, retrieval cache variables;
+- generation: `LLM_PROVIDER`, OpenAI/Anthropic keys and models, `LLM_MAX_TOKENS`;
+- operations: rate-limit values, Sentry, Resend, and repository access validation.
 
-## Quality Checks
+Production startup rejects missing database, GitHub, encryption, and user/admin JWT secrets.
+
+## Development commands
+
+From the repository root:
 
 ```bash
 pnpm lint
 pnpm test
 pnpm typecheck
 pnpm build
+pnpm format
 ```
 
-These are the same checks executed in CI on pull requests.
+API E2E tests require a dedicated throwaway database whose name contains `test`:
 
----
-
-## CI
-
-GitHub Actions workflow: `.github/workflows/ci.yml`
-
-Checks on pull requests:
-
-- Lint
-- Test
-- Typecheck
-- API E2E test
-- Build
-
----
-
-# MVP Workflow
-
-```text
-User
-
-    │
-
-Connect GitHub Repository
-
-    │
-
-Repository Indexed
-
-    │
-
-Code Parsed
-
-    │
-
-Embeddings Generated
-
-    │
-
-Repository Ready
-
-    │
-
-Ask Questions
-
-    │
-
-Receive AI Answer
-
-    │
-
-View Source References
+```bash
+cp apps/api/.env.example apps/api/.env
+# Verify TEST_DATABASE_URL points to a disposable test database.
+pnpm --filter api test:e2e
 ```
 
----
+The E2E suite truncates its database. Never point `TEST_DATABASE_URL` at development or production data.
 
-# Example Questions
+Useful Prisma commands:
 
-```text
-How does authentication work?
+```bash
+pnpm --filter api prisma:generate
+pnpm --filter api prisma:migrate:dev
+pnpm --filter api prisma:migrate:deploy
+pnpm --filter api prisma:studio
+pnpm --filter api prisma:seed
 ```
 
----
+Pull-request CI runs lint, unit tests, typecheck, API E2E tests, and build.
 
-```text
-Where is user registration implemented?
+## Production deployment
+
+The implemented production target is a single AWS EC2 host using multi-stage images, internal PostgreSQL/Redis/Qdrant services, and Caddy TLS:
+
+```bash
+cp .env.production.example .env.production
+# Replace every CHANGE_ME value.
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 ```
 
----
+See [EC2 deployment](docs/features/deploy-ec2.md) for host sizing, DNS, security groups, secrets, backups, upgrades, and recovery.
 
-```text
-How is JWT validation performed?
-```
+## Feature documentation
 
----
+- [Current architecture](docs/Architecture.md)
+- [End-to-end application flow](docs/features/main-app-flow.md)
+- [Code intelligence](docs/features/code-intelligence.md)
+- [Retrieval](docs/features/retrieval.md)
+- [Living onboarding guides](docs/features/onboarding-guides.md)
+- [Usage limits and AI providers](docs/features/usage-and-ai-providers.md)
+- [Product roadmap](docs/Roadmap.md)
 
-```text
-Which modules communicate with Billing?
-```
+## Current architectural constraints
 
----
+- Only TypeScript and JavaScript are parsed.
+- Reindexing removes the old searchable index before the new one succeeds.
+- A provider repository is globally unique and cannot currently be connected to multiple workspaces.
+- Rate limiting is in-process and is not coordinated across API replicas.
+- The production Compose topology is single-host.
+- Mock AI providers validate integration behavior but not answer quality.
+- Billing and self-service plan upgrades are not present.
 
-```text
-What is the entry point for payment processing?
-```
+These constraints are documented in more detail in [MVP Architecture](docs/Architecture.md).
 
----
+## Contributing
 
-# Roadmap
+The project is under active development. Keep implementation documentation aligned with shipped behavior, include tests for behavior changes, and run the root quality checks before opening a pull request.
 
-| Phase                   | Status         |
-| ----------------------- | -------------- |
-| AI Onboarding Assistant | 🚧 In Progress |
-| Architecture Explorer   | Planned        |
-| Decision Memory         | Planned        |
-| Impact Analysis         | Planned        |
-| AI Staff Engineer       | Planned        |
-| Enterprise Platform     | Planned        |
+## License
 
----
-
-# Design Goals
-
-The architecture is intentionally built for long-term scalability.
-
-Future integrations include:
-
-- GitLab
-- Bitbucket
-- Azure DevOps
-- Jira
-- Linear
-- Notion
-- Confluence
-- Slack
-
-No major architectural changes should be required as the platform evolves.
-
----
-
-# Long-Term Vision
-
-Architect AI evolves through five stages:
-
-```text
-Chat with Code
-        ↓
-Understand Architecture
-        ↓
-Remember Decisions
-        ↓
-Predict Impact
-        ↓
-Guide Engineering Decisions
-```
-
-The final product becomes the engineering memory layer of an organization.
-
-Instead of asking a senior engineer,
-
-> "Do you know why we built it this way?"
-
-teams will simply ask Architect AI.
-
----
-
-# Contributing
-
-This project is currently under active development.
-
-Contributions, ideas, and discussions are welcome.
-
----
-
-# License
-
-TBD
-
----
-
-> **"Code is the implementation. Architecture is the knowledge. Architect AI preserves both."**
+No license has been selected yet.

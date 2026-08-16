@@ -177,4 +177,4 @@ Chat does not write vectors; it reads Qdrant + PG at ask time.
 | Chat API          | `apps/api/src/chat/`                      |
 | Chat UI           | `apps/web/src/features/chat/`             |
 
-Related docs: [Architecture.md](./Architecture.md), [code-intelligence.md](./code-intelligence.md), [retrieval.md](./retrieval.md)
+Related docs: [Architecture](../Architecture.md), [code intelligence](./code-intelligence.md), [retrieval](./retrieval.md)
