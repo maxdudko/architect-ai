@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -141,6 +142,19 @@ enum SystemLogLevel {
   ERROR
 }
 
+enum UsageMetric {
+  REPOSITORIES
+  INDEXING_RUNS
+  GUIDE_GENERATIONS
+  AI_QUESTIONS
+  MEMBERS
+}
+
+enum UsagePeriod {
+  CURRENT
+  MONTHLY
+}
+
 model User {
   id            String           @id @default(uuid()) @db.Uuid
   email         String           @unique
@@ -210,9 +224,33 @@ model Workspace {
   conversations       Conversation[]
   guides              Guide[]
   guideGenerationRuns GuideGenerationRun[]
+  aiSettings          WorkspaceAiSettings?
 
   @@index([createdAt], map: "workspaces_created_at_idx")
   @@map("workspaces")
+}
+
+model PlanLimit {
+  id        String        @id @default(uuid()) @db.Uuid
+  plan      WorkspacePlan
+  metric    UsageMetric
+  period    UsagePeriod
+  maxValue  Int?          @map("max_value")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  @@unique([plan, metric], map: "plan_limits_plan_metric_key")
+  @@map("plan_limits")
+}
+
+model WorkspaceAiSettings {
+  workspaceId           String    @id @map("workspace_id") @db.Uuid
+  openaiApiKeyEncrypted String?   @map("openai_api_key_encrypted") @db.Text
+  openaiKeyLast4        String?   @map("openai_key_last4") @db.VarChar(4)
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_ai_settings")
 }
 
 model Membership {

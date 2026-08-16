@@ -25,20 +25,6 @@ export function CreateWorkspaceForm() {
             <Input id="workspace-name" placeholder="Platform Team" {...register('name')} />
             {errors.name ? <p className="text-xs text-destructive">{errors.name.message}</p> : null}
           </div>
-          <div className="space-y-2">
-            <label htmlFor="workspace-plan" className="text-sm font-medium">
-              Plan
-            </label>
-            <select
-              id="workspace-plan"
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              {...register('plan')}
-            >
-              <option value="FREE">Free</option>
-              <option value="PRO">Pro</option>
-              <option value="ENTERPRISE">Enterprise</option>
-            </select>
-          </div>
           {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
           {successMessage ? <p className="text-sm text-emerald-600">{successMessage}</p> : null}
           <Button type="submit" disabled={isSubmitting} size="lg">

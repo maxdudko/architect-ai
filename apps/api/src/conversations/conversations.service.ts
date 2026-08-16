@@ -1,5 +1,4 @@
 import {
-  ForbiddenException,
   Injectable,
   NotFoundException,
   BadRequestException,
@@ -31,13 +30,10 @@ export class ConversationsService {
     dto: CreateConversationDto,
   ): Promise<ConversationResponseDto> {
     if (dto.repositoryId) {
-      await this.repositoryAccessValidationService.assertUserCanAccessRepository(
-        {
-          workspaceId,
-          repositoryId: dto.repositoryId,
-          userId,
-        },
-      );
+      await this.repositoryAccessValidationService.assertRepositoryInWorkspace({
+        workspaceId,
+        repositoryId: dto.repositoryId,
+      });
     }
 
     const conversation = await this.conversationsRepository.create({
@@ -52,33 +48,20 @@ export class ConversationsService {
 
   async listConversations(
     workspaceId: string,
-    userId: string,
+    _userId: string,
   ): Promise<ConversationResponseDto[]> {
     const conversations =
       await this.conversationsRepository.listByWorkspace(workspaceId);
 
-    const accessibleRepositoryIds = await this.resolveAccessibleRepositoryIds(
-      workspaceId,
-      userId,
-      conversations
-        .map((conversation) => conversation.repositoryId)
-        .filter((repositoryId): repositoryId is string => repositoryId != null),
+    return conversations.map((conversation) =>
+      this.toConversationResponse(conversation),
     );
-
-    return conversations
-      .filter((conversation) => {
-        if (!conversation.repositoryId) {
-          return true;
-        }
-        return accessibleRepositoryIds.has(conversation.repositoryId);
-      })
-      .map((conversation) => this.toConversationResponse(conversation));
   }
 
   async getConversation(
     workspaceId: string,
     conversationId: string,
-    userId: string,
+    _userId: string,
   ): Promise<ConversationDetailResponseDto> {
     const conversation =
       await this.conversationsRepository.findByIdWithMessages(
@@ -88,29 +71,16 @@ export class ConversationsService {
     if (!conversation) {
       throw new NotFoundException('Conversation not found in this workspace');
     }
-    await this.assertConversationRepositoryAccess(
-      workspaceId,
-      userId,
-      conversation.repositoryId,
-    );
     return this.toConversationDetailResponse(conversation);
   }
 
   async updateConversation(
     workspaceId: string,
     conversationId: string,
-    userId: string,
+    _userId: string,
     dto: UpdateConversationDto,
   ): Promise<ConversationResponseDto> {
-    const existing = await this.requireConversation(
-      workspaceId,
-      conversationId,
-    );
-    await this.assertConversationRepositoryAccess(
-      workspaceId,
-      userId,
-      existing.repositoryId,
-    );
+    await this.requireConversation(workspaceId, conversationId);
 
     const title = dto.title !== undefined ? dto.title.trim() : undefined;
     if (title !== undefined && title.length === 0) {
@@ -135,17 +105,9 @@ export class ConversationsService {
   async deleteConversation(
     workspaceId: string,
     conversationId: string,
-    userId: string,
+    _userId: string,
   ): Promise<{ success: boolean }> {
-    const existing = await this.requireConversation(
-      workspaceId,
-      conversationId,
-    );
-    await this.assertConversationRepositoryAccess(
-      workspaceId,
-      userId,
-      existing.repositoryId,
-    );
+    await this.requireConversation(workspaceId, conversationId);
     const deletedCount = await this.conversationsRepository.softDelete(
       workspaceId,
       conversationId,
@@ -206,50 +168,6 @@ export class ConversationsService {
       feedbackRating: options?.feedbackRating ?? null,
       createdAt: message.createdAt.toISOString(),
     };
-  }
-
-  async assertConversationRepositoryAccess(
-    workspaceId: string,
-    userId: string,
-    repositoryId: string | null,
-  ): Promise<void> {
-    if (!repositoryId) {
-      return;
-    }
-    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
-      workspaceId,
-      repositoryId,
-      userId,
-    });
-  }
-
-  private async resolveAccessibleRepositoryIds(
-    workspaceId: string,
-    userId: string,
-    repositoryIds: string[],
-  ): Promise<Set<string>> {
-    const accessible = new Set<string>();
-    const uniqueRepositoryIds = [...new Set(repositoryIds)];
-
-    for (const repositoryId of uniqueRepositoryIds) {
-      try {
-        await this.repositoryAccessValidationService.assertUserCanAccessRepository(
-          {
-            workspaceId,
-            repositoryId,
-            userId,
-          },
-        );
-        accessible.add(repositoryId);
-      } catch (error) {
-        if (error instanceof ForbiddenException) {
-          continue;
-        }
-        throw error;
-      }
-    }
-
-    return accessible;
   }
 
   private toConversationResponse(

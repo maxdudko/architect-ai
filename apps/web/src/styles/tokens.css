@@ -20,6 +20,8 @@
   --input: 214 32% 91%;
   --ring: 222 84% 5%;
   --radius: 0.65rem;
+  --landing-accent: 142 55% 36%;
+  --landing-grid: 214 32% 91%;
 }
 
 .dark {
@@ -43,4 +45,6 @@
   --border: 217 33% 17%;
   --input: 217 33% 17%;
   --ring: 213 27% 84%;
+  --landing-accent: 142 54% 48%;
+  --landing-grid: 217 33% 17%;
 }

@@ -61,6 +61,9 @@ describe('WorkspacesService', () => {
     service = new WorkspacesService(
       workspacesRepository,
       membershipsRepository,
+      {
+        getWorkspaceUsage: jest.fn(),
+      } as never,
     );
   });
 

@@ -15,7 +15,9 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RepositoriesModule } from './repositories/repositories.module';
 import { SystemLogsModule } from './system-logs/system-logs.module';
+import { UsageModule } from './usage/usage.module';
 import { UsersModule } from './users/users.module';
+import { WorkspaceAiModule } from './workspace-ai/workspace-ai.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 
 @Module({
@@ -36,6 +38,8 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     GithubIntegrationModule,
     MailModule,
     AuthModule,
+    UsageModule,
+    WorkspaceAiModule,
     AdminModule,
   ],
   controllers: [AppController],

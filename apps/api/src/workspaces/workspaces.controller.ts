@@ -57,6 +57,15 @@ export class WorkspacesController {
     return this.workspacesService.updateWorkspace(workspaceId, user.sub, dto);
   }
 
+  @Get(':id/usage')
+  @ApiOperation({ summary: 'Get current workspace usage and plan limits' })
+  getWorkspaceUsage(
+    @Param('id') workspaceId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.workspacesService.getWorkspaceUsage(workspaceId, user.sub);
+  }
+
   @Post(':id/switch')
   @ApiOperation({
     summary:

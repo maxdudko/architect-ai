@@ -59,7 +59,7 @@ services:
       DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://architect-ai-user:architect-ai-password@postgres:5432/architect-ai-db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
-      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-repository_chunks}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-architect_chunks}
       INDEXING_WORKER_ENABLED: 'false'
       INDEXING_WORKER_CONCURRENCY: ${INDEXING_WORKER_CONCURRENCY:-2}
       INDEXING_TMP_DIR: ${INDEXING_TMP_DIR:-/tmp/architect-ai/indexing}
@@ -106,7 +106,7 @@ services:
       DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://architect-ai-user:architect-ai-password@postgres:5432/architect-ai-db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
-      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-repository_chunks}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-architect_chunks}
       INDEXING_WORKER_ENABLED: 'true'
       INDEXING_WORKER_CONCURRENCY: ${INDEXING_WORKER_CONCURRENCY:-2}
       INDEXING_TMP_DIR: ${INDEXING_TMP_DIR:-/tmp/architect-ai/indexing}
@@ -119,6 +119,12 @@ services:
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       GITHUB_OAUTH_STATE_SECRET: ${GITHUB_OAUTH_STATE_SECRET:-}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-20250514}
+      OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-gpt-4o-mini}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-2048}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       PORT: ${API_PORT:-5000}
     volumes:

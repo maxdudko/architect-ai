@@ -38,6 +38,7 @@ describe('ConversationsService', () => {
     } as unknown as jest.Mocked<ConversationsRepository>;
 
     repositoryAccessValidationService = {
+      assertRepositoryInWorkspace: jest.fn().mockResolvedValue(undefined),
       assertUserCanAccessRepository: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<RepositoryAccessValidationService>;
 
@@ -47,7 +48,7 @@ describe('ConversationsService', () => {
     );
   });
 
-  it('asserts repository access when creating a conversation with a repository', async () => {
+  it('asserts repository belongs to workspace when creating a conversation', async () => {
     conversationsRepository.create.mockResolvedValue(baseConversation);
 
     await service.createConversation(workspaceId, userId, {
@@ -56,41 +57,45 @@ describe('ConversationsService', () => {
     });
 
     expect(
-      repositoryAccessValidationService.assertUserCanAccessRepository,
+      repositoryAccessValidationService.assertRepositoryInWorkspace,
     ).toHaveBeenCalledWith({
       workspaceId,
       repositoryId,
-      userId,
     });
+    expect(
+      repositoryAccessValidationService.assertUserCanAccessRepository,
+    ).not.toHaveBeenCalled();
     expect(conversationsRepository.create).toHaveBeenCalled();
   });
 
-  it('forbids getting a conversation when the user cannot access its repository', async () => {
+  it('allows getting a conversation without live GitHub access', async () => {
     conversationsRepository.findByIdWithMessages.mockResolvedValue({
       ...baseConversation,
       messages: [],
     });
-    repositoryAccessValidationService.assertUserCanAccessRepository.mockRejectedValue(
-      new ForbiddenException(
-        'Your GitHub account no longer has access to this repository. Reconnect GitHub or request access.',
-      ),
+
+    const result = await service.getConversation(
+      workspaceId,
+      conversationId,
+      userId,
     );
 
-    await expect(
-      service.getConversation(workspaceId, conversationId, userId),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(result.id).toBe(conversationId);
+    expect(
+      repositoryAccessValidationService.assertUserCanAccessRepository,
+    ).not.toHaveBeenCalled();
   });
 
-  it('filters inaccessible repository conversations from the list', async () => {
+  it('lists all workspace conversations without GitHub ACL filtering', async () => {
     const accessibleConversation = {
       ...baseConversation,
       id: 'conversation-accessible',
       repositoryId: 'repo-accessible',
     };
-    const inaccessibleConversation = {
+    const otherRepoConversation = {
       ...baseConversation,
-      id: 'conversation-inaccessible',
-      repositoryId: 'repo-inaccessible',
+      id: 'conversation-other-repo',
+      repositoryId: 'repo-other',
     };
     const workspaceOnlyConversation = {
       ...baseConversation,
@@ -100,40 +105,44 @@ describe('ConversationsService', () => {
 
     conversationsRepository.listByWorkspace.mockResolvedValue([
       accessibleConversation,
-      inaccessibleConversation,
+      otherRepoConversation,
       workspaceOnlyConversation,
     ]);
-    repositoryAccessValidationService.assertUserCanAccessRepository.mockImplementation(
-      (params) => {
-        if (params.repositoryId === 'repo-inaccessible') {
-          return Promise.reject(
-            new ForbiddenException(
-              'Your GitHub account no longer has access to this repository. Reconnect GitHub or request access.',
-            ),
-          );
-        }
-        return Promise.resolve();
-      },
-    );
 
     const result = await service.listConversations(workspaceId, userId);
 
     expect(result.map((conversation) => conversation.id)).toEqual([
       'conversation-accessible',
+      'conversation-other-repo',
       'conversation-workspace',
     ]);
+    expect(
+      repositoryAccessValidationService.assertUserCanAccessRepository,
+    ).not.toHaveBeenCalled();
   });
 
-  it('rethrows non-forbidden errors while resolving list access', async () => {
-    conversationsRepository.listByWorkspace.mockResolvedValue([
-      baseConversation,
-    ]);
-    repositoryAccessValidationService.assertUserCanAccessRepository.mockRejectedValue(
+  it('rethrows not-found when creating against a missing repository', async () => {
+    repositoryAccessValidationService.assertRepositoryInWorkspace.mockRejectedValue(
       new NotFoundException('Repository not found in this workspace'),
     );
 
     await expect(
-      service.listConversations(workspaceId, userId),
+      service.createConversation(workspaceId, userId, { repositoryId }),
     ).rejects.toBeInstanceOf(NotFoundException);
+    expect(conversationsRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('does not require GitHub access when listing conversations', async () => {
+    conversationsRepository.listByWorkspace.mockResolvedValue([
+      baseConversation,
+    ]);
+    repositoryAccessValidationService.assertUserCanAccessRepository.mockRejectedValue(
+      new ForbiddenException(
+        'Your GitHub account no longer has access to this repository. Reconnect GitHub or request access.',
+      ),
+    );
+
+    const result = await service.listConversations(workspaceId, userId);
+    expect(result).toHaveLength(1);
   });
 });

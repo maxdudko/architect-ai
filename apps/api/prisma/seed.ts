@@ -5,6 +5,7 @@ import {
   WorkspacePlan,
   WorkspaceRole,
 } from '@prisma/client';
+import { upsertDefaultPlanLimits } from '../src/usage/plan-limit.defaults';
 
 const prisma = new PrismaClient();
 
@@ -12,24 +13,24 @@ async function main(): Promise<void> {
   const passwordHash = await bcrypt.hash('Password123!', 12);
 
   const user = await prisma.user.upsert({
-    where: { email: 'owner@architect.ai' },
+    where: { email: 'user@email.com' },
     update: {},
     create: {
-      email: 'owner@architect.ai',
+      email: 'user@email.com',
       passwordHash,
-      firstName: 'Owner',
-      lastName: 'User',
+      firstName: 'User',
+      lastName: 'X',
       emailVerified: true,
     },
   });
 
   const workspace = await prisma.workspace.upsert({
-    where: { slug: 'owner-workspace' },
+    where: { slug: 'main-workspace' },
     update: {},
     create: {
-      name: "Owner's Workspace",
-      slug: 'owner-workspace',
-      plan: WorkspacePlan.PRO,
+      name: 'Main Workspace',
+      slug: 'main-workspace',
+      plan: WorkspacePlan.FREE,
     },
   });
 
@@ -60,6 +61,8 @@ async function main(): Promise<void> {
       lastName: 'Admin',
     },
   });
+
+  await upsertDefaultPlanLimits(prisma);
 }
 
 void main()

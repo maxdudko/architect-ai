@@ -1,5 +1,6 @@
 import type { Admin } from '@/entities';
 import { ADMIN_ACCESS_TOKEN_COOKIE } from './admin-constants';
+import { clientCookieAttributes } from './cookie-attributes';
 
 const ADMIN_AUTH_STORAGE_KEY = 'architect.admin.auth.session.v1';
 
@@ -16,14 +17,14 @@ export function setAdminAccessTokenCookie(token: string): void {
   if (!isBrowser()) {
     return;
   }
-  document.cookie = `${ADMIN_ACCESS_TOKEN_COOKIE}=${encodeURIComponent(token)}; path=/; max-age=86400; samesite=lax`;
+  document.cookie = `${ADMIN_ACCESS_TOKEN_COOKIE}=${encodeURIComponent(token)}; ${clientCookieAttributes()}`;
 }
 
 export function clearAdminAccessTokenCookie(): void {
   if (!isBrowser()) {
     return;
   }
-  document.cookie = `${ADMIN_ACCESS_TOKEN_COOKIE}=; path=/; max-age=0; samesite=lax`;
+  document.cookie = `${ADMIN_ACCESS_TOKEN_COOKIE}=; ${clientCookieAttributes(0)}`;
 }
 
 export function saveAdminAuthState(state: AdminAuthStorageState): void {

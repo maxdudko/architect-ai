@@ -23,7 +23,11 @@ describe('SystemLogsService', () => {
         category: SystemLogCategory.AUDIT,
         level: SystemLogLevel.INFO,
         event: 'admin.auth.signin.success',
-        metadata: { email: 'admin@architect.ai', password: 'secret' },
+        metadata: {
+          email: 'admin@architect.ai',
+          password: 'secret',
+          api_key: 'sk-live',
+        },
       }),
     ).resolves.toBeNull();
 

@@ -1,6 +1,6 @@
 import { GuideType, Prisma } from '@prisma/client';
-import type { LlmProvider } from '../../llm/interfaces/llm-provider.interface';
 import { RetrievalService } from '../../retrieval/retrieval.service';
+import { WorkspaceLlmResolver } from '../../../workspace-ai/workspace-llm.resolver';
 import type { GuideGenerator } from '../interfaces/guide-generator.interface';
 import { GuidePromptBuilder } from '../prompts/guide-prompt.builder';
 import { GUIDE_TEMPLATE_CONTRACTS } from '../templates/guide-template.contract';
@@ -19,7 +19,7 @@ export abstract class RetrievalBackedGuideGenerator implements GuideGenerator {
 
   protected constructor(
     protected readonly retrievalService: RetrievalService,
-    protected readonly llmProvider: LlmProvider,
+    protected readonly workspaceLlmResolver: WorkspaceLlmResolver,
     private readonly promptBuilder: GuidePromptBuilder,
   ) {}
 
@@ -44,7 +44,10 @@ export abstract class RetrievalBackedGuideGenerator implements GuideGenerator {
       query,
       topK: 14,
     });
-    const generation = await this.llmProvider.generate({
+    const llmProvider = await this.workspaceLlmResolver.resolve(
+      context.workspaceId,
+    );
+    const generation = await llmProvider.generate({
       messages: this.promptBuilder.build({
         context,
         target,
@@ -77,7 +80,7 @@ export abstract class RetrievalBackedGuideGenerator implements GuideGenerator {
         evidencePaths: [
           ...new Set(retrievedContext.references.map((item) => item.filePath)),
         ],
-        provider: this.llmProvider.name,
+        provider: llmProvider.name,
         model: generation.model,
         retrievalQuery: query,
       } as Prisma.InputJsonValue,

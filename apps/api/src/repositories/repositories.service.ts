@@ -13,10 +13,13 @@ import {
   RepositoryFile,
   RepositoryProvider,
   RepositoryStatus,
+  UsageMetric,
 } from '@prisma/client';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { GithubAccessTokenService } from '../integrations/github/github-access-token.service';
 import { GithubHttpService } from '../integrations/github/github-http.service';
+import { UsageLimitExceededException } from '../usage/usage-limit.exception';
+import { UsageService } from '../usage/usage.service';
 import { CodeSymbolResponseDto } from './dto/code-symbol-response.dto';
 import { CreateRepositoryDto } from './dto/create-repository.dto';
 import { RepositoryFileResponseDto } from './dto/repository-file-response.dto';
@@ -31,13 +34,6 @@ import { RepositoriesRepository } from './repositories.repository';
 @Injectable()
 export class RepositoriesService {
   private readonly logger = new Logger(RepositoriesService.name);
-  private static readonly ACTIVE_INDEXING_STATUSES = new Set<RepositoryStatus>([
-    RepositoryStatus.PENDING,
-    RepositoryStatus.CLONING,
-    RepositoryStatus.PARSING,
-    RepositoryStatus.CHUNKING,
-    RepositoryStatus.EMBEDDING,
-  ]);
 
   constructor(
     private readonly repositoriesRepository: RepositoriesRepository,
@@ -47,6 +43,7 @@ export class RepositoriesService {
     private readonly embeddingService: RepositoryEmbeddingService,
     private readonly repositoryAccessValidationService: RepositoryAccessValidationService,
     private readonly analyticsService: AnalyticsService,
+    private readonly usageService: UsageService,
   ) {}
 
   async listRepositories(
@@ -60,13 +57,8 @@ export class RepositoriesService {
   async getRepository(
     workspaceId: string,
     repositoryId: string,
-    userId: string,
+    _userId: string,
   ): Promise<RepositoryResponseDto> {
-    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
-      workspaceId,
-      repositoryId,
-      userId,
-    });
     const repository = await this.findRepositoryInWorkspace(
       workspaceId,
       repositoryId,
@@ -77,14 +69,9 @@ export class RepositoriesService {
   async listRepositoryFiles(
     workspaceId: string,
     repositoryId: string,
-    userId: string,
+    _userId: string,
     pathPrefix?: string,
   ): Promise<RepositoryFileResponseDto[]> {
-    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
-      workspaceId,
-      repositoryId,
-      userId,
-    });
     await this.findRepositoryInWorkspace(workspaceId, repositoryId);
     const files = await this.repositoriesRepository.listCurrentRepositoryFiles(
       repositoryId,
@@ -96,14 +83,9 @@ export class RepositoriesService {
   async listRepositorySymbols(
     workspaceId: string,
     repositoryId: string,
-    userId: string,
+    _userId: string,
     options?: { filePath?: string; type?: CodeSymbolType },
   ): Promise<CodeSymbolResponseDto[]> {
-    await this.repositoryAccessValidationService.assertUserCanAccessRepository({
-      workspaceId,
-      repositoryId,
-      userId,
-    });
     await this.findRepositoryInWorkspace(workspaceId, repositoryId);
     const symbols = await this.repositoriesRepository.listCurrentCodeSymbols(
       repositoryId,
@@ -117,6 +99,10 @@ export class RepositoriesService {
     userId: string,
     dto: CreateRepositoryDto,
   ): Promise<RepositoryResponseDto> {
+    await this.usageService.assertWithinLimit(
+      workspaceId,
+      UsageMetric.REPOSITORIES,
+    );
     const existingActive =
       await this.repositoriesRepository.findByProviderAndExternalId(
         dto.provider,
@@ -312,9 +298,12 @@ export class RepositoriesService {
       userId,
     });
     this.assertNotIndexingInProgress(repository);
-    if (repository.status !== RepositoryStatus.FAILED) {
+    if (
+      repository.status !== RepositoryStatus.FAILED &&
+      repository.status !== RepositoryStatus.PENDING
+    ) {
       throw new BadRequestException(
-        'Retry is only available for failed repositories',
+        'Retry is only available for failed or stuck pending repositories',
       );
     }
 
@@ -361,6 +350,11 @@ export class RepositoriesService {
       operation: 'retry' | 'reindex';
     },
   ): Promise<RepositoryResponseDto> {
+    await this.usageService.assertWithinLimit(
+      workspaceId,
+      UsageMetric.INDEXING_RUNS,
+    );
+
     const updated = await this.repositoriesRepository.updateStatus(
       workspaceId,
       repository.id,
@@ -379,6 +373,7 @@ export class RepositoriesService {
       branch: params.branch,
       userId,
       operation: params.operation,
+      previousStatus: repository.status,
     });
 
     return this.toResponse(queuedRepository ?? updated);
@@ -390,7 +385,20 @@ export class RepositoriesService {
     userId: string;
     branch: string;
     operation: 'initial' | 'retry' | 'reindex';
+    previousStatus?: RepositoryStatus;
   }): Promise<Repository | null> {
+    try {
+      await this.usageService.assertWithinLimit(
+        params.workspaceId,
+        UsageMetric.INDEXING_RUNS,
+      );
+    } catch (error) {
+      if (error instanceof UsageLimitExceededException) {
+        await this.restoreAfterIndexingLimit(params, error.message);
+        throw error;
+      }
+      throw error;
+    }
     if (!this.repositoryIndexingQueueService.isReady()) {
       this.logger.warn(
         `Repository indexing queue unavailable; marking ${params.repositoryId} as failed (${params.operation})`,
@@ -450,6 +458,25 @@ export class RepositoriesService {
     }
   }
 
+  private restoreAfterIndexingLimit(
+    params: {
+      workspaceId: string;
+      repositoryId: string;
+      previousStatus?: RepositoryStatus;
+    },
+    message: string,
+  ): Promise<Repository | null> {
+    const status = params.previousStatus ?? RepositoryStatus.FAILED;
+    return this.repositoriesRepository.updateStatus(
+      params.workspaceId,
+      params.repositoryId,
+      {
+        status,
+        indexingError: status === RepositoryStatus.READY ? null : message,
+      },
+    );
+  }
+
   private async findRepositoryInWorkspace(
     workspaceId: string,
     repositoryId: string,
@@ -467,7 +494,12 @@ export class RepositoriesService {
   }
 
   private assertNotIndexingInProgress(repository: Repository): void {
-    if (RepositoriesService.ACTIVE_INDEXING_STATUSES.has(repository.status)) {
+    if (
+      repository.status === RepositoryStatus.CLONING ||
+      repository.status === RepositoryStatus.PARSING ||
+      repository.status === RepositoryStatus.CHUNKING ||
+      repository.status === RepositoryStatus.EMBEDDING
+    ) {
       throw new ConflictException(
         'Repository indexing is already in progress for this repository',
       );

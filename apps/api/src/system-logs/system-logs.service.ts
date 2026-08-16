@@ -22,6 +22,10 @@ const SENSITIVE_METADATA_KEYS = new Set([
   'refresh_token',
   'authorization',
   'secret',
+  'apikey',
+  'api_key',
+  'openaiapikey',
+  'openai_api_key',
 ]);
 
 @Injectable()

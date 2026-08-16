@@ -1,8 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { GuideType } from '@prisma/client';
-import type { LlmProvider } from '../../llm/interfaces/llm-provider.interface';
-import { LLM_PROVIDER } from '../../llm/interfaces/tokens';
 import { RetrievalService } from '../../retrieval/retrieval.service';
+import { WorkspaceLlmResolver } from '../../../workspace-ai/workspace-llm.resolver';
 import { GuidePromptBuilder } from '../prompts/guide-prompt.builder';
 import type {
   GuideGenerationContext,
@@ -33,10 +32,10 @@ export class ExecutiveSummaryGuideGenerator extends SingletonGuideGenerator {
 
   constructor(
     retrievalService: RetrievalService,
-    @Inject(LLM_PROVIDER) llmProvider: LlmProvider,
+    workspaceLlmResolver: WorkspaceLlmResolver,
     promptBuilder: GuidePromptBuilder,
   ) {
-    super(retrievalService, llmProvider, promptBuilder);
+    super(retrievalService, workspaceLlmResolver, promptBuilder);
   }
 
   protected focusedQuery(context: GuideGenerationContext): string {
@@ -51,10 +50,10 @@ export class ProjectOverviewGuideGenerator extends SingletonGuideGenerator {
 
   constructor(
     retrievalService: RetrievalService,
-    @Inject(LLM_PROVIDER) llmProvider: LlmProvider,
+    workspaceLlmResolver: WorkspaceLlmResolver,
     promptBuilder: GuidePromptBuilder,
   ) {
-    super(retrievalService, llmProvider, promptBuilder);
+    super(retrievalService, workspaceLlmResolver, promptBuilder);
   }
 
   protected focusedQuery(context: GuideGenerationContext): string {
@@ -69,10 +68,10 @@ export class FolderGuideGenerator extends SingletonGuideGenerator {
 
   constructor(
     retrievalService: RetrievalService,
-    @Inject(LLM_PROVIDER) llmProvider: LlmProvider,
+    workspaceLlmResolver: WorkspaceLlmResolver,
     promptBuilder: GuidePromptBuilder,
   ) {
-    super(retrievalService, llmProvider, promptBuilder);
+    super(retrievalService, workspaceLlmResolver, promptBuilder);
   }
 
   protected focusedQuery(context: GuideGenerationContext): string {
@@ -90,10 +89,10 @@ export class ModuleGuideGenerator extends RetrievalBackedGuideGenerator {
 
   constructor(
     retrievalService: RetrievalService,
-    @Inject(LLM_PROVIDER) llmProvider: LlmProvider,
+    workspaceLlmResolver: WorkspaceLlmResolver,
     promptBuilder: GuidePromptBuilder,
   ) {
-    super(retrievalService, llmProvider, promptBuilder);
+    super(retrievalService, workspaceLlmResolver, promptBuilder);
   }
 
   targets(context: GuideGenerationContext): GuideGenerationTarget[] {
@@ -120,10 +119,10 @@ export class ServiceGuideGenerator extends RetrievalBackedGuideGenerator {
 
   constructor(
     retrievalService: RetrievalService,
-    @Inject(LLM_PROVIDER) llmProvider: LlmProvider,
+    workspaceLlmResolver: WorkspaceLlmResolver,
     promptBuilder: GuidePromptBuilder,
   ) {
-    super(retrievalService, llmProvider, promptBuilder);
+    super(retrievalService, workspaceLlmResolver, promptBuilder);
   }
 
   targets(context: GuideGenerationContext): GuideGenerationTarget[] {
@@ -151,10 +150,10 @@ export class TechnologyStackGuideGenerator extends SingletonGuideGenerator {
 
   constructor(
     retrievalService: RetrievalService,
-    @Inject(LLM_PROVIDER) llmProvider: LlmProvider,
+    workspaceLlmResolver: WorkspaceLlmResolver,
     promptBuilder: GuidePromptBuilder,
   ) {
-    super(retrievalService, llmProvider, promptBuilder);
+    super(retrievalService, workspaceLlmResolver, promptBuilder);
   }
 
   protected focusedQuery(context: GuideGenerationContext): string {
@@ -172,10 +171,10 @@ export class ReadingOrderGuideGenerator extends SingletonGuideGenerator {
 
   constructor(
     retrievalService: RetrievalService,
-    @Inject(LLM_PROVIDER) llmProvider: LlmProvider,
+    workspaceLlmResolver: WorkspaceLlmResolver,
     promptBuilder: GuidePromptBuilder,
   ) {
-    super(retrievalService, llmProvider, promptBuilder);
+    super(retrievalService, workspaceLlmResolver, promptBuilder);
   }
 
   protected focusedQuery(context: GuideGenerationContext): string {
@@ -190,10 +189,10 @@ export class GlossaryGuideGenerator extends SingletonGuideGenerator {
 
   constructor(
     retrievalService: RetrievalService,
-    @Inject(LLM_PROVIDER) llmProvider: LlmProvider,
+    workspaceLlmResolver: WorkspaceLlmResolver,
     promptBuilder: GuidePromptBuilder,
   ) {
-    super(retrievalService, llmProvider, promptBuilder);
+    super(retrievalService, workspaceLlmResolver, promptBuilder);
   }
 
   protected focusedQuery(context: GuideGenerationContext): string {
@@ -208,10 +207,10 @@ export class CommonPitfallsGuideGenerator extends SingletonGuideGenerator {
 
   constructor(
     retrievalService: RetrievalService,
-    @Inject(LLM_PROVIDER) llmProvider: LlmProvider,
+    workspaceLlmResolver: WorkspaceLlmResolver,
     promptBuilder: GuidePromptBuilder,
   ) {
-    super(retrievalService, llmProvider, promptBuilder);
+    super(retrievalService, workspaceLlmResolver, promptBuilder);
   }
 
   protected focusedQuery(context: GuideGenerationContext): string {

@@ -1,0 +1,13 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$APP_HOST} {
+	encode gzip
+	reverse_proxy web:3000
+}
+
+{$API_HOST} {
+	encode gzip
+	reverse_proxy api:5000
+}

@@ -4,9 +4,10 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { WorkspaceParamGuard } from '../common/guards/workspace-param.guard';
 import { ConversationsModule } from '../conversations/conversations.module';
 import { MembershipsModule } from '../memberships/memberships.module';
-import { LlmModule } from '../modules/llm/llm.module';
 import { RetrievalModule } from '../modules/retrieval/retrieval.module';
 import { RepositoriesModule } from '../repositories/repositories.module';
+import { UsageModule } from '../usage/usage.module';
+import { WorkspaceAiModule } from '../workspace-ai/workspace-ai.module';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 
@@ -16,7 +17,8 @@ import { ChatService } from './chat.service';
     ConversationsModule,
     RepositoriesModule,
     RetrievalModule,
-    LlmModule,
+    UsageModule,
+    WorkspaceAiModule,
     AnalyticsModule,
   ],
   controllers: [ChatController],

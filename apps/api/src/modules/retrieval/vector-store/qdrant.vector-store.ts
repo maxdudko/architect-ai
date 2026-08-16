@@ -125,20 +125,31 @@ export class QdrantVectorStore implements VectorStore {
       body.score_threshold = options.scoreThreshold;
     }
 
-    const response = await this.requestJson<QdrantSearchResponse>(
-      '/points/search',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
-    );
+    try {
+      const response = await this.requestJson<QdrantSearchResponse>(
+        '/points/search',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      );
 
-    return (response.result ?? []).map((item) => ({
-      id: String(item.id),
-      score: item.score,
-      payload: item.payload ?? {},
-    }));
+      return (response.result ?? []).map((item) => ({
+        id: String(item.id),
+        score: item.score,
+        payload: item.payload ?? {},
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (this.isMissingCollectionError(message)) {
+        this.logger.debug(
+          `Skipping search; collection ${this.collectionName} does not exist`,
+        );
+        return [];
+      }
+      throw error;
+    }
   }
 
   private toQdrantFilter(filter: SearchFilter): Record<string, unknown> {

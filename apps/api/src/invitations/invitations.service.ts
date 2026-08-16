@@ -6,12 +6,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { InvitationStatus, WorkspaceRole } from '@prisma/client';
+import { InvitationStatus, UsageMetric, WorkspaceRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponse } from '../auth/interfaces/auth-response.interface';
 import { MailService } from '../mail/mail.service';
 import { MembershipsService } from '../memberships/memberships.service';
+import { UsageService } from '../usage/usage.service';
 import { UsersService } from '../users/users.service';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { InvitationPreviewDto } from './dto/invitation-preview.dto';
@@ -27,6 +28,7 @@ export class InvitationsService {
     private readonly usersService: UsersService,
     private readonly authService: AuthService,
     private readonly mailService: MailService,
+    private readonly usageService: UsageService,
   ) {}
 
   async listInvitations(
@@ -106,6 +108,11 @@ export class InvitationsService {
     const normalizedEmail = email.toLowerCase();
 
     await this.assertCanManageInvitations(workspaceId, actorUserId);
+    await this.usageService.assertWithinLimit(
+      workspaceId,
+      UsageMetric.MEMBERS,
+      { memberCountMode: 'seats' },
+    );
 
     const existing =
       await this.invitationsRepository.findPendingByWorkspaceAndEmail(
@@ -201,6 +208,17 @@ export class InvitationsService {
         lastName: dto.lastName,
         emailVerified: true,
       });
+    }
+
+    const existingMembership = await this.membershipsService
+      .resolveActiveMembership(invitation.workspaceId, user.id)
+      .catch(() => null);
+    if (!existingMembership) {
+      await this.usageService.assertWithinLimit(
+        invitation.workspaceId,
+        UsageMetric.MEMBERS,
+        { memberCountMode: 'active' },
+      );
     }
 
     await this.membershipsService.addOrActivateMember(

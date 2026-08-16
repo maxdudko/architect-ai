@@ -16,14 +16,7 @@ describe('AnswerFeedbackService', () => {
     },
   };
 
-  const repositoryAccessValidationService = {
-    assertUserCanAccessRepository: jest.fn().mockResolvedValue(undefined),
-  };
-
-  const service = new AnswerFeedbackService(
-    prisma as never,
-    repositoryAccessValidationService as never,
-  );
+  const service = new AnswerFeedbackService(prisma as never);
 
   beforeEach(() => {
     jest.clearAllMocks();

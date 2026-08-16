@@ -1,0 +1,59 @@
+FROM node:20-bookworm-slim AS base
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates git openssl \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable && corepack prepare pnpm@10.11.1 --activate
+
+WORKDIR /workspace
+
+FROM base AS deps
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/shared/package.json packages/shared/package.json
+COPY packages/ui/package.json packages/ui/package.json
+COPY packages/ai/package.json packages/ai/package.json
+COPY packages/code-intelligence/package.json packages/code-intelligence/package.json
+
+RUN pnpm install --frozen-lockfile --filter api...
+
+FROM deps AS build
+
+COPY tsconfig.base.json tsconfig.base.json
+COPY packages/shared packages/shared
+COPY apps/api apps/api
+
+RUN pnpm --filter @architect-ai/shared build \
+  && pnpm --filter api build
+
+FROM base AS runner
+
+ENV NODE_ENV=production
+WORKDIR /workspace
+
+COPY --from=build /workspace/package.json /workspace/pnpm-lock.yaml /workspace/pnpm-workspace.yaml ./
+COPY --from=build /workspace/node_modules ./node_modules
+COPY --from=build /workspace/apps/api ./apps/api
+COPY --from=build /workspace/packages/shared ./packages/shared
+COPY infrastructure/docker/api-entrypoint.sh /api-entrypoint.sh
+
+RUN chmod +x /api-entrypoint.sh \
+  && mkdir -p /tmp/architect-ai/indexing \
+  && useradd --system --uid 1001 --home-dir /workspace --shell /usr/sbin/nologin architect \
+  && chown -R architect:architect /workspace /tmp/architect-ai
+
+USER architect
+WORKDIR /workspace/apps/api
+ENV PATH="/workspace/apps/api/node_modules/.bin:/workspace/node_modules/.bin:${PATH}"
+
+EXPOSE 5000
+
+ENTRYPOINT ["/api-entrypoint.sh"]
+CMD ["node", "dist/main"]

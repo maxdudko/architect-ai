@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import { createInvitationSchema } from '../schemas/workspace.schema';
 import { useCreateInvitationMutation } from '../services/workspace.service';
 import type { CreateInvitationValues } from '../types/workspace.types';
+import { getApiErrorMessage } from '@/lib/api/error-message';
 
 export function useCreateInvitationForm(workspaceId: string) {
   const mutation = useCreateInvitationMutation(workspaceId);
@@ -27,8 +28,8 @@ export function useCreateInvitationForm(workspaceId: string) {
       const invitation = await mutation.mutateAsync(values);
       setSuccessMessage(`Invitation sent to ${invitation.email}.`);
       form.reset();
-    } catch {
-      setErrorMessage('Failed to create invitation.');
+    } catch (error) {
+      setErrorMessage(getApiErrorMessage(error, 'Failed to create invitation.'));
     }
   });
 

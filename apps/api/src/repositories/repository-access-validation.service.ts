@@ -30,20 +30,40 @@ export class RepositoryAccessValidationService {
         'true') === 'true';
   }
 
-  async assertUserCanAccessRepository(params: {
+  async assertRepositoryInWorkspace(params: {
     workspaceId: string;
     repositoryId: string;
-    userId: string;
   }): Promise<void> {
-    if (!this.enabled) {
-      return;
-    }
     const repository = await this.repositoriesRepository.findById(
       params.workspaceId,
       params.repositoryId,
     );
     if (!repository) {
       throw new NotFoundException('Repository not found in this workspace');
+    }
+  }
+
+  /**
+   * Live GitHub ACL check for the caller's OAuth token.
+   * Use for clone / reindex / generate / repo mutations — not for reading
+   * workspace-indexed content (guides, files, chat), which is gated by
+   * workspace membership alone.
+   */
+  async assertUserCanAccessRepository(params: {
+    workspaceId: string;
+    repositoryId: string;
+    userId: string;
+  }): Promise<void> {
+    const repository = await this.repositoriesRepository.findById(
+      params.workspaceId,
+      params.repositoryId,
+    );
+    if (!repository) {
+      throw new NotFoundException('Repository not found in this workspace');
+    }
+
+    if (!this.enabled) {
+      return;
     }
 
     if (repository.provider !== RepositoryProvider.GITHUB) {

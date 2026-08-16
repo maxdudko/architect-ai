@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
+import { getApiErrorMessage } from '@/lib/api/error-message';
 import { useAuth } from '@/providers/auth-provider';
 import {
   Button,
@@ -216,12 +217,12 @@ export function RepositoriesList() {
                         void githubConnectionQuery.refetch();
                         throw error;
                       }
-                      setErrorMessage(
+                      const message = getApiErrorMessage(
+                        error,
                         'Unable to connect selected repository. It may already be linked.',
                       );
-                      toast.error(
-                        'Unable to connect selected repository. It may already be linked.',
-                      );
+                      setErrorMessage(message);
+                      toast.error(message);
                       throw error;
                     }
                   }}
@@ -280,12 +281,12 @@ export function RepositoriesList() {
                               void githubConnectionQuery.refetch();
                               throw error;
                             }
-                            setErrorMessage(
+                            const message = getApiErrorMessage(
+                              error,
                               'Unable to connect selected repository. It may already be linked.',
                             );
-                            toast.error(
-                              'Unable to connect selected repository. It may already be linked.',
-                            );
+                            setErrorMessage(message);
+                            toast.error(message);
                             throw error;
                           }
                         }}
@@ -349,7 +350,9 @@ export function RepositoriesList() {
                     toast.error('GitHub authorization expired. Please reconnect GitHub.');
                     return;
                   }
-                  toast.error('Unable to retry indexing for this repository.');
+                  toast.error(
+                    getApiErrorMessage(error, 'Unable to retry indexing for this repository.'),
+                  );
                 }
               }}
               onReindex={async (repositoryId, branch) => {
@@ -361,7 +364,7 @@ export function RepositoriesList() {
                     toast.error('GitHub authorization expired. Please reconnect GitHub.');
                     return;
                   }
-                  toast.error('Unable to start repository reindex.');
+                  toast.error(getApiErrorMessage(error, 'Unable to start repository reindex.'));
                 }
               }}
               onDisconnect={async (repositoryId) => {

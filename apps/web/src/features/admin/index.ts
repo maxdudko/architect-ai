@@ -1,6 +1,7 @@
 export * from './components/admin-sign-in-form';
 export * from './components/admin-shell';
 export * from './components/analytics-dashboard';
+export * from './components/usage-dashboard';
 export * from './components/logs-list';
 export * from './components/users-list';
 export * from './hooks/use-admin-sign-in-form';

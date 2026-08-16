@@ -9,10 +9,13 @@ import {
   GuideGenerationStatus,
   GuideGenerationTrigger,
   GuideType,
+  UsageMetric,
+  UsagePeriod,
 } from '@prisma/client';
 import { Queue } from 'bullmq';
 import type { OnboardingGuideStorage } from './interfaces/onboarding-guide-storage.interface';
 import { RepositoryAccessValidationService } from '../../repositories/repository-access-validation.service';
+import { UsageLimitExceededException } from '../../usage/usage-limit.exception';
 import { OnboardingGuidesService } from './onboarding-guides.service';
 import { OnboardingGuideQueueService } from './queue/onboarding-guide-queue.service';
 import { ONBOARDING_GUIDE_JOB_NAME } from './queue/onboarding-guide-queue.types';
@@ -51,6 +54,7 @@ describe('OnboardingGuidesService', () => {
   let storage: jest.Mocked<OnboardingGuideStorage>;
   let queue: jest.Mocked<OnboardingGuideQueueService>;
   let repositoryAccessValidationService: jest.Mocked<RepositoryAccessValidationService>;
+  let usageService: { assertWithinLimit: jest.Mock };
   let service: OnboardingGuidesService;
 
   beforeEach(() => {
@@ -79,10 +83,14 @@ describe('OnboardingGuidesService', () => {
     repositoryAccessValidationService = {
       assertUserCanAccessRepository: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<RepositoryAccessValidationService>;
+    usageService = {
+      assertWithinLimit: jest.fn().mockResolvedValue(undefined),
+    };
     service = new OnboardingGuidesService(
       storage,
       queue,
       repositoryAccessValidationService,
+      usageService as never,
     );
   });
 
@@ -104,6 +112,22 @@ describe('OnboardingGuidesService', () => {
     expect(queue.enqueueManualGenerate).not.toHaveBeenCalled();
   });
 
+  it('does not enqueue generation when the guide limit is exceeded', async () => {
+    usageService.assertWithinLimit.mockRejectedValue(
+      new UsageLimitExceededException({
+        metric: UsageMetric.GUIDE_GENERATIONS,
+        used: 3,
+        limit: 3,
+        period: UsagePeriod.MONTHLY,
+      }),
+    );
+
+    await expect(
+      service.generateGuides(run.workspaceId, run.repositoryId, 'user-1'),
+    ).rejects.toBeInstanceOf(UsageLimitExceededException);
+    expect(queue.enqueueManualGenerate).not.toHaveBeenCalled();
+  });
+
   it('queues generate and regenerate with distinct methods', async () => {
     const requested = [GuideType.MODULE, GuideType.GLOSSARY];
 
@@ -122,6 +146,9 @@ describe('OnboardingGuidesService', () => {
 
     expect(storage.validateRepositoryReady).toHaveBeenCalledTimes(2);
     expect(queue.waitUntilReady).toHaveBeenCalledTimes(2);
+    expect(
+      repositoryAccessValidationService.assertUserCanAccessRepository,
+    ).toHaveBeenCalled();
     expect(queue.enqueueManualGenerate).toHaveBeenCalledWith({
       workspaceId: run.workspaceId,
       repositoryId: run.repositoryId,
@@ -205,6 +232,9 @@ describe('OnboardingGuidesService', () => {
     );
     expect(listed.total).toBe(1);
     expect(fetched.generationVersion).toBe(2);
+    expect(
+      repositoryAccessValidationService.assertUserCanAccessRepository,
+    ).not.toHaveBeenCalled();
 
     storage.getGuide.mockResolvedValue(null);
     await expect(

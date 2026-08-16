@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { UsageModule } from '../usage/usage.module';
 import { UsersModule } from '../users/users.module';
 import { AdminsRepository } from './admins.repository';
 import { AdminsService } from './admins.service';
@@ -14,15 +15,21 @@ import { AdminSessionStoreService } from './auth/admin-session-store.service';
 import { AdminJwtStrategy } from './auth/strategies/admin-jwt.strategy';
 import { AdminJwtAuthGuard } from './guards/admin-jwt-auth.guard';
 import { AdminLogsController } from './logs/admin-logs.controller';
+import { AdminPlansController } from './plans/admin-plans.controller';
+import { AdminPlansService } from './plans/admin-plans.service';
+import { AdminUsageController } from './usage/admin-usage.controller';
+import { AdminUsageService } from './usage/admin-usage.service';
 import { AdminUsersController } from './users/admin-users.controller';
 
 @Module({
-  imports: [ConfigModule, PassportModule, JwtModule, UsersModule],
+  imports: [ConfigModule, PassportModule, JwtModule, UsersModule, UsageModule],
   controllers: [
     AdminAuthController,
     AdminUsersController,
     AdminAnalyticsController,
     AdminLogsController,
+    AdminPlansController,
+    AdminUsageController,
   ],
   providers: [
     AdminsRepository,
@@ -33,6 +40,8 @@ import { AdminUsersController } from './users/admin-users.controller';
     AdminJwtStrategy,
     AdminJwtAuthGuard,
     AdminAnalyticsService,
+    AdminPlansService,
+    AdminUsageService,
   ],
   exports: [AdminsService, AdminAuthService, AdminJwtAuthGuard],
 })

@@ -1,10 +1,12 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { assertRequiredProductionEnv } from './common/config/assert-production-env';
 import { initErrorTracker } from './common/observability/error-tracker';
 
 async function bootstrapWorker(): Promise<void> {
   process.env.INDEXING_WORKER_ENABLED = 'true';
+  assertRequiredProductionEnv();
   initErrorTracker();
   const logger = new Logger('IndexingWorker');
   const app = await NestFactory.createApplicationContext(AppModule, {

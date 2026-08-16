@@ -48,11 +48,11 @@ export class RetrievalIndexingService {
       params.indexingRunId,
     );
 
+    await this.vectorStore.createCollection(this.embeddingProvider.dimensions);
+
     if (chunks.length === 0) {
       return { embeddedCount: 0 };
     }
-
-    await this.vectorStore.createCollection(this.embeddingProvider.dimensions);
 
     let embeddedCount = 0;
     for (const batch of chunkArray(chunks, this.batchSize)) {

@@ -1,5 +1,6 @@
 import type { User, Workspace } from '@/entities';
 import { ACCESS_TOKEN_COOKIE } from './constants';
+import { clientCookieAttributes } from './cookie-attributes';
 
 const AUTH_STORAGE_KEY = 'architect.auth.session.v1';
 
@@ -22,14 +23,14 @@ export function setAccessTokenCookie(token: string): void {
   if (!isBrowser()) {
     return;
   }
-  document.cookie = `${ACCESS_TOKEN_COOKIE}=${encodeURIComponent(token)}; path=/; max-age=86400; samesite=lax`;
+  document.cookie = `${ACCESS_TOKEN_COOKIE}=${encodeURIComponent(token)}; ${clientCookieAttributes()}`;
 }
 
 export function clearAccessTokenCookie(): void {
   if (!isBrowser()) {
     return;
   }
-  document.cookie = `${ACCESS_TOKEN_COOKIE}=; path=/; max-age=0; samesite=lax`;
+  document.cookie = `${ACCESS_TOKEN_COOKIE}=; ${clientCookieAttributes(0)}`;
 }
 
 export function saveAuthState(state: AuthStorageState): void {
