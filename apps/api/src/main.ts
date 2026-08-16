@@ -37,16 +37,6 @@ function shouldSkipSystemLog(path: string | undefined): boolean {
   );
 }
 
-function shouldSkipSystemLog(path: string | undefined): boolean {
-  if (!path) {
-    return false;
-  }
-  const normalized = path.split('?')[0] ?? path;
-  return SKIP_SYSTEM_LOG_PATH_PREFIXES.some(
-    (prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`),
-  );
-}
-
 async function bootstrap() {
   assertRequiredProductionEnv();
   initErrorTracker();
