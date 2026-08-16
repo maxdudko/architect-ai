@@ -65,14 +65,20 @@ See [`docs/onboarding-guides.md`](../../docs/onboarding-guides.md) for the guide
 
 Use `apps/api/.env.example` as a template.
 
-Required for production:
+Required for production (`NODE_ENV=production` fails fast if any are missing):
 
 - `DATABASE_URL`
 - `JWT_ACCESS_SECRET`
 - `JWT_REFRESH_SECRET`
 - `JWT_ADMIN_ACCESS_SECRET`
 - `JWT_ADMIN_REFRESH_SECRET`
+- `TOKEN_ENCRYPTION_KEY`
+- `GITHUB_CLIENT_ID`
+- `GITHUB_CLIENT_SECRET`
+- `GITHUB_OAUTH_STATE_SECRET`
 - `REDIS_URL` (recommended for session persistence)
+
+See [docs/deploy-ec2.md](../../docs/deploy-ec2.md) for the AWS EC2 Compose layout.
 
 ## Local Commands
 

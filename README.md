@@ -278,10 +278,9 @@ pnpm install
 
 cp .env.example .env
 cp apps/api/.env.example apps/api/.env
-cp apps/web/.env.example apps/web/.env
 ```
 
-The root `.env` is used primarily for local infrastructure and web settings.  
+The root `.env` is used primarily for local infrastructure and web settings (`NEXT_PUBLIC_API_BASE_URL`).  
 The API reads runtime secrets and OAuth credentials from `apps/api/.env`.
 
 For production-ready observability and abuse protection, configure:
@@ -345,6 +344,19 @@ Default host ports:
 - PostgreSQL: `5433`
 - Redis: `6380`
 - Qdrant: `6335` (HTTP), `6336` (gRPC)
+
+---
+
+## Production (AWS EC2)
+
+Local `docker-compose.yml` is development-only (bind mounts and `next`/`nest` watch). Production uses multi-stage images, Caddy TLS, and internal-only data stores.
+
+See [docs/deploy-ec2.md](docs/deploy-ec2.md) for instance sizing, security group, `.env.production`, GitHub OAuth URLs, backups, and upgrades.
+
+```bash
+cp .env.production.example .env.production
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+```
 
 ---
 

@@ -59,7 +59,7 @@ services:
       DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://architect-ai-user:architect-ai-password@postgres:5432/architect-ai-db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
-      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-repository_chunks}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-architect_chunks}
       INDEXING_WORKER_ENABLED: 'false'
       INDEXING_WORKER_CONCURRENCY: ${INDEXING_WORKER_CONCURRENCY:-2}
       INDEXING_TMP_DIR: ${INDEXING_TMP_DIR:-/tmp/architect-ai/indexing}
@@ -106,7 +106,7 @@ services:
       DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://architect-ai-user:architect-ai-password@postgres:5432/architect-ai-db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
-      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-repository_chunks}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-architect_chunks}
       INDEXING_WORKER_ENABLED: 'true'
       INDEXING_WORKER_CONCURRENCY: ${INDEXING_WORKER_CONCURRENCY:-2}
       INDEXING_TMP_DIR: ${INDEXING_TMP_DIR:-/tmp/architect-ai/indexing}

@@ -1,0 +1,54 @@
+FROM node:20-bookworm-slim AS base
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable && corepack prepare pnpm@10.11.1 --activate
+
+WORKDIR /workspace
+
+FROM base AS deps
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/shared/package.json packages/shared/package.json
+COPY packages/ui/package.json packages/ui/package.json
+COPY packages/ai/package.json packages/ai/package.json
+COPY packages/code-intelligence/package.json packages/code-intelligence/package.json
+
+RUN pnpm install --frozen-lockfile --filter web...
+
+FROM deps AS build
+
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_TELEMETRY_DISABLED=1
+
+COPY tsconfig.base.json tsconfig.base.json
+COPY packages/ui packages/ui
+COPY apps/web apps/web
+
+RUN pnpm --filter @architect-ai/ui build \
+  && pnpm --filter web build
+
+FROM node:20-bookworm-slim AS runner
+
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
+
+RUN addgroup --system --gid 1001 nodejs \
+  && adduser --system --uid 1001 --home /app --shell /usr/sbin/nologin nextjs
+
+COPY --from=build --chown=nextjs:nodejs /workspace/apps/web/.next/standalone ./
+COPY --from=build --chown=nextjs:nodejs /workspace/apps/web/public ./apps/web/public
+COPY --from=build --chown=nextjs:nodejs /workspace/apps/web/.next/static ./apps/web/.next/static
+
+USER nextjs
+EXPOSE 3000
+
+CMD ["node", "apps/web/server.js"]
