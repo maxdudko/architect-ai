@@ -1,6 +1,5 @@
 'use client';
 
-import type { UsageMetric, UsageMetricSnapshot, WorkspacePlan } from '@/entities';
 import {
   Card,
   CardContent,
@@ -11,27 +10,7 @@ import {
   Skeleton,
 } from '@/shared/components';
 import { useWorkspaceUsageQuery } from '../services/workspace.service';
-
-const METRIC_LABELS: Record<UsageMetric, string> = {
-  REPOSITORIES: 'Repository connections',
-  INDEXING_RUNS: 'Indexing runs',
-  GUIDE_GENERATIONS: 'Onboarding guides',
-  AI_QUESTIONS: 'AI questions',
-  MEMBERS: 'Workspace members',
-};
-
-function formatPlan(plan: WorkspacePlan): string {
-  if (plan === 'FREE') return 'Free';
-  if (plan === 'PRO') return 'Pro';
-  return 'Enterprise';
-}
-
-function formatLimit(metric: UsageMetricSnapshot): string {
-  const limitLabel = metric.limit == null ? 'Unlimited' : String(metric.limit);
-  const periodLabel = metric.period === 'MONTHLY' ? ' / month' : '';
-  const remainingLabel = metric.remaining == null ? '' : ` · ${metric.remaining} remaining`;
-  return `${metric.used} / ${limitLabel}${periodLabel}${remainingLabel}`;
-}
+import { formatPlan, formatUsageLimit, USAGE_METRIC_LABELS } from '../utils/usage';
 
 export function WorkspaceUsageCard({ workspaceId }: { workspaceId: string }) {
   const usageQuery = useWorkspaceUsageQuery(workspaceId);
@@ -64,8 +43,10 @@ export function WorkspaceUsageCard({ workspaceId }: { workspaceId: string }) {
             <ul className="space-y-3">
               {usageQuery.data.metrics.map((metric) => (
                 <li key={metric.metric} className="flex items-center justify-between gap-4 text-sm">
-                  <span>{METRIC_LABELS[metric.metric]}</span>
-                  <span className="tabular-nums text-muted-foreground">{formatLimit(metric)}</span>
+                  <span>{USAGE_METRIC_LABELS[metric.metric]}</span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {formatUsageLimit(metric)}
+                  </span>
                 </li>
               ))}
             </ul>

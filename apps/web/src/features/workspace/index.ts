@@ -16,3 +16,4 @@ export * from './schemas/workspace.schema';
 export * from './services/workspace.service';
 export * from './types/workspace.types';
 export * from './utils/workspace-permissions';
+export * from './utils/usage';
