@@ -76,7 +76,7 @@ export class UsageService {
       select: {
         id: true,
         plan: true,
-        aiSettings: { select: { openaiApiKeyEncrypted: true } },
+        aiSettings: { select: { activeProvider: true } },
       },
     });
     if (!workspace) {
@@ -149,7 +149,7 @@ export class UsageService {
       where: { id: workspaceId, deletedAt: null },
       select: {
         plan: true,
-        aiSettings: { select: { openaiApiKeyEncrypted: true } },
+        aiSettings: { select: { activeProvider: true } },
       },
     });
     if (!workspace) {
@@ -249,9 +249,9 @@ export class UsageService {
 }
 
 function hasByokKey(
-  aiSettings: { openaiApiKeyEncrypted: string | null } | null | undefined,
+  aiSettings: { activeProvider: unknown } | null | undefined,
 ): boolean {
-  return Boolean(aiSettings?.openaiApiKeyEncrypted);
+  return Boolean(aiSettings?.activeProvider);
 }
 
 function effectiveLimit(

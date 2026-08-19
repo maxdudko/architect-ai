@@ -150,7 +150,7 @@ describe('UsageService', () => {
     prisma.workspace.findFirst.mockResolvedValue({
       id: workspaceId,
       plan: WorkspacePlan.FREE,
-      aiSettings: { openaiApiKeyEncrypted: 'encrypted-key' },
+      aiSettings: { activeProvider: 'OPENAI' },
     });
     prisma.planLimit.findUnique.mockResolvedValue({
       metric: UsageMetric.AI_QUESTIONS,
@@ -168,7 +168,7 @@ describe('UsageService', () => {
     prisma.workspace.findFirst.mockResolvedValue({
       id: workspaceId,
       plan: WorkspacePlan.FREE,
-      aiSettings: { openaiApiKeyEncrypted: 'encrypted-key' },
+      aiSettings: { activeProvider: 'OPENAI' },
     });
     prisma.planLimit.findUnique.mockResolvedValue({
       metric: UsageMetric.GUIDE_GENERATIONS,
@@ -186,7 +186,7 @@ describe('UsageService', () => {
     prisma.workspace.findFirst.mockResolvedValue({
       id: workspaceId,
       plan: WorkspacePlan.FREE,
-      aiSettings: { openaiApiKeyEncrypted: 'encrypted-key' },
+      aiSettings: { activeProvider: 'OPENAI' },
     });
     prisma.planLimit.findUnique.mockResolvedValue({
       metric: UsageMetric.REPOSITORIES,
@@ -204,7 +204,7 @@ describe('UsageService', () => {
     prisma.workspace.findFirst.mockResolvedValue({
       id: workspaceId,
       plan: WorkspacePlan.FREE,
-      aiSettings: { openaiApiKeyEncrypted: 'encrypted-key' },
+      aiSettings: { activeProvider: 'OPENAI' },
     });
     prisma.planLimit.findMany.mockResolvedValue([
       {

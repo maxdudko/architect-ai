@@ -225,6 +225,7 @@ model Workspace {
   guides              Guide[]
   guideGenerationRuns GuideGenerationRun[]
   aiSettings          WorkspaceAiSettings?
+  aiCredentials       WorkspaceAiCredential[]
 
   @@index([createdAt], map: "workspaces_created_at_idx")
   @@map("workspaces")
@@ -242,15 +243,35 @@ model PlanLimit {
   @@map("plan_limits")
 }
 
+enum AiProvider {
+  OPENAI
+  ANTHROPIC
+  GROK
+  GEMINI
+}
+
 model WorkspaceAiSettings {
-  workspaceId           String    @id @map("workspace_id") @db.Uuid
-  openaiApiKeyEncrypted String?   @map("openai_api_key_encrypted") @db.Text
-  openaiKeyLast4        String?   @map("openai_key_last4") @db.VarChar(4)
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
-  workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId    String      @id @map("workspace_id") @db.Uuid
+  activeProvider AiProvider? @map("active_provider")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  workspace      Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("workspace_ai_settings")
+}
+
+model WorkspaceAiCredential {
+  id                String     @id @default(uuid()) @db.Uuid
+  workspaceId       String     @map("workspace_id") @db.Uuid
+  provider          AiProvider
+  apiKeyEncrypted   String     @map("api_key_encrypted") @db.Text
+  keyLast4          String     @map("key_last4") @db.VarChar(4)
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+  workspace         Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider], map: "workspace_ai_credentials_workspace_id_provider_key")
+  @@map("workspace_ai_credentials")
 }
 
 model Membership {

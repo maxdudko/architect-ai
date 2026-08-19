@@ -5,6 +5,7 @@ import {
   ArrowDown,
   ArrowRight,
   BookOpen,
+  Bot,
   Check,
   ChevronRight,
   CircleDot,
@@ -12,12 +13,18 @@ import {
   GitBranch,
   GitCommitHorizontal,
   Github,
+  KeyRound,
+  Lock,
   MessageSquare,
   Network,
+  RefreshCw,
   Search,
   ShieldCheck,
   Sparkles,
   TerminalSquare,
+  ThumbsUp,
+  Users,
+  Zap,
 } from 'lucide-react';
 import { useCallback, useState, type SyntheticEvent } from 'react';
 
@@ -26,17 +33,20 @@ const questions = [
     label: 'Authentication',
     question: 'How does authentication work?',
     answer:
-      'Requests enter through the auth guard, where the access token is verified before workspace permissions are resolved.',
-    sources: ['apps/api/src/auth/auth.guard.ts', 'apps/api/src/workspaces/workspace.service.ts'],
+      'Requests pass through the JWT auth guard, which verifies the access token before workspace and role guards resolve what the caller can actually do.',
+    sources: [
+      'apps/api/src/common/guards/jwt-auth.guard.ts',
+      'apps/api/src/workspaces/workspaces.service.ts',
+    ],
   },
   {
-    label: 'Payments',
-    question: 'Where is payment processing implemented?',
+    label: 'Onboarding guides',
+    question: 'How are onboarding guides generated?',
     answer:
-      'Payment events are normalized at the billing boundary, then handed to the payment service for provider-specific processing.',
+      'After indexing, the orchestrator discovers guide targets from the repository topology, retrieves focused evidence for each, and asks the configured LLM for evidence-constrained Markdown.',
     sources: [
-      'apps/api/src/billing/payment.service.ts',
-      'apps/api/src/billing/payment.controller.ts',
+      'apps/api/src/modules/onboarding/onboarding-guide.orchestrator.ts',
+      'apps/api/src/modules/onboarding/generators/guide-generator.registry.ts',
     ],
   },
   {
@@ -55,7 +65,43 @@ const pipeline = [
   { label: 'Connect', detail: 'Choose a GitHub repository.', icon: Github },
   { label: 'Understand', detail: 'Parse files, symbols, and relations.', icon: Code2 },
   { label: 'Ground', detail: 'Build searchable repository context.', icon: Search },
-  { label: 'Answer', detail: 'Ask questions with source references.', icon: MessageSquare },
+  { label: 'Answer', detail: 'Stream cited answers, token by token.', icon: MessageSquare },
+];
+
+const capabilities = [
+  {
+    label: 'Streaming answers',
+    detail: 'Tokens stream live over SSE as the model responds.',
+    icon: Zap,
+  },
+  {
+    label: 'Bring your own model',
+    detail: 'OpenAI, Anthropic, Grok, or Gemini—your key, your choice.',
+    icon: KeyRound,
+  },
+  {
+    label: 'Workspaces & roles',
+    detail: 'Owner, admin, member, and viewer access per workspace.',
+    icon: Users,
+  },
+  {
+    label: 'Encrypted at rest',
+    detail: 'GitHub tokens and API keys are AES-256-GCM encrypted.',
+    icon: Lock,
+  },
+  {
+    label: 'Answer feedback',
+    detail: 'Mark answers helpful or not to track quality over time.',
+    icon: ThumbsUp,
+  },
+];
+
+const modelProviders = [
+  { name: 'OpenAI', detail: 'GPT models' },
+  { name: 'Anthropic', detail: 'Claude models' },
+  { name: 'Grok', detail: 'xAI models' },
+  { name: 'Gemini', detail: 'Google models' },
+  { name: 'Hosted AI', detail: 'No key required' },
 ];
 
 const roadmap = [
@@ -392,6 +438,67 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
               </span>
             ))}
           </div>
+
+          <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
+            {capabilities.map(({ label, detail, icon: Icon }) => (
+              <div key={label} className="flex items-start gap-3">
+                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-card">
+                  <Icon className="size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium">{label}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-border/70 bg-accent/30 py-20 md:py-28">
+        <div className="container">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="mb-4 flex items-center justify-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--landing-accent))]">
+              <CircleDot className="size-3" aria-hidden="true" />
+              Model-agnostic by design
+            </p>
+            <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+              Use the model you trust.
+            </h2>
+            <p className="mt-3 text-lg font-medium text-muted-foreground">
+              We don&apos;t care who wins the AI wars.
+            </p>
+            <p className="mt-5 text-base leading-7 text-muted-foreground">
+              Architect AI is model-agnostic. Bring your own provider, use hosted AI, or switch
+              models whenever you want—your workspace, your call.
+            </p>
+          </div>
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            {modelProviders.map(({ name, detail }) => (
+              <div
+                key={name}
+                className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-background">
+                  {name === 'Hosted AI' ? (
+                    <RefreshCw
+                      className="size-4 text-[hsl(var(--landing-accent))]"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Bot className="size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+                  )}
+                </span>
+                <div className="text-left">
+                  <p className="text-sm font-medium leading-tight">{name}</p>
+                  <p className="text-xs leading-tight text-muted-foreground">{detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-8 text-center text-xs text-muted-foreground">
+            Switch your active provider anytime from workspace settings—no redeploy, no lock-in.
+          </p>
         </div>
       </section>
 
@@ -403,9 +510,10 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
               A guide for every unfamiliar system.
             </h2>
             <p className="mt-5 text-lg leading-8 text-muted-foreground">
-              Give new engineers a useful starting point: modules, services, technology stack,
-              reading order, glossary, and pitfalls—grounded in the repository and ready to ask
-              questions from.
+              Every ready repository gets nine guide types—executive summary, project overview,
+              folders, modules, services, technology stack, reading order, glossary, and
+              pitfalls—generated automatically and regenerated on demand, all grounded in the
+              repository and ready to ask questions from.
             </p>
             <Link
               href="/sign-up"
@@ -420,17 +528,18 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
                 <BookOpen className="size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />{' '}
                 Guide library
               </div>
-              <span className="font-mono text-[10px] text-muted-foreground">v1.4 · READY</span>
+              <span className="font-mono text-[10px] text-muted-foreground">v3 · READY</span>
             </div>
             <div className="grid md:grid-cols-[.72fr_1.28fr]">
               <div className="border-b border-border p-4 md:border-b-0 md:border-r">
                 {[
-                  'Start here',
-                  'System map',
-                  'Services',
+                  'Executive summary',
+                  'Project overview',
+                  'Modules & services',
+                  'Technology stack',
                   'Reading order',
                   'Glossary',
-                  'Pitfalls',
+                  'Common pitfalls',
                 ].map((item, index) => (
                   <div
                     key={item}
@@ -443,12 +552,12 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
               </div>
               <div className="p-5">
                 <p className="font-mono text-[10px] uppercase tracking-[.16em] text-[hsl(var(--landing-accent))]">
-                  Start here
+                  Executive summary
                 </p>
                 <h3 className="mt-3 text-xl font-medium">How Architect AI fits together</h3>
                 <p className="mt-4 text-sm leading-6 text-muted-foreground">
-                  A repository-aware overview of the app, from GitHub connection to source-grounded
-                  chat.
+                  A decision-oriented overview of purpose, boundaries, core flows, and open risks—
+                  grounded in the repository and ready for source-cited follow-up questions.
                 </p>
                 <div className="mt-6 space-y-3">
                   {[

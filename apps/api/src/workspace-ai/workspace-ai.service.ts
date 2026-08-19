@@ -6,14 +6,21 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { WorkspaceRole } from '@prisma/client';
+import { AiProvider, WorkspaceRole } from '@prisma/client';
 import { TokenCipherService } from '../common/crypto/token-cipher.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
-import { TestWorkspaceAiKeyResponseDto } from './dto/test-workspace-ai-key.dto';
+import { TestWorkspaceAiKeyResponseDto } from './dto/test-workspace-ai-credential.dto';
 import { WorkspaceAiSettingsResponseDto } from './dto/workspace-ai-settings-response.dto';
 
-const OPENAI_KEY_TEST_TIMEOUT_MS = 10_000;
+const KEY_TEST_TIMEOUT_MS = 10_000;
+
+const PROVIDER_LABEL: Record<AiProvider, string> = {
+  [AiProvider.OPENAI]: 'OpenAI',
+  [AiProvider.ANTHROPIC]: 'Anthropic',
+  [AiProvider.GROK]: 'Grok',
+  [AiProvider.GEMINI]: 'Gemini',
+};
 
 @Injectable()
 export class WorkspaceAiService {
@@ -29,81 +36,181 @@ export class WorkspaceAiService {
     userId: string,
   ): Promise<WorkspaceAiSettingsResponseDto> {
     await this.assertCanManageAi(workspaceId, userId);
-    const settings = await this.prisma.workspaceAiSettings.findUnique({
-      where: { workspaceId },
-    });
-    return this.toResponse(settings);
+    return this.loadResponse(workspaceId);
   }
 
-  async upsertSettings(
+  async upsertCredential(
     workspaceId: string,
     userId: string,
-    openaiApiKey: string,
+    provider: AiProvider,
+    apiKey: string,
   ): Promise<WorkspaceAiSettingsResponseDto> {
     await this.assertCanManageAi(workspaceId, userId);
-    const trimmed = openaiApiKey.trim();
+    const trimmed = apiKey.trim();
     if (!trimmed) {
-      throw new BadRequestException('OpenAI API key cannot be empty');
+      throw new BadRequestException('API key cannot be empty');
     }
 
     const encrypted = this.tokenCipherService.encrypt(trimmed);
     const last4 = trimmed.slice(-4);
-    const settings = await this.prisma.workspaceAiSettings.upsert({
-      where: { workspaceId },
-      create: {
-        workspaceId,
-        openaiApiKeyEncrypted: encrypted,
-        openaiKeyLast4: last4,
-      },
-      update: {
-        openaiApiKeyEncrypted: encrypted,
-        openaiKeyLast4: last4,
-      },
-    });
-    return this.toResponse(settings);
+
+    await this.prisma.$transaction([
+      this.prisma.workspaceAiCredential.upsert({
+        where: { workspaceId_provider: { workspaceId, provider } },
+        create: {
+          workspaceId,
+          provider,
+          apiKeyEncrypted: encrypted,
+          keyLast4: last4,
+        },
+        update: { apiKeyEncrypted: encrypted, keyLast4: last4 },
+      }),
+      this.prisma.workspaceAiSettings.upsert({
+        where: { workspaceId },
+        create: { workspaceId, activeProvider: provider },
+        update: { activeProvider: provider },
+      }),
+    ]);
+
+    return this.loadResponse(workspaceId);
   }
 
-  async deleteSettings(
+  async setActiveProvider(
     workspaceId: string,
     userId: string,
+    provider: AiProvider | null | undefined,
   ): Promise<WorkspaceAiSettingsResponseDto> {
     await this.assertCanManageAi(workspaceId, userId);
-    await this.prisma.workspaceAiSettings.deleteMany({
-      where: { workspaceId },
-    });
-    return this.toResponse(null);
-  }
+    const nextProvider = provider ?? null;
 
-  async getEncryptedKey(workspaceId: string): Promise<string | null> {
-    const settings = await this.prisma.workspaceAiSettings.findUnique({
-      where: { workspaceId },
-      select: { openaiApiKeyEncrypted: true },
-    });
-    return settings?.openaiApiKeyEncrypted ?? null;
-  }
-
-  async testApiKey(
-    workspaceId: string,
-    userId: string,
-    openaiApiKey?: string,
-  ): Promise<TestWorkspaceAiKeyResponseDto> {
-    await this.assertCanManageAi(workspaceId, userId);
-
-    const pasted = openaiApiKey?.trim();
-    if (pasted) {
-      await this.assertOpenAiKeyWorks(pasted);
-      return { ok: true, message: 'OpenAI accepted this API key.' };
+    if (nextProvider) {
+      const credential = await this.prisma.workspaceAiCredential.findUnique({
+        where: {
+          workspaceId_provider: { workspaceId, provider: nextProvider },
+        },
+      });
+      if (!credential) {
+        throw new BadRequestException(
+          `No saved ${PROVIDER_LABEL[nextProvider]} API key for this workspace. Save one first.`,
+        );
+      }
     }
 
-    const encrypted = await this.getEncryptedKey(workspaceId);
-    if (!encrypted) {
+    await this.prisma.workspaceAiSettings.upsert({
+      where: { workspaceId },
+      create: { workspaceId, activeProvider: nextProvider },
+      update: { activeProvider: nextProvider },
+    });
+
+    return this.loadResponse(workspaceId);
+  }
+
+  async deleteCredential(
+    workspaceId: string,
+    userId: string,
+    provider: AiProvider,
+  ): Promise<WorkspaceAiSettingsResponseDto> {
+    await this.assertCanManageAi(workspaceId, userId);
+
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.workspaceAiCredential.deleteMany({
+        where: { workspaceId, provider },
+      });
+      const settings = await transaction.workspaceAiSettings.findUnique({
+        where: { workspaceId },
+      });
+      if (settings?.activeProvider === provider) {
+        await transaction.workspaceAiSettings.update({
+          where: { workspaceId },
+          data: { activeProvider: null },
+        });
+      }
+    });
+
+    return this.loadResponse(workspaceId);
+  }
+
+  async testCredential(
+    workspaceId: string,
+    userId: string,
+    provider: AiProvider,
+    apiKey?: string,
+  ): Promise<TestWorkspaceAiKeyResponseDto> {
+    await this.assertCanManageAi(workspaceId, userId);
+    const label = PROVIDER_LABEL[provider];
+
+    const pasted = apiKey?.trim();
+    if (pasted) {
+      await this.assertProviderKeyWorks(provider, pasted);
+      return { ok: true, message: `${label} accepted this API key.` };
+    }
+
+    const credential = await this.prisma.workspaceAiCredential.findUnique({
+      where: { workspaceId_provider: { workspaceId, provider } },
+    });
+    if (!credential) {
       throw new BadRequestException(
-        'Paste an OpenAI API key to test, or save one first.',
+        `Paste an API key for ${label} to test, or save one first.`,
       );
     }
 
-    await this.assertOpenAiKeyWorks(this.tokenCipherService.decrypt(encrypted));
-    return { ok: true, message: 'OpenAI accepted the saved API key.' };
+    await this.assertProviderKeyWorks(
+      provider,
+      this.tokenCipherService.decrypt(credential.apiKeyEncrypted),
+    );
+    return { ok: true, message: `${label} accepted the saved API key.` };
+  }
+
+  /** Used only by `WorkspaceLlmResolver`; never exposed over HTTP. */
+  async getActiveCredential(
+    workspaceId: string,
+  ): Promise<{ provider: AiProvider; apiKey: string } | null> {
+    const settings = await this.prisma.workspaceAiSettings.findUnique({
+      where: { workspaceId },
+      select: { activeProvider: true },
+    });
+    if (!settings?.activeProvider) {
+      return null;
+    }
+
+    const credential = await this.prisma.workspaceAiCredential.findUnique({
+      where: {
+        workspaceId_provider: {
+          workspaceId,
+          provider: settings.activeProvider,
+        },
+      },
+    });
+    if (!credential) {
+      return null;
+    }
+
+    return {
+      provider: settings.activeProvider,
+      apiKey: this.tokenCipherService.decrypt(credential.apiKeyEncrypted),
+    };
+  }
+
+  private async loadResponse(
+    workspaceId: string,
+  ): Promise<WorkspaceAiSettingsResponseDto> {
+    const [settings, credentials] = await Promise.all([
+      this.prisma.workspaceAiSettings.findUnique({ where: { workspaceId } }),
+      this.prisma.workspaceAiCredential.findMany({
+        where: { workspaceId },
+        orderBy: { provider: 'asc' },
+      }),
+    ]);
+
+    return {
+      mode: settings?.activeProvider ? 'BYOK' : 'HOSTED',
+      activeProvider: settings?.activeProvider ?? null,
+      credentials: credentials.map((credential) => ({
+        provider: credential.provider,
+        keyLast4: credential.keyLast4,
+        updatedAt: credential.updatedAt.toISOString(),
+      })),
+    };
   }
 
   private async assertCanManageAi(
@@ -121,25 +228,26 @@ export class WorkspaceAiService {
     }
   }
 
-  private async assertOpenAiKeyWorks(apiKey: string): Promise<void> {
-    const baseUrl = (
-      this.configService.get<string>('OPENAI_API_BASE_URL') ??
-      'https://api.openai.com/v1'
-    ).replace(/\/$/, '');
+  private async assertProviderKeyWorks(
+    provider: AiProvider,
+    apiKey: string,
+  ): Promise<void> {
+    const label = PROVIDER_LABEL[provider];
+    const { url, headers } = this.buildTestRequest(provider, apiKey);
 
     let response: Response;
     try {
-      response = await fetch(`${baseUrl}/models`, {
+      response = await fetch(url, {
         method: 'GET',
-        headers: { authorization: `Bearer ${apiKey}` },
-        signal: AbortSignal.timeout(OPENAI_KEY_TEST_TIMEOUT_MS),
+        headers,
+        signal: AbortSignal.timeout(KEY_TEST_TIMEOUT_MS),
       });
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
       }
       throw new BadGatewayException(
-        'Unable to reach OpenAI to test this API key.',
+        `Unable to reach ${label} to test this API key.`,
       );
     }
 
@@ -147,25 +255,43 @@ export class WorkspaceAiService {
       return;
     }
     if (response.status === 401 || response.status === 403) {
-      throw new BadRequestException('OpenAI rejected this API key.');
+      throw new BadRequestException(`${label} rejected this API key.`);
     }
     throw new BadGatewayException(
-      `OpenAI key test failed (${response.status}).`,
+      `${label} key test failed (${response.status}).`,
     );
   }
 
-  private toResponse(
-    settings: {
-      openaiApiKeyEncrypted: string | null;
-      openaiKeyLast4: string | null;
-      updatedAt: Date;
-    } | null,
-  ): WorkspaceAiSettingsResponseDto {
-    const hasKey = Boolean(settings?.openaiApiKeyEncrypted);
-    return {
-      mode: hasKey ? 'BYOK' : 'HOSTED',
-      openaiKeyLast4: hasKey ? (settings?.openaiKeyLast4 ?? null) : null,
-      updatedAt: hasKey ? (settings?.updatedAt.toISOString() ?? null) : null,
-    };
+  private buildTestRequest(
+    provider: AiProvider,
+    apiKey: string,
+  ): { url: string; headers: Record<string, string> } {
+    switch (provider) {
+      case AiProvider.OPENAI: {
+        const baseUrl = (
+          this.configService.get<string>('OPENAI_API_BASE_URL') ??
+          'https://api.openai.com/v1'
+        ).replace(/\/$/, '');
+        return {
+          url: `${baseUrl}/models`,
+          headers: { authorization: `Bearer ${apiKey}` },
+        };
+      }
+      case AiProvider.ANTHROPIC:
+        return {
+          url: 'https://api.anthropic.com/v1/models',
+          headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+        };
+      case AiProvider.GROK:
+        return {
+          url: 'https://api.x.ai/v1/models',
+          headers: { authorization: `Bearer ${apiKey}` },
+        };
+      case AiProvider.GEMINI:
+        return {
+          url: 'https://generativelanguage.googleapis.com/v1beta/models',
+          headers: { 'x-goog-api-key': apiKey },
+        };
+    }
   }
 }

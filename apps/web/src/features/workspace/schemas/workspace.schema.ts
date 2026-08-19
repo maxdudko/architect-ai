@@ -13,6 +13,9 @@ export const createInvitationSchema = z.object({
   role: z.enum(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']),
 });
 
-export const upsertWorkspaceAiSettingsSchema = z.object({
-  openaiApiKey: z.string().trim().min(8, 'Enter a valid OpenAI API key'),
+export const aiProviderSchema = z.enum(['OPENAI', 'ANTHROPIC', 'GROK', 'GEMINI']);
+
+export const upsertWorkspaceAiCredentialSchema = z.object({
+  provider: aiProviderSchema,
+  apiKey: z.string().trim().min(8, 'Enter a valid API key'),
 });

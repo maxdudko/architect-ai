@@ -42,7 +42,7 @@ export class AdminUsageService {
           plan: true,
           createdAt: true,
           aiSettings: {
-            select: { openaiApiKeyEncrypted: true },
+            select: { activeProvider: true },
           },
         },
       }),
@@ -57,9 +57,7 @@ export class AdminUsageService {
           slug: workspace.slug,
           plan: workspace.plan,
           createdAt: workspace.createdAt,
-          aiMode: workspace.aiSettings?.openaiApiKeyEncrypted
-            ? 'BYOK'
-            : 'HOSTED',
+          aiMode: workspace.aiSettings?.activeProvider ? 'BYOK' : 'HOSTED',
           metrics: usage.metrics,
         };
       }),

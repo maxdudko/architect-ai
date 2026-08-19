@@ -1,12 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MinLength } from 'class-validator';
+import { AiProvider } from '@prisma/client';
+import { IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 
-export class TestWorkspaceAiKeyDto {
+export class TestWorkspaceAiCredentialDto {
+  @ApiProperty({ enum: AiProvider })
+  @IsEnum(AiProvider)
+  provider!: AiProvider;
+
   @ApiPropertyOptional({ example: 'sk-...' })
   @IsOptional()
   @IsString()
   @MinLength(8)
-  openaiApiKey?: string;
+  apiKey?: string;
 }
 
 export class TestWorkspaceAiKeyResponseDto {

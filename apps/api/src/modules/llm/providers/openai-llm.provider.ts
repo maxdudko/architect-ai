@@ -11,6 +11,8 @@ export interface OpenAiLlmProviderOptions {
   defaultModel?: string;
   maxTokens?: number;
   baseUrl?: string;
+  /** Override for `LlmProvider.name`. Lets OpenAI-compatible vendors (e.g. Grok) reuse this client. */
+  name?: string;
 }
 
 const DEFAULT_MODEL = 'gpt-4o-mini';
@@ -40,7 +42,7 @@ interface OpenAiStreamChunk {
 }
 
 export class OpenAiLlmProvider implements LlmProvider {
-  readonly name = 'openai';
+  readonly name: string;
   private readonly apiKey: string;
   private readonly defaultModel: string;
   private readonly maxTokens: number;
@@ -48,6 +50,7 @@ export class OpenAiLlmProvider implements LlmProvider {
 
   constructor(options: OpenAiLlmProviderOptions) {
     this.apiKey = options.apiKey;
+    this.name = options.name ?? 'openai';
     this.defaultModel = options.defaultModel ?? DEFAULT_MODEL;
     this.maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, '');

@@ -26,6 +26,12 @@ const SENSITIVE_METADATA_KEYS = new Set([
   'api_key',
   'openaiapikey',
   'openai_api_key',
+  'anthropicapikey',
+  'anthropic_api_key',
+  'grokapikey',
+  'grok_api_key',
+  'geminiapikey',
+  'gemini_api_key',
 ]);
 
 @Injectable()

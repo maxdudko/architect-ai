@@ -11,6 +11,8 @@ export type UsagePeriod = 'CURRENT' | 'MONTHLY';
 
 export type WorkspaceAiMode = 'HOSTED' | 'BYOK';
 
+export type AiProvider = 'OPENAI' | 'ANTHROPIC' | 'GROK' | 'GEMINI';
+
 export interface UsageMetricSnapshot {
   metric: UsageMetric;
   period: UsagePeriod;
@@ -26,10 +28,16 @@ export interface WorkspaceUsage {
   metrics: UsageMetricSnapshot[];
 }
 
+export interface WorkspaceAiCredentialSummary {
+  provider: AiProvider;
+  keyLast4: string;
+  updatedAt: string;
+}
+
 export interface WorkspaceAiSettings {
   mode: WorkspaceAiMode;
-  openaiKeyLast4: string | null;
-  updatedAt: string | null;
+  activeProvider: AiProvider | null;
+  credentials: WorkspaceAiCredentialSummary[];
 }
 
 export interface WorkspaceAiKeyTestResult {

@@ -18,8 +18,8 @@ This repository currently implements the **AI Onboarding Assistant** phase. Arch
 - Repository-scoped and workspace-scoped chat with SSE streaming
 - Persisted conversations, source citations, and answer feedback
 - Generated onboarding guides for overviews, folders, modules, services, stack, reading order, glossary, and pitfalls
-- Mock, OpenAI, and Anthropic LLM adapters
-- Workspace OpenAI BYOK for chat and guide generation
+- Mock, OpenAI, Anthropic, Grok, and Gemini LLM adapters
+- Model-agnostic workspace BYOK (OpenAI, Anthropic, Grok, or Gemini) for chat and guide generation, with instant provider switching
 - Plan-based usage limits plus admin analytics and system logs
 - Development and single-host production Docker Compose stacks
 
@@ -52,7 +52,7 @@ NestJS API ──enqueue──► Redis / BullMQ ──consume──► Indexing
    │
    ├────────► PostgreSQL (identity, tenancy, code metadata, chat, guides)
    ├────────► Qdrant (chunk vectors)
-   └────────► OpenAI / Anthropic / mock providers
+   └────────► OpenAI / Anthropic / Grok / Gemini / mock providers
    ▲
    │ REST + SSE
 Next.js web app
@@ -85,7 +85,7 @@ Core technology:
 - BullMQ and Redis 7
 - Tree-sitter for TypeScript/JavaScript analysis
 - Qdrant for vector search
-- OpenAI and Anthropic provider adapters
+- OpenAI, Anthropic, Grok, and Gemini provider adapters
 
 ## Quick start with Docker
 
@@ -131,16 +131,18 @@ OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 OPENAI_CHAT_MODEL=gpt-4o-mini
 ```
 
-Anthropic can be used for generation while OpenAI supplies embeddings:
+Anthropic, Grok, or Gemini can be used for generation while OpenAI supplies embeddings:
 
 ```bash
 EMBEDDING_PROVIDER=openai
 OPENAI_API_KEY=your-openai-key
 LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=your-anthropic-key
+# or LLM_PROVIDER=grok / GROK_API_KEY=...
+# or LLM_PROVIDER=gemini / GEMINI_API_KEY=...
 ```
 
-Workspace BYOK replaces only the generation provider with a workspace OpenAI key; embeddings still use the server's `EMBEDDING_PROVIDER`.
+Architect AI is model-agnostic: a workspace owner or admin can save a key for OpenAI, Anthropic, Grok, or Gemini under workspace AI settings and switch the active provider at any time. BYOK replaces only the generation provider for that workspace; embeddings still use the server's `EMBEDDING_PROVIDER`.
 
 ### 2. Start the stack
 
@@ -233,7 +235,7 @@ Important configuration groups:
 - GitHub: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_OAUTH_REDIRECT_URI`, `GITHUB_OAUTH_STATE_SECRET`;
 - indexing: `INDEXING_WORKER_*`, `INDEXING_TMP_*`, clone size/time limits;
 - retrieval: `EMBEDDING_PROVIDER`, embedding model/dimensions/batch size, retrieval cache variables;
-- generation: `LLM_PROVIDER`, OpenAI/Anthropic keys and models, `LLM_MAX_TOKENS`;
+- generation: `LLM_PROVIDER`, OpenAI/Anthropic/Grok/Gemini keys and models, `LLM_MAX_TOKENS`;
 - operations: rate-limit values, Sentry, Resend, and repository access validation.
 
 Production startup rejects missing database, GitHub, encryption, and user/admin JWT secrets.

@@ -13,7 +13,7 @@ Architect AI is currently a multi-tenant codebase onboarding application. A user
 - browse indexed files and symbols;
 - ask repository-scoped questions and receive source citations;
 - generate and browse evidence-backed onboarding guides;
-- use hosted AI or a workspace-owned OpenAI key;
+- use hosted AI or a workspace-owned API key for OpenAI, Anthropic, Grok, or Gemini;
 - view usage, while platform admins manage limits and inspect analytics and logs.
 
 The MVP does **not** yet implement architecture visualization, decision memory, impact analysis, GitLab or Bitbucket ingestion, repository webhooks, incremental indexing, or a knowledge graph.
@@ -45,7 +45,7 @@ NestJS indexing worker
    └── generates onboarding guides
 
 External services:
-GitHub OAuth/API · OpenAI and/or Anthropic · Resend (optional) · Sentry (optional)
+GitHub OAuth/API · OpenAI, Anthropic, Grok, and/or Gemini · Resend (optional) · Sentry (optional)
 ```
 
 Both the HTTP process and worker bootstrap the same NestJS `AppModule`. `INDEXING_WORKER_ENABLED` prevents queue consumers from running in the API process. The worker has no HTTP listener and enables both repository-indexing and onboarding-guide workers.
@@ -146,7 +146,7 @@ User requests connect URL
   → enqueue INITIAL_CONNECT indexing
 ```
 
-GitHub OAuth credentials belong to a user, while connected repositories belong to a workspace. OAuth and workspace OpenAI keys are encrypted with AES-256-GCM via `TOKEN_ENCRYPTION_KEY`.
+GitHub OAuth credentials belong to a user, while connected repositories belong to a workspace. OAuth tokens and workspace BYOK provider keys are encrypted with AES-256-GCM via `TOKEN_ENCRYPTION_KEY`.
 
 Repository mutation and reindex operations can perform a live GitHub access check for the acting user. Reading already-indexed workspace content is authorized by workspace membership rather than every member having direct GitHub access.
 
@@ -239,13 +239,15 @@ Current ranking combines vector similarity with lightweight query/code-hint bonu
 
 ### 5.6 LLM providers and BYOK
 
-Chat and onboarding guides consume a shared `LlmProvider` contract. The hosted provider is selected with `LLM_PROVIDER`:
+Chat and onboarding guides consume a shared `LlmProvider` contract, built by a single `buildLlmProvider` factory shared between the hosted provider and BYOK resolution. The hosted provider is selected with `LLM_PROVIDER`:
 
 - `mock` for deterministic local development;
 - `openai`;
-- `anthropic`.
+- `anthropic`;
+- `grok`;
+- `gemini`.
 
-A workspace owner or admin can save an OpenAI API key. When present, `WorkspaceLlmResolver` creates a workspace-specific OpenAI provider for generation. BYOK affects LLM generation only; embeddings remain platform-configured.
+A workspace owner or admin can save an API key per provider (OpenAI, Anthropic, Grok, or Gemini) and mark one as the workspace's active provider. When a provider is active, `WorkspaceLlmResolver` builds a workspace-specific provider instance from the decrypted key for generation; otherwise it falls back to the hosted provider. Switching the active provider takes effect immediately and does not require re-entering a key. BYOK affects LLM generation only; embeddings remain platform-configured.
 
 Mock embeddings and the mock LLM exercise the complete application flow but do not provide production-quality semantic answers or guides.
 
@@ -308,7 +310,7 @@ Plan limits are database rows keyed by workspace plan and metric. The MVP enforc
 - monthly AI questions;
 - current active members plus pending invitations.
 
-New workspaces are `FREE`; `PRO` and `ENTERPRISE` are unlimited placeholders. Billing, checkout, invoices, and self-service plan changes are not implemented. OpenAI BYOK removes question and guide limits but does not remove repository, indexing, or member limits.
+New workspaces are `FREE`; `PRO` and `ENTERPRISE` are unlimited placeholders. Billing, checkout, invoices, and self-service plan changes are not implemented. Having an active BYOK provider removes question and guide limits but does not remove repository, indexing, or member limits.
 
 Platform-admin endpoints and pages expose workspace usage, user management, editable plan limits, product analytics, and persisted system logs.
 
