@@ -6,6 +6,7 @@ import {
   ArrowRight,
   BookOpen,
   Bot,
+  Building2,
   Check,
   ChevronRight,
   CircleDot,
@@ -16,9 +17,12 @@ import {
   KeyRound,
   Lock,
   MessageSquare,
+  Minus,
   Network,
   RefreshCw,
+  Rocket,
   Search,
+  ServerCog,
   ShieldCheck,
   Sparkles,
   TerminalSquare,
@@ -27,6 +31,8 @@ import {
   Zap,
 } from 'lucide-react';
 import { useCallback, useState, type SyntheticEvent } from 'react';
+
+const GITHUB_REPO_URL = 'https://github.com/maxdudko/architect-ai';
 
 const questions = [
   {
@@ -137,6 +143,126 @@ const roadmap = [
   },
 ];
 
+const trustBadges = [
+  { label: 'Open source', icon: Github },
+  { label: 'Self-hostable', icon: ServerCog },
+  { label: 'Model-agnostic', icon: KeyRound },
+  { label: 'AES-256 encrypted secrets', icon: Lock },
+];
+
+const comparisonRows: Array<{
+  capability: string;
+  copilot: boolean | 'partial';
+  cursor: boolean | 'partial';
+  docs: boolean | 'partial';
+  architect: boolean | 'partial';
+}> = [
+  { capability: 'Writes code', copilot: true, cursor: true, docs: false, architect: 'partial' },
+  {
+    capability: 'Understands architecture',
+    copilot: 'partial',
+    cursor: 'partial',
+    docs: 'partial',
+    architect: true,
+  },
+  { capability: 'Preserves decisions', copilot: false, cursor: false, docs: 'partial', architect: true },
+  { capability: 'Predicts change impact', copilot: false, cursor: false, docs: false, architect: true },
+  {
+    capability: 'Source-cited answers',
+    copilot: false,
+    cursor: 'partial',
+    docs: 'partial',
+    architect: true,
+  },
+];
+
+const targetCustomers = [
+  {
+    icon: Rocket,
+    title: 'Early adopters',
+    detail: '5–30 engineers, multiple repositories, growing technical complexity.',
+  },
+  {
+    icon: Building2,
+    title: 'Expansion market',
+    detail: '50–500 engineers, multiple teams, significant onboarding costs.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Enterprise',
+    detail: 'Self-hosted deployment, compliance controls, and advanced governance.',
+  },
+];
+
+const plans = [
+  {
+    name: 'Free',
+    tagline: 'Validate the workflow',
+    features: [
+      'Connect your repositories',
+      'Hosted AI included',
+      'Plan-based usage limits',
+      'Onboarding guides & chat',
+    ],
+    highlighted: false,
+  },
+  {
+    name: 'BYOK',
+    tagline: 'Bring your own model key',
+    features: [
+      'OpenAI, Anthropic, Grok, or Gemini',
+      'Unlimited AI questions & guides',
+      'Switch providers instantly',
+      'Keys encrypted at rest, never shared',
+    ],
+    highlighted: true,
+  },
+  {
+    name: 'Enterprise',
+    tagline: 'Governance at scale',
+    features: [
+      'Self-hosted via Docker Compose',
+      'Workspace roles & audit-friendly logs',
+      'Admin analytics & usage controls',
+      'Data stays in your infrastructure',
+    ],
+    highlighted: false,
+  },
+];
+
+const faqs = [
+  {
+    question: 'Is Architect AI open source?',
+    answer:
+      'Yes. The full stack is open source and available on GitHub, including the API, worker, indexing pipeline, and web application.',
+  },
+  {
+    question: 'Can we self-host it?',
+    answer:
+      'Yes. A Docker Compose stack runs the web app, API, worker, PostgreSQL, Redis, and Qdrant on your own infrastructure, with a documented single-host production deployment for AWS EC2.',
+  },
+  {
+    question: 'Which AI providers are supported?',
+    answer:
+      'Hosted AI works out of the box. Workspaces can also bring their own key for OpenAI, Anthropic, Grok, or Gemini and switch the active provider instantly—no redeploy required.',
+  },
+  {
+    question: 'What happens to our source code and API keys?',
+    answer:
+      'Repository content is parsed and embedded to power retrieval; GitHub tokens and BYOK provider keys are encrypted at rest with AES-256-GCM and are never returned in plaintext by the API.',
+  },
+  {
+    question: 'Which languages are supported today?',
+    answer:
+      'TypeScript and JavaScript are parsed today via Tree-sitter, including TSX/JSX. Additional language parsers are on the roadmap.',
+  },
+  {
+    question: 'What is the long-term vision?',
+    answer:
+      'Architect AI grows from repository chat into architecture exploration, decision memory, and change-impact analysis—an engineering memory layer, not just another coding assistant.',
+  },
+];
+
 function SectionEyebrow({ children }: { children: React.ReactNode }) {
   return (
     <p className="mb-4 flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--landing-accent))]">
@@ -164,6 +290,16 @@ function SourceReference({ source }: { source: string }) {
       />
     </button>
   );
+}
+
+function ComparisonMark({ value }: { value: boolean | 'partial' }) {
+  if (value === true) {
+    return <Check className="mx-auto size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />;
+  }
+  if (value === 'partial') {
+    return <Minus className="mx-auto size-4 text-muted-foreground" aria-hidden="true" />;
+  }
+  return <span className="block text-center text-muted-foreground/50">—</span>;
 }
 
 const NAVBAR_OFFSET = 80;
@@ -236,8 +372,24 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
             >
               Vision
             </a>
+            <a
+              href="#faq"
+              onClick={(event) => handleNavClick(event, 'faq')}
+              className="transition-colors hover:text-foreground"
+            >
+              FAQ
+            </a>
           </nav>
           <div className="flex items-center gap-2">
+            <a
+              href={GITHUB_REPO_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="hidden items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
+            >
+              <Github className="size-4" aria-hidden="true" />
+              GitHub
+            </a>
             {isAuthenticated ? (
               <Link
                 href="/dashboard"
@@ -301,6 +453,17 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
               />
               Repository-scoped answers with source references.
             </p>
+            <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2">
+              {trustBadges.map(({ label, icon: Icon }) => (
+                <span
+                  key={label}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                >
+                  <Icon className="size-3.5 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+                  {label}
+                </span>
+              ))}
+            </div>
           </div>
 
           <div className="relative rounded-xl border border-border bg-card p-3 md:p-5">
@@ -635,6 +798,84 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
         </div>
       </section>
 
+      <section className="border-b border-border/70 py-20 md:py-28">
+        <div className="container">
+          <div className="max-w-2xl">
+            <SectionEyebrow>Not another coding assistant</SectionEyebrow>
+            <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+              Coding assistants write code. Architect AI explains the system.
+            </h2>
+            <p className="mt-5 text-lg leading-8 text-muted-foreground">
+              Copilot and Cursor answer &ldquo;how do I write this faster?&rdquo; Architect AI
+              answers &ldquo;how does this system work, and what happens if we change it?&rdquo;
+            </p>
+          </div>
+          <div className="mt-10 overflow-x-auto rounded-xl border border-border">
+            <table className="w-full min-w-[640px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border bg-accent/40">
+                  <th className="p-4 text-left font-medium text-muted-foreground">Capability</th>
+                  <th className="p-4 text-center font-medium text-muted-foreground">
+                    GitHub Copilot
+                  </th>
+                  <th className="p-4 text-center font-medium text-muted-foreground">Cursor</th>
+                  <th className="p-4 text-center font-medium text-muted-foreground">Docs tools</th>
+                  <th className="p-4 text-center font-medium text-foreground">Architect AI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comparisonRows.map((row, index) => (
+                  <tr
+                    key={row.capability}
+                    className={index !== comparisonRows.length - 1 ? 'border-b border-border' : ''}
+                  >
+                    <td className="p-4 text-foreground">{row.capability}</td>
+                    <td className="p-4">
+                      <ComparisonMark value={row.copilot} />
+                    </td>
+                    <td className="p-4">
+                      <ComparisonMark value={row.cursor} />
+                    </td>
+                    <td className="p-4">
+                      <ComparisonMark value={row.docs} />
+                    </td>
+                    <td className="p-4 bg-[hsl(var(--landing-accent)/.06)]">
+                      <ComparisonMark value={row.architect} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-4 text-xs text-muted-foreground">
+            Based on our own product research; other tools evolve quickly and may close these gaps
+            over time.
+          </p>
+        </div>
+      </section>
+
+      <section className="border-b border-border/70 bg-accent/30 py-20 md:py-28">
+        <div className="container">
+          <div className="max-w-2xl">
+            <SectionEyebrow>Who it&apos;s for</SectionEyebrow>
+            <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+              Built for teams that outgrow tribal knowledge.
+            </h2>
+          </div>
+          <div className="mt-10 grid gap-6 sm:grid-cols-3">
+            {targetCustomers.map(({ icon: Icon, title, detail }) => (
+              <div key={title} className="rounded-xl border border-border bg-card p-6">
+                <span className="flex size-9 items-center justify-center rounded-md border border-border bg-background">
+                  <Icon className="size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+                </span>
+                <h3 className="mt-5 font-medium">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section id="vision" className="scroll-mt-20 border-b border-border/70 py-20 md:py-28">
         <div className="container">
           <div className="max-w-2xl">
@@ -686,6 +927,79 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
         </div>
       </section>
 
+      <section className="border-b border-border/70 py-20 md:py-28">
+        <div className="container">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="mb-4 flex items-center justify-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--landing-accent))]">
+              <CircleDot className="size-3" aria-hidden="true" />
+              Simple, honest plans
+            </p>
+            <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+              Start free. Remove limits with your own key.
+            </h2>
+            <p className="mt-5 text-lg leading-8 text-muted-foreground">
+              No billing lock-in today—usage limits are plan-based, and bringing your own model key
+              uncaps AI questions and guide generation instantly.
+            </p>
+          </div>
+          <div className="mt-12 grid gap-6 lg:grid-cols-3">
+            {plans.map((plan) => (
+              <div
+                key={plan.name}
+                className={`rounded-xl border p-6 ${plan.highlighted ? 'border-[hsl(var(--landing-accent)/.55)] bg-[hsl(var(--landing-accent)/.06)]' : 'border-border bg-card'}`}
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium">{plan.name}</h3>
+                  {plan.highlighted && (
+                    <span className="rounded-full border border-[hsl(var(--landing-accent)/.45)] bg-background px-2 py-0.5 font-mono text-[10px] uppercase tracking-[.1em] text-[hsl(var(--landing-accent))]">
+                      Popular
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
+                <ul className="mt-6 space-y-3">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex items-start gap-2 text-sm">
+                      <Check
+                        className="mt-0.5 size-3.5 shrink-0 text-[hsl(var(--landing-accent))]"
+                        aria-hidden="true"
+                      />
+                      <span className="text-muted-foreground">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <p className="mt-8 text-center text-xs text-muted-foreground">
+            Enterprise and self-hosted deployments run on your own infrastructure via Docker
+            Compose—no per-seat pricing has been set yet.
+          </p>
+        </div>
+      </section>
+
+      <section
+        id="faq"
+        className="scroll-mt-20 border-b border-border/70 bg-accent/30 py-20 md:py-28"
+      >
+        <div className="container">
+          <div className="max-w-2xl">
+            <SectionEyebrow>Frequently asked</SectionEyebrow>
+            <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+              Questions teams ask before connecting a repository.
+            </h2>
+          </div>
+          <div className="mt-10 grid gap-6 sm:grid-cols-2">
+            {faqs.map(({ question, answer }) => (
+              <div key={question} className="rounded-xl border border-border bg-card p-6">
+                <h3 className="font-medium">{question}</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{answer}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="py-20 md:py-28">
         <div className="container">
           <div className="rounded-2xl border border-border bg-card p-8 md:p-12">
@@ -709,10 +1023,24 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
             </div>
           </div>
           <div className="mt-8 flex flex-col gap-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-            <p className="font-mono">
-              Architect AI · The collective engineering memory for software teams.
-            </p>
-            <div className="flex gap-4">
+            <p className="font-mono">Architect AI · From chat with code to engineering memory.</p>
+            <div className="flex flex-wrap items-center gap-4">
+              <a
+                href={GITHUB_REPO_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 hover:text-foreground"
+              >
+                <Github className="size-3.5" aria-hidden="true" />
+                GitHub
+              </a>
+              <a
+                href="#faq"
+                onClick={(event) => handleNavClick(event, 'faq')}
+                className="hover:text-foreground"
+              >
+                FAQ
+              </a>
               <Link href="/sign-in" className="hover:text-foreground">
                 Sign in
               </Link>
