@@ -14,6 +14,7 @@ import {
   GitBranch,
   GitCommitHorizontal,
   Github,
+  Globe,
   KeyRound,
   Lock,
   MessageSquare,
@@ -31,8 +32,11 @@ import {
   Zap,
 } from 'lucide-react';
 import { useCallback, useState, type SyntheticEvent } from 'react';
+import { LandingPlansSection } from './landing-plans';
 
-const GITHUB_REPO_URL = 'https://github.com/maxdudko/architect-ai';
+const CREATOR_SITE_URL = 'https://maxdudko.vercel.app/';
+const GITHUB_REPO_URL: string | null = null; // 'https://github.com/maxdudko/architect-ai'
+const isGithubPublic = GITHUB_REPO_URL != null;
 
 const questions = [
   {
@@ -206,47 +210,12 @@ const targetCustomers = [
   },
 ];
 
-const plans = [
-  {
-    name: 'Free',
-    tagline: 'Validate the workflow',
-    features: [
-      'Connect your repositories',
-      'Hosted AI included',
-      'Plan-based usage limits',
-      'Onboarding guides & chat',
-    ],
-    highlighted: false,
-  },
-  {
-    name: 'BYOK',
-    tagline: 'Bring your own model key',
-    features: [
-      'OpenAI, Anthropic, Grok, or Gemini',
-      'Unlimited AI questions & guides',
-      'Switch providers instantly',
-      'Keys encrypted at rest, never shared',
-    ],
-    highlighted: true,
-  },
-  {
-    name: 'Enterprise',
-    tagline: 'Governance at scale',
-    features: [
-      'Self-hosted via Docker Compose',
-      'Workspace roles & audit-friendly logs',
-      'Admin analytics & usage controls',
-      'Data stays in your infrastructure',
-    ],
-    highlighted: false,
-  },
-];
-
 const faqs = [
   {
     question: 'Is Architect AI open source?',
     answer:
       'Yes. The full stack is open source and available on GitHub, including the API, worker, indexing pipeline, and web application.',
+    requiresGithub: true,
   },
   {
     question: 'Can we self-host it?',
@@ -257,6 +226,11 @@ const faqs = [
     question: 'Which AI providers are supported?',
     answer:
       'Hosted AI works out of the box. Workspaces can also bring their own key for OpenAI, Anthropic, Grok, or Gemini and switch the active provider instantly—no redeploy required.',
+  },
+  {
+    question: 'How do plans and pricing work?',
+    answer:
+      'Free includes hosted AI with plan-based usage limits. PRO raises those limits for a monthly price. Enterprise is custom and starts with a conversation with sales. Connecting your own model key uncaps AI questions and onboarding guides without changing the plan price.',
   },
   {
     question: 'What happens to our source code and API keys?',
@@ -301,6 +275,29 @@ function SourceReference({ source }: { source: string }) {
         aria-hidden="true"
       />
     </button>
+  );
+}
+
+function GitHubLink({ className, iconClassName }: { className: string; iconClassName: string }) {
+  const isDisabled = !isGithubPublic;
+
+  return (
+    <a
+      href={isDisabled ? undefined : GITHUB_REPO_URL}
+      target={isDisabled ? undefined : '_blank'}
+      rel={isDisabled ? undefined : 'noreferrer'}
+      aria-disabled={isDisabled}
+      tabIndex={isDisabled ? -1 : undefined}
+      title={isDisabled ? 'Repository is not public yet' : undefined}
+      className={
+        isDisabled
+          ? `${className} cursor-not-allowed opacity-50 hover:text-muted-foreground`
+          : className
+      }
+    >
+      <Github className={iconClassName} aria-hidden="true" />
+      GitHub
+    </a>
   );
 }
 
@@ -387,6 +384,13 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
               Vision
             </a>
             <a
+              href="#plans"
+              onClick={(event) => handleNavClick(event, 'plans')}
+              className="transition-colors hover:text-foreground"
+            >
+              Plans
+            </a>
+            <a
               href="#faq"
               onClick={(event) => handleNavClick(event, 'faq')}
               className="transition-colors hover:text-foreground"
@@ -396,14 +400,18 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
           </nav>
           <div className="flex items-center gap-2">
             <a
-              href={GITHUB_REPO_URL}
+              href={CREATOR_SITE_URL}
               target="_blank"
               rel="noreferrer"
               className="hidden items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
             >
-              <Github className="size-4" aria-hidden="true" />
-              GitHub
+              <Globe className="size-4" aria-hidden="true" />
+              My Landing
             </a>
+            <GitHubLink
+              className="hidden items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
+              iconClassName="size-4"
+            />
             {isAuthenticated ? (
               <Link
                 href="/dashboard"
@@ -468,7 +476,10 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
               Repository-scoped answers with source references.
             </p>
             <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2">
-              {trustBadges.map(({ label, icon: Icon }) => (
+              {(isGithubPublic
+                ? trustBadges
+                : trustBadges.filter((badge) => badge.label !== 'Open source')
+              ).map(({ label, icon: Icon }) => (
                 <span
                   key={label}
                   className="flex items-center gap-1.5 text-xs text-muted-foreground"
@@ -941,56 +952,7 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
         </div>
       </section>
 
-      <section className="border-b border-border/70 py-20 md:py-28">
-        <div className="container">
-          <div className="mx-auto max-w-2xl text-center">
-            <p className="mb-4 flex items-center justify-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--landing-accent))]">
-              <CircleDot className="size-3" aria-hidden="true" />
-              Simple, honest plans
-            </p>
-            <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
-              Start free. Remove limits with your own key.
-            </h2>
-            <p className="mt-5 text-lg leading-8 text-muted-foreground">
-              No billing lock-in today—usage limits are plan-based, and bringing your own model key
-              uncaps AI questions and guide generation instantly.
-            </p>
-          </div>
-          <div className="mt-12 grid gap-6 lg:grid-cols-3">
-            {plans.map((plan) => (
-              <div
-                key={plan.name}
-                className={`rounded-xl border p-6 ${plan.highlighted ? 'border-[hsl(var(--landing-accent)/.55)] bg-[hsl(var(--landing-accent)/.06)]' : 'border-border bg-card'}`}
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium">{plan.name}</h3>
-                  {plan.highlighted && (
-                    <span className="rounded-full border border-[hsl(var(--landing-accent)/.45)] bg-background px-2 py-0.5 font-mono text-[10px] uppercase tracking-[.1em] text-[hsl(var(--landing-accent))]">
-                      Popular
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
-                <ul className="mt-6 space-y-3">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2 text-sm">
-                      <Check
-                        className="mt-0.5 size-3.5 shrink-0 text-[hsl(var(--landing-accent))]"
-                        aria-hidden="true"
-                      />
-                      <span className="text-muted-foreground">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-          <p className="mt-8 text-center text-xs text-muted-foreground">
-            Enterprise and self-hosted deployments run on your own infrastructure via Docker
-            Compose—no per-seat pricing has been set yet.
-          </p>
-        </div>
-      </section>
+      <LandingPlansSection isAuthenticated={isAuthenticated} />
 
       <section
         id="faq"
@@ -1004,12 +966,14 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
             </h2>
           </div>
           <div className="mt-10 grid gap-6 sm:grid-cols-2">
-            {faqs.map(({ question, answer }) => (
-              <div key={question} className="rounded-xl border border-border bg-card p-6">
-                <h3 className="font-medium">{question}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{answer}</p>
-              </div>
-            ))}
+            {faqs
+              .filter((faq) => isGithubPublic || !faq.requiresGithub)
+              .map(({ question, answer }) => (
+                <div key={question} className="rounded-xl border border-border bg-card p-6">
+                  <h3 className="font-medium">{question}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{answer}</p>
+                </div>
+              ))}
           </div>
         </div>
       </section>
@@ -1040,14 +1004,18 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
             <p className="font-mono">Architect AI · From chat with code to engineering memory.</p>
             <div className="flex flex-wrap items-center gap-4">
               <a
-                href={GITHUB_REPO_URL}
+                href={CREATOR_SITE_URL}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-1.5 hover:text-foreground"
               >
-                <Github className="size-3.5" aria-hidden="true" />
-                GitHub
+                <Globe className="size-3.5" aria-hidden="true" />
+                My Landing
               </a>
+              <GitHubLink
+                className="flex items-center gap-1.5 hover:text-foreground"
+                iconClassName="size-3.5"
+              />
               <a
                 href="#faq"
                 onClick={(event) => handleNavClick(event, 'faq')}
