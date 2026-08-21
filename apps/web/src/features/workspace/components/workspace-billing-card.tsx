@@ -2,7 +2,13 @@
 
 import { CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { BillingMode, Plan, PlanLimit, SubscriptionStatus } from '@/entities';
+import type {
+  BillingMode,
+  Plan,
+  PlanLimit,
+  SubscriptionStatus,
+  WorkspaceBilling,
+} from '@/entities';
 import { getApiErrorMessage } from '@/lib/api/error-message';
 import {
   Badge,
@@ -11,6 +17,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  ConfirmationDialog,
   ErrorState,
   Loader,
   Skeleton,
@@ -19,13 +26,20 @@ import {
   useCreateBillingPortalSessionMutation,
   useCreateCheckoutSessionMutation,
   usePlansQuery,
+  useResumePaidSubscriptionMutation,
+  useScheduleDowngradeToFreeMutation,
   useWorkspaceBillingQuery,
   useWorkspaceUsageQuery,
 } from '../services/workspace.service';
-import { billingModeForAiMode, formatMonthlyPrice } from '../utils/billing';
+import { billingModeForAiMode, formatMonthlyPrice, isFreePlan } from '../utils/billing';
 import { USAGE_METRIC_LABELS, effectivePlanLimit, formatLimitCap } from '../utils/usage';
 
 const SALES_EMAIL = 'sales@architect.ai';
+
+function salesGmailComposeUrl(planName: string): string {
+  const subject = encodeURIComponent(`${planName} plan`);
+  return `https://mail.google.com/mail/u/0/?fs=1&tf=cm&source=mailto&to=${SALES_EMAIL}&su=${subject}`;
+}
 
 export function WorkspaceBillingCard({ workspaceId }: { workspaceId: string }) {
   const billingQuery = useWorkspaceBillingQuery(workspaceId);
@@ -33,12 +47,16 @@ export function WorkspaceBillingCard({ workspaceId }: { workspaceId: string }) {
   const usageQuery = useWorkspaceUsageQuery(workspaceId);
   const checkoutMutation = useCreateCheckoutSessionMutation(workspaceId);
   const portalMutation = useCreateBillingPortalSessionMutation(workspaceId);
+  const downgradeMutation = useScheduleDowngradeToFreeMutation(workspaceId);
+  const resumeMutation = useResumePaidSubscriptionMutation(workspaceId);
 
   const aiMode = usageQuery.data?.aiMode ?? 'HOSTED';
   const billingMode = billingModeForAiMode(aiMode);
   const billing = billingQuery.data;
   const isLoading = billingQuery.isLoading || plansQuery.isLoading;
   const isError = billingQuery.isError || plansQuery.isError;
+  const actionPending =
+    checkoutMutation.isPending || downgradeMutation.isPending || resumeMutation.isPending;
 
   const onUpgrade = async (planId: string, planName: string) => {
     try {
@@ -46,6 +64,24 @@ export function WorkspaceBillingCard({ workspaceId }: { workspaceId: string }) {
       window.location.assign(session.url);
     } catch (error) {
       toast.error(getApiErrorMessage(error, `Unable to start checkout for ${planName}.`));
+    }
+  };
+
+  const onDowngradeToFree = async () => {
+    try {
+      await downgradeMutation.mutateAsync();
+      toast.success('Your plan will switch to Free at the end of the current billing period.');
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Unable to schedule the downgrade to Free.'));
+    }
+  };
+
+  const onResume = async () => {
+    try {
+      await resumeMutation.mutateAsync();
+      toast.success('Your paid plan will continue.');
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Unable to keep the current plan.'));
     }
   };
 
@@ -113,10 +149,12 @@ export function WorkspaceBillingCard({ workspaceId }: { workspaceId: string }) {
               <PlanOfferCard
                 key={plan.id}
                 plan={plan}
+                billing={billing}
                 billingMode={billingMode}
-                isCurrentPlan={billing?.plan.id === plan.id}
-                checkoutPending={checkoutMutation.isPending}
+                actionPending={actionPending}
                 onUpgrade={onUpgrade}
+                onDowngradeToFree={onDowngradeToFree}
+                onResume={onResume}
               />
             ))}
           </div>
@@ -124,8 +162,8 @@ export function WorkspaceBillingCard({ workspaceId }: { workspaceId: string }) {
 
         <p className="text-xs text-muted-foreground">
           {aiMode === 'BYOK'
-            ? 'BYOK pricing and AI limits apply because this workspace uses its own provider key.'
-            : 'Hosted AI pricing and limits apply. Connect your own AI provider key for BYOK rates and uncapped questions and guides.'}
+            ? 'BYOK is active: AI questions and onboarding guides are unlimited. Plan price stays the same.'
+            : 'Connect your own AI provider key to uncap AI questions and onboarding guides. Plan price stays the same.'}
         </p>
       </CardContent>
     </Card>
@@ -134,18 +172,27 @@ export function WorkspaceBillingCard({ workspaceId }: { workspaceId: string }) {
 
 function PlanOfferCard({
   plan,
+  billing,
   billingMode,
-  isCurrentPlan,
-  checkoutPending,
+  actionPending,
   onUpgrade,
+  onDowngradeToFree,
+  onResume,
 }: {
   plan: Plan;
+  billing: WorkspaceBilling | undefined;
   billingMode: BillingMode;
-  isCurrentPlan: boolean;
-  checkoutPending: boolean;
+  actionPending: boolean;
   onUpgrade: (planId: string, planName: string) => Promise<void>;
+  onDowngradeToFree: () => Promise<void>;
+  onResume: () => Promise<void>;
 }) {
   const hostedSelected = billingMode === 'STANDARD';
+  const isCurrentPlan = billing?.plan.id === plan.id;
+  const currentIsPaid = Boolean(billing && !isFreePlan(billing.plan));
+  const periodEndLabel = billing?.currentPeriodEnd
+    ? new Date(billing.currentPeriodEnd).toLocaleDateString()
+    : 'the end of the current billing period';
 
   return (
     <div
@@ -172,41 +219,129 @@ function PlanOfferCard({
         {(plan.limits ?? []).map((limit) => (
           <LimitRow key={limit.metric} limit={limit} hostedSelected={hostedSelected} />
         ))}
-        <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] items-baseline border-b px-2 py-2 bg-[#29903B]/20">
-          <span className="text-muted-foreground font-bold">Price</span>
-          <span
-            className={`font-semibold ${hostedSelected ? 'text-foreground' : 'text-muted-foreground'}`}
-          >
-            {formatMonthlyPrice(plan, 'STANDARD')}
-          </span>
-          <span
-            className={`font-semibold ${!hostedSelected ? 'text-foreground' : 'text-muted-foreground'}`}
-          >
-            {formatMonthlyPrice(plan, 'BYOK')}
-          </span>
+        <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] items-baseline px-2 py-2 bg-[#29903B]/20">
+          <span className="font-bold text-muted-foreground">Price</span>
+          <span className="col-span-2 font-semibold">{formatMonthlyPrice(plan, 'STANDARD')}</span>
         </div>
       </div>
 
-      {plan.isContactSales ? (
-        <Button asChild type="button" size="sm" variant="outline" className="mt-auto w-full">
-          <a href={`mailto:${SALES_EMAIL}?subject=${encodeURIComponent(`${plan.name} plan`)}`}>
-            Contact sales
-          </a>
-        </Button>
-      ) : (
-        <Button
-          type="button"
-          size="sm"
-          className="mt-auto w-full"
-          variant={isCurrentPlan ? 'outline' : 'default'}
-          disabled={isCurrentPlan || checkoutPending}
-          onClick={() => void onUpgrade(plan.id, plan.name)}
-        >
-          {checkoutPending ? <Loader className="mr-2 h-4 w-4" /> : null}
-          {isCurrentPlan ? 'Current plan' : 'Upgrade'}
-        </Button>
-      )}
+      <PlanActionButtons
+        plan={plan}
+        isCurrentPlan={isCurrentPlan}
+        currentIsPaid={currentIsPaid}
+        currentPlanName={billing?.plan.name ?? 'your current plan'}
+        cancelAtPeriodEnd={billing?.cancelAtPeriodEnd ?? false}
+        periodEndLabel={periodEndLabel}
+        actionPending={actionPending}
+        onUpgrade={onUpgrade}
+        onDowngradeToFree={onDowngradeToFree}
+        onResume={onResume}
+      />
     </div>
+  );
+}
+
+function PlanActionButtons({
+  plan,
+  isCurrentPlan,
+  currentIsPaid,
+  currentPlanName,
+  cancelAtPeriodEnd,
+  periodEndLabel,
+  actionPending,
+  onUpgrade,
+  onDowngradeToFree,
+  onResume,
+}: {
+  plan: Plan;
+  isCurrentPlan: boolean;
+  currentIsPaid: boolean;
+  currentPlanName: string;
+  cancelAtPeriodEnd: boolean;
+  periodEndLabel: string;
+  actionPending: boolean;
+  onUpgrade: (planId: string, planName: string) => Promise<void>;
+  onDowngradeToFree: () => Promise<void>;
+  onResume: () => Promise<void>;
+}) {
+  if (plan.isContactSales) {
+    return (
+      <Button asChild type="button" size="sm" variant="outline" className="mt-auto w-full">
+        <a href={salesGmailComposeUrl(plan.name)} target="_blank" rel="noopener noreferrer">
+          Contact sales
+        </a>
+      </Button>
+    );
+  }
+
+  if (isCurrentPlan) {
+    return (
+      <div className="mt-auto flex flex-col gap-2">
+        <Button type="button" size="sm" className="w-full" variant="outline" disabled>
+          Current plan
+        </Button>
+        {cancelAtPeriodEnd ? (
+          <Button
+            type="button"
+            size="sm"
+            className="w-full"
+            variant="default"
+            disabled={actionPending}
+            onClick={() => void onResume()}
+          >
+            {actionPending ? <Loader className="mr-2 h-4 w-4" /> : null}
+            Keep this plan
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (isFreePlan(plan) && currentIsPaid) {
+    if (cancelAtPeriodEnd) {
+      return (
+        <Button type="button" size="sm" className="mt-auto w-full" variant="outline" disabled>
+          Switches {periodEndLabel}
+        </Button>
+      );
+    }
+
+    return (
+      <div className="mt-auto w-full">
+        <ConfirmationDialog
+          title="Switch to Free at period end?"
+          description={`You'll keep ${currentPlanName} until ${periodEndLabel}. After that this workspace switches to Free and the paid subscription is canceled.`}
+          confirmText="Schedule downgrade"
+          trigger={
+            <Button
+              type="button"
+              size="sm"
+              className="w-full"
+              variant="outline"
+              disabled={actionPending}
+            >
+              {actionPending ? <Loader className="mr-2 h-4 w-4" /> : null}
+              Downgrade
+            </Button>
+          }
+          onConfirm={onDowngradeToFree}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <Button
+      type="button"
+      size="sm"
+      className="mt-auto w-full"
+      variant="default"
+      disabled={actionPending}
+      onClick={() => void onUpgrade(plan.id, plan.name)}
+    >
+      {actionPending ? <Loader className="mr-2 h-4 w-4" /> : null}
+      Upgrade
+    </Button>
   );
 }
 

@@ -4,6 +4,10 @@ export function billingModeForAiMode(aiMode: WorkspaceAiMode): BillingMode {
   return aiMode === 'BYOK' ? 'BYOK' : 'STANDARD';
 }
 
+export function isFreePlan(plan: { key: string }): boolean {
+  return plan.key === 'free';
+}
+
 export function findMonthlyPrice(plan: Plan, billingMode: BillingMode): PlanPrice | undefined {
   return plan.prices.find(
     (price) => price.billingMode === billingMode && price.interval === 'MONTHLY',

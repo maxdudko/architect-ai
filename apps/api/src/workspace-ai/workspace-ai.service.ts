@@ -222,7 +222,7 @@ export class WorkspaceAiService {
   }
 
   /**
-   * Re-prices any active paid subscription for the new BYOK/hosted mode.
+   * Records BYOK vs hosted mode after AI settings change.
    * Best-effort: a Stripe hiccup here must not block saving AI settings.
    */
   private async syncBillingMode(workspaceId: string): Promise<void> {

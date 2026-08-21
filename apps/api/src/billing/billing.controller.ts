@@ -48,4 +48,26 @@ export class BillingController {
   ): Promise<CheckoutSessionResponseDto> {
     return this.billingService.createPortalSession(workspaceId);
   }
+
+  @Post('downgrade')
+  @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
+  @ApiOperation({
+    summary: 'Schedule a downgrade to Free when the current paid period ends',
+  })
+  scheduleDowngrade(
+    @Param('id') workspaceId: string,
+  ): Promise<WorkspaceBillingResponseDto> {
+    return this.billingService.scheduleDowngradeToFree(workspaceId);
+  }
+
+  @Post('resume')
+  @Roles(WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
+  @ApiOperation({
+    summary: 'Keep the paid plan by reversing a scheduled period-end cancel',
+  })
+  resumeSubscription(
+    @Param('id') workspaceId: string,
+  ): Promise<WorkspaceBillingResponseDto> {
+    return this.billingService.resumePaidSubscription(workspaceId);
+  }
 }

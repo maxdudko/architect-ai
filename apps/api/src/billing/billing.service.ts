@@ -24,6 +24,8 @@ import { PlanResponseDto } from './dto/plan-response.dto';
 import { WorkspaceBillingResponseDto } from './dto/workspace-billing-response.dto';
 import { STRIPE_CLIENT } from './stripe-client.token';
 
+const FREE_PLAN_KEY = 'free';
+
 const ACTIVE_SUBSCRIPTION_STATUSES: ReadonlySet<SubscriptionStatus> = new Set([
   SubscriptionStatus.ACTIVE,
   SubscriptionStatus.TRIALING,
@@ -142,13 +144,15 @@ export class BillingService {
         'This plan is contact-sales only. Reach out to sales to get set up.',
       );
     }
+    if (plan.key === FREE_PLAN_KEY) {
+      throw new BadRequestException(
+        'Downgrade to Free by canceling the paid subscription at period end.',
+      );
+    }
 
-    const billingMode = (await this.isByokActive(workspaceId))
-      ? BillingMode.BYOK
-      : BillingMode.STANDARD;
     const price = plan.prices.find(
       (candidate) =>
-        candidate.billingMode === billingMode &&
+        candidate.billingMode === BillingMode.STANDARD &&
         candidate.interval === BillingInterval.MONTHLY,
     );
     if (!price) {
@@ -202,19 +206,99 @@ export class BillingService {
   }
 
   /**
-   * Re-prices the workspace's active subscription after a BYOK toggle so the
-   * standard/BYOK price stays in sync with the workspace's current AI mode.
-   * No-op for workspaces without an active paid subscription.
+   * Schedules a move to Free when the current paid period ends. The workspace
+   * keeps its paid plan until Stripe sends customer.subscription.deleted.
    */
-  async syncBillingModeForWorkspace(workspaceId: string): Promise<void> {
+  async scheduleDowngradeToFree(
+    workspaceId: string,
+  ): Promise<WorkspaceBillingResponseDto> {
+    const workspace = await this.prisma.workspace.findFirst({
+      where: { id: workspaceId, deletedAt: null },
+      select: { id: true, plan: { select: { key: true } } },
+    });
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+    if (workspace.plan.key === FREE_PLAN_KEY) {
+      throw new BadRequestException('Workspace is already on the Free plan');
+    }
+
     const subscription = await this.prisma.workspaceSubscription.findUnique({
       where: { workspaceId },
     });
     if (
       !subscription?.stripeSubscriptionId ||
-      !subscription.stripeSubscriptionItemId ||
       !ACTIVE_SUBSCRIPTION_STATUSES.has(subscription.status)
     ) {
+      throw new BadRequestException(
+        'No active paid subscription to cancel. Upgrade a plan first.',
+      );
+    }
+    if (subscription.cancelAtPeriodEnd) {
+      return this.getWorkspaceBilling(workspaceId);
+    }
+
+    const updated = await this.stripe.subscriptions.update(
+      subscription.stripeSubscriptionId,
+      { cancel_at_period_end: true },
+    );
+
+    await this.prisma.workspaceSubscription.update({
+      where: { workspaceId },
+      data: {
+        cancelAtPeriodEnd: true,
+        currentPeriodEnd:
+          readCurrentPeriodEnd(updated) ?? subscription.currentPeriodEnd,
+      },
+    });
+
+    return this.getWorkspaceBilling(workspaceId);
+  }
+
+  /**
+   * Reverses a scheduled period-end cancellation so the paid plan continues.
+   */
+  async resumePaidSubscription(
+    workspaceId: string,
+  ): Promise<WorkspaceBillingResponseDto> {
+    const subscription = await this.prisma.workspaceSubscription.findUnique({
+      where: { workspaceId },
+    });
+    if (
+      !subscription?.stripeSubscriptionId ||
+      !subscription.cancelAtPeriodEnd
+    ) {
+      throw new BadRequestException(
+        'There is no scheduled downgrade to resume.',
+      );
+    }
+
+    const updated = await this.stripe.subscriptions.update(
+      subscription.stripeSubscriptionId,
+      { cancel_at_period_end: false },
+    );
+
+    await this.prisma.workspaceSubscription.update({
+      where: { workspaceId },
+      data: {
+        cancelAtPeriodEnd: false,
+        currentPeriodEnd:
+          readCurrentPeriodEnd(updated) ?? subscription.currentPeriodEnd,
+      },
+    });
+
+    return this.getWorkspaceBilling(workspaceId);
+  }
+
+  /**
+   * Records whether BYOK is active for the workspace. Plan price is fixed
+   * (standard); BYOK only uncaps AI questions and onboarding guides.
+   */
+  async syncBillingModeForWorkspace(workspaceId: string): Promise<void> {
+    const subscription = await this.prisma.workspaceSubscription.findUnique({
+      where: { workspaceId },
+    });
+    if (!subscription) {
       return;
     }
 
@@ -224,31 +308,6 @@ export class BillingService {
     if (nextMode === subscription.billingMode) {
       return;
     }
-
-    const plan = await this.prisma.plan.findUnique({
-      where: { id: subscription.planId },
-      include: { prices: true },
-    });
-    const price = plan?.prices.find(
-      (candidate) =>
-        candidate.billingMode === nextMode &&
-        candidate.interval === BillingInterval.MONTHLY,
-    );
-    if (!plan || !price) {
-      this.logger.warn(
-        `No ${nextMode} price configured for the workspace's plan; skipping BYOK price sync for workspace ${workspaceId}`,
-      );
-      return;
-    }
-
-    const stripePriceId = await this.getOrCreateStripePrice(plan, price);
-
-    await this.stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-      items: [
-        { id: subscription.stripeSubscriptionItemId, price: stripePriceId },
-      ],
-      proration_behavior: 'create_prorations',
-    });
 
     await this.prisma.workspaceSubscription.update({
       where: { workspaceId },

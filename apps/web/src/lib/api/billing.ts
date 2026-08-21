@@ -28,3 +28,17 @@ export async function createBillingPortalSession(workspaceId: string): Promise<C
   );
   return data;
 }
+
+export async function scheduleDowngradeToFree(workspaceId: string): Promise<WorkspaceBilling> {
+  const { data } = await apiClient.post<WorkspaceBilling>(
+    `/workspaces/${workspaceId}/billing/downgrade`,
+  );
+  return data;
+}
+
+export async function resumePaidSubscription(workspaceId: string): Promise<WorkspaceBilling> {
+  const { data } = await apiClient.post<WorkspaceBilling>(
+    `/workspaces/${workspaceId}/billing/resume`,
+  );
+  return data;
+}

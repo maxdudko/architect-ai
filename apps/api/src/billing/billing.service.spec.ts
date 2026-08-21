@@ -85,6 +85,25 @@ describe('BillingService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    it('throws when checking out the Free plan', async () => {
+      prisma.workspace.findFirst.mockResolvedValue({
+        id: workspaceId,
+        planId: 'plan-pro',
+      });
+      prisma.plan.findUnique.mockResolvedValue({
+        id: 'plan-free',
+        key: 'free',
+        isActive: true,
+        isContactSales: false,
+        prices: [],
+      });
+
+      await expect(
+        service.createCheckoutSession(workspaceId, 'plan-free'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+    });
+
     it('throws when the plan is contact-sales only', async () => {
       prisma.workspace.findFirst.mockResolvedValue({
         id: workspaceId,
@@ -179,7 +198,7 @@ describe('BillingService', () => {
       );
     });
 
-    it('uses the BYOK price when the workspace has an active AI provider', async () => {
+    it('uses the STANDARD price even when the workspace has an active AI provider', async () => {
       prisma.workspace.findFirst.mockResolvedValue({
         id: workspaceId,
         planId: 'plan-free',
@@ -226,7 +245,7 @@ describe('BillingService', () => {
       expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
           customer: 'cus_existing',
-          line_items: [{ price: 'price_stripe_byok', quantity: 1 }],
+          line_items: [{ price: 'price_stripe_standard', quantity: 1 }],
         }),
       );
     });
@@ -314,7 +333,7 @@ describe('BillingService', () => {
       expect(stripe.subscriptions.update).not.toHaveBeenCalled();
     });
 
-    it('swaps the subscription price and persists the new billing mode on a BYOK toggle', async () => {
+    it('persists billing mode on a BYOK toggle without swapping the Stripe price', async () => {
       prisma.workspaceSubscription.findUnique.mockResolvedValue({
         stripeSubscriptionId: 'sub_1',
         stripeSubscriptionItemId: 'si_1',
@@ -325,37 +344,18 @@ describe('BillingService', () => {
       prisma.workspaceAiSettings.findUnique.mockResolvedValue({
         activeProvider: 'OPENAI',
       });
-      prisma.plan.findUnique.mockResolvedValue({
-        id: planId,
-        name: 'PRO',
-        key: 'pro',
-        stripeProductId: 'prod_1',
-        prices: [
-          {
-            id: 'price-byok',
-            billingMode: BillingMode.BYOK,
-            interval: 'MONTHLY',
-            amount: 1200,
-            currency: 'usd',
-            stripePriceId: 'price_stripe_byok',
-          },
-        ],
-      });
       prisma.workspaceSubscription.update.mockResolvedValue({});
 
       await service.syncBillingModeForWorkspace(workspaceId);
 
-      expect(stripe.subscriptions.update).toHaveBeenCalledWith('sub_1', {
-        items: [{ id: 'si_1', price: 'price_stripe_byok' }],
-        proration_behavior: 'create_prorations',
-      });
+      expect(stripe.subscriptions.update).not.toHaveBeenCalled();
       expect(prisma.workspaceSubscription.update).toHaveBeenCalledWith({
         where: { workspaceId },
         data: { billingMode: BillingMode.BYOK },
       });
     });
 
-    it('skips a subscription that is not in an active status', async () => {
+    it('does not change the Stripe price when the subscription is canceled', async () => {
       prisma.workspaceSubscription.findUnique.mockResolvedValue({
         stripeSubscriptionId: 'sub_1',
         stripeSubscriptionItemId: 'si_1',
@@ -419,6 +419,165 @@ describe('BillingService', () => {
       expect(prisma.stripeWebhookEvent.create).toHaveBeenCalledWith({
         data: { id: 'evt_2', type: 'invoice.paid' },
       });
+    });
+  });
+
+  describe('scheduleDowngradeToFree', () => {
+    const periodEnd = new Date('2026-09-21T00:00:00.000Z');
+
+    it('sets Stripe cancel_at_period_end without changing the plan immediately', async () => {
+      prisma.workspace.findFirst
+        .mockResolvedValueOnce({
+          id: workspaceId,
+          plan: { key: 'pro' },
+        })
+        .mockResolvedValueOnce({
+          plan: {
+            id: planId,
+            key: 'pro',
+            name: 'PRO',
+            isContactSales: false,
+          },
+        });
+      prisma.workspaceSubscription.findUnique
+        .mockResolvedValueOnce({
+          stripeSubscriptionId: 'sub_1',
+          status: SubscriptionStatus.ACTIVE,
+          cancelAtPeriodEnd: false,
+          currentPeriodEnd: periodEnd,
+        })
+        .mockResolvedValueOnce({
+          billingMode: BillingMode.STANDARD,
+          status: SubscriptionStatus.ACTIVE,
+          currentPeriodEnd: periodEnd,
+          cancelAtPeriodEnd: true,
+          stripeCustomerId: 'cus_1',
+        });
+      prisma.workspaceAiSettings.findUnique.mockResolvedValue(null);
+      stripe.subscriptions.update.mockResolvedValue({
+        cancel_at_period_end: true,
+        items: { data: [{ current_period_end: 1789948800 }] },
+      });
+      prisma.workspaceSubscription.update.mockResolvedValue({});
+
+      const result = await service.scheduleDowngradeToFree(workspaceId);
+
+      expect(stripe.subscriptions.update).toHaveBeenCalledWith('sub_1', {
+        cancel_at_period_end: true,
+      });
+      expect(prisma.workspace.update).not.toHaveBeenCalled();
+      expect(prisma.workspaceSubscription.update).toHaveBeenCalledWith({
+        where: { workspaceId },
+        data: expect.objectContaining({ cancelAtPeriodEnd: true }),
+      });
+      expect(result.cancelAtPeriodEnd).toBe(true);
+      expect(result.plan.key).toBe('pro');
+    });
+
+    it('throws when the workspace is already on Free', async () => {
+      prisma.workspace.findFirst.mockResolvedValue({
+        id: workspaceId,
+        plan: { key: 'free' },
+      });
+
+      await expect(
+        service.scheduleDowngradeToFree(workspaceId),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+    });
+
+    it('throws when there is no active Stripe subscription', async () => {
+      prisma.workspace.findFirst.mockResolvedValue({
+        id: workspaceId,
+        plan: { key: 'pro' },
+      });
+      prisma.workspaceSubscription.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.scheduleDowngradeToFree(workspaceId),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('is a no-op when cancellation is already scheduled', async () => {
+      prisma.workspace.findFirst
+        .mockResolvedValueOnce({
+          id: workspaceId,
+          plan: { key: 'pro' },
+        })
+        .mockResolvedValueOnce({
+          plan: {
+            id: planId,
+            key: 'pro',
+            name: 'PRO',
+            isContactSales: false,
+          },
+        });
+      prisma.workspaceSubscription.findUnique.mockResolvedValue({
+        stripeSubscriptionId: 'sub_1',
+        status: SubscriptionStatus.ACTIVE,
+        cancelAtPeriodEnd: true,
+        currentPeriodEnd: periodEnd,
+        billingMode: BillingMode.STANDARD,
+        stripeCustomerId: 'cus_1',
+      });
+      prisma.workspaceAiSettings.findUnique.mockResolvedValue(null);
+
+      const result = await service.scheduleDowngradeToFree(workspaceId);
+
+      expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+      expect(result.cancelAtPeriodEnd).toBe(true);
+    });
+  });
+
+  describe('resumePaidSubscription', () => {
+    const periodEnd = new Date('2026-09-21T00:00:00.000Z');
+
+    it('clears cancel_at_period_end on Stripe', async () => {
+      prisma.workspaceSubscription.findUnique
+        .mockResolvedValueOnce({
+          stripeSubscriptionId: 'sub_1',
+          cancelAtPeriodEnd: true,
+          currentPeriodEnd: periodEnd,
+        })
+        .mockResolvedValueOnce({
+          billingMode: BillingMode.STANDARD,
+          status: SubscriptionStatus.ACTIVE,
+          currentPeriodEnd: periodEnd,
+          cancelAtPeriodEnd: false,
+          stripeCustomerId: 'cus_1',
+        });
+      prisma.workspace.findFirst.mockResolvedValue({
+        plan: {
+          id: planId,
+          key: 'pro',
+          name: 'PRO',
+          isContactSales: false,
+        },
+      });
+      prisma.workspaceAiSettings.findUnique.mockResolvedValue(null);
+      stripe.subscriptions.update.mockResolvedValue({
+        cancel_at_period_end: false,
+        items: { data: [{ current_period_end: 1789948800 }] },
+      });
+      prisma.workspaceSubscription.update.mockResolvedValue({});
+
+      const result = await service.resumePaidSubscription(workspaceId);
+
+      expect(stripe.subscriptions.update).toHaveBeenCalledWith('sub_1', {
+        cancel_at_period_end: false,
+      });
+      expect(result.cancelAtPeriodEnd).toBe(false);
+    });
+
+    it('throws when no downgrade is scheduled', async () => {
+      prisma.workspaceSubscription.findUnique.mockResolvedValue({
+        stripeSubscriptionId: 'sub_1',
+        cancelAtPeriodEnd: false,
+      });
+
+      await expect(
+        service.resumePaidSubscription(workspaceId),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 });

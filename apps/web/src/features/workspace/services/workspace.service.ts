@@ -9,6 +9,8 @@ import {
   getWorkspaceAiSettings,
   getWorkspaceBilling,
   getWorkspaceUsage,
+  resumePaidSubscription,
+  scheduleDowngradeToFree,
   listInvitations,
   listMembers,
   listPlans,
@@ -224,5 +226,25 @@ export function useCreateCheckoutSessionMutation(workspaceId: string) {
 export function useCreateBillingPortalSessionMutation(workspaceId: string) {
   return useMutation({
     mutationFn: () => createBillingPortalSession(workspaceId),
+  });
+}
+
+export function useScheduleDowngradeToFreeMutation(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => scheduleDowngradeToFree(workspaceId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: WORKSPACE_QUERY_KEYS.billing(workspaceId) });
+    },
+  });
+}
+
+export function useResumePaidSubscriptionMutation(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => resumePaidSubscription(workspaceId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: WORKSPACE_QUERY_KEYS.billing(workspaceId) });
+    },
   });
 }
