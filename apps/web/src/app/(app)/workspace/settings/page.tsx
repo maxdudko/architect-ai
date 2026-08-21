@@ -1,7 +1,11 @@
 'use client';
 
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect } from 'react';
+import { toast } from 'sonner';
 import {
   WorkspaceAiSettingsCard,
+  WorkspaceBillingCard,
   WorkspaceSettingsForm,
   WorkspaceUsageCard,
   useWorkspaceUsageQuery,
@@ -10,16 +14,25 @@ import { useAuth } from '@/providers/auth-provider';
 import { EmptyState, PageHeader } from '@/shared/components';
 import { canManageWorkspaceAi } from '@/features/workspace/utils/workspace-permissions';
 
-function formatPlanLabel(plan: string | undefined): string {
-  if (plan === 'PRO') return 'Pro';
-  if (plan === 'ENTERPRISE') return 'Enterprise';
-  return 'Free';
-}
-
 export default function WorkspaceSettingsPage() {
   const { activeWorkspace } = useAuth();
   const canManageAi = canManageWorkspaceAi(activeWorkspace?.role);
   const usageQuery = useWorkspaceUsageQuery(activeWorkspace?.id ?? '');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const billingResult = searchParams.get('billing');
+
+  useEffect(() => {
+    if (!billingResult) {
+      return;
+    }
+    if (billingResult === 'success') {
+      toast.success('Subscription updated. It may take a moment to reflect below.');
+    } else if (billingResult === 'cancel') {
+      toast.info('Checkout canceled.');
+    }
+    router.replace('/workspace/settings');
+  }, [billingResult, router]);
 
   return (
     <div className="space-y-6">
@@ -32,9 +45,10 @@ export default function WorkspaceSettingsPage() {
           <WorkspaceSettingsForm
             workspaceId={activeWorkspace.id}
             initialName={activeWorkspace.name}
-            planLabel={formatPlanLabel(usageQuery.data?.plan)}
+            planLabel={usageQuery.data?.plan.name ?? 'Free'}
           />
           <WorkspaceUsageCard workspaceId={activeWorkspace.id} />
+          {canManageAi ? <WorkspaceBillingCard workspaceId={activeWorkspace.id} /> : null}
           {canManageAi ? <WorkspaceAiSettingsCard workspaceId={activeWorkspace.id} /> : null}
         </>
       ) : (

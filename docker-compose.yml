@@ -73,6 +73,10 @@ services:
       OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-gpt-4o-mini}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-2048}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      CHOKIDAR_USEPOLLING: 'true'
+      TSC_WATCHFILE: UsePollingInterval
     ports:
       - '${API_PORT:-5000}:5000'
     volumes:

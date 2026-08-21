@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AiProvider, WorkspaceRole } from '@prisma/client';
+import { BillingService } from '../billing/billing.service';
 import { TokenCipherService } from '../common/crypto/token-cipher.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { WorkspaceAiService } from './workspace-ai.service';
@@ -29,6 +30,7 @@ describe('WorkspaceAiService', () => {
   let tokenCipherService: { encrypt: jest.Mock; decrypt: jest.Mock };
   let workspacesService: { getWorkspaceForUser: jest.Mock };
   let configService: { get: jest.Mock };
+  let billingService: { syncBillingModeForWorkspace: jest.Mock };
   let service: WorkspaceAiService;
   let fetchSpy: jest.SpiedFunction<typeof fetch>;
 
@@ -72,11 +74,15 @@ describe('WorkspaceAiService', () => {
         return undefined;
       }),
     };
+    billingService = {
+      syncBillingModeForWorkspace: jest.fn().mockResolvedValue(undefined),
+    };
     service = new WorkspaceAiService(
       prisma as never,
       tokenCipherService as unknown as TokenCipherService,
       workspacesService as unknown as WorkspacesService,
       configService as unknown as ConfigService,
+      billingService as unknown as BillingService,
     );
     fetchSpy = jest.spyOn(global, 'fetch');
   });
@@ -133,6 +139,29 @@ describe('WorkspaceAiService', () => {
     );
     expect(result.activeProvider).toBe(AiProvider.OPENAI);
     expect(result.mode).toBe('BYOK');
+    expect(billingService.syncBillingModeForWorkspace).toHaveBeenCalledWith(
+      workspaceId,
+    );
+  });
+
+  it('does not fail the request when billing sync throws', async () => {
+    prisma.workspaceAiCredential.findMany.mockResolvedValue([]);
+    prisma.workspaceAiSettings.findUnique.mockResolvedValue({
+      workspaceId,
+      activeProvider: AiProvider.OPENAI,
+    });
+    billingService.syncBillingModeForWorkspace.mockRejectedValue(
+      new Error('stripe unavailable'),
+    );
+
+    await expect(
+      service.upsertCredential(
+        workspaceId,
+        userId,
+        AiProvider.OPENAI,
+        'sk-pasted-key-1234',
+      ),
+    ).resolves.toBeDefined();
   });
 
   it('rejects activating a provider without a saved credential', async () => {

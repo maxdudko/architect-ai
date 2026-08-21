@@ -8,10 +8,23 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum WorkspacePlan {
-  FREE
-  PRO
-  ENTERPRISE
+enum BillingMode {
+  STANDARD
+  BYOK
+}
+
+enum BillingInterval {
+  MONTHLY
+}
+
+enum SubscriptionStatus {
+  INCOMPLETE
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+  PAUSED
 }
 
 enum WorkspaceRole {
@@ -211,16 +224,18 @@ model OAuthAccount {
 }
 
 model Workspace {
-  id                  String               @id @default(uuid()) @db.Uuid
+  id                  String                 @id @default(uuid()) @db.Uuid
   name                String
-  slug                String               @unique
-  plan                WorkspacePlan        @default(FREE)
+  slug                String                 @unique
+  planId              String                 @map("plan_id") @db.Uuid
+  plan                Plan                   @relation(fields: [planId], references: [id])
+  subscription        WorkspaceSubscription?
   memberships         Membership[]
   invitations         Invitation[]
   repositories        Repository[]
-  createdAt           DateTime             @default(now()) @map("created_at")
-  updatedAt           DateTime             @updatedAt @map("updated_at")
-  deletedAt           DateTime?            @map("deleted_at")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+  deletedAt           DateTime?              @map("deleted_at")
   conversations       Conversation[]
   guides              Guide[]
   guideGenerationRuns GuideGenerationRun[]
@@ -228,18 +243,82 @@ model Workspace {
   aiCredentials       WorkspaceAiCredential[]
 
   @@index([createdAt], map: "workspaces_created_at_idx")
+  @@index([planId], map: "workspaces_plan_id_idx")
   @@map("workspaces")
 }
 
+model Plan {
+  id              String                   @id @default(uuid()) @db.Uuid
+  key             String                   @unique
+  name            String
+  description     String?
+  isContactSales  Boolean                  @default(false) @map("is_contact_sales")
+  isActive        Boolean                  @default(true) @map("is_active")
+  sortOrder       Int                      @default(0) @map("sort_order")
+  stripeProductId String?                  @map("stripe_product_id")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+  prices          PlanPrice[]
+  limits          PlanLimit[]
+  workspaces      Workspace[]
+  subscriptions   WorkspaceSubscription[]
+
+  @@map("plans")
+}
+
+model PlanPrice {
+  id            String          @id @default(uuid()) @db.Uuid
+  planId        String          @map("plan_id") @db.Uuid
+  billingMode   BillingMode     @map("billing_mode")
+  interval      BillingInterval @default(MONTHLY)
+  amount        Int
+  currency      String          @default("usd")
+  stripePriceId String?         @map("stripe_price_id")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  plan          Plan            @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, billingMode, interval], map: "plan_prices_plan_mode_interval_key")
+  @@map("plan_prices")
+}
+
+model WorkspaceSubscription {
+  workspaceId              String             @id @map("workspace_id") @db.Uuid
+  planId                   String             @map("plan_id") @db.Uuid
+  billingMode              BillingMode        @default(STANDARD) @map("billing_mode")
+  status                   SubscriptionStatus @default(ACTIVE)
+  stripeCustomerId         String?            @map("stripe_customer_id")
+  stripeSubscriptionId     String?            @unique @map("stripe_subscription_id")
+  stripeSubscriptionItemId String?            @map("stripe_subscription_item_id")
+  currentPeriodEnd         DateTime?          @map("current_period_end")
+  cancelAtPeriodEnd        Boolean            @default(false) @map("cancel_at_period_end")
+  createdAt                DateTime           @default(now()) @map("created_at")
+  updatedAt                DateTime           @updatedAt @map("updated_at")
+  workspace                Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan                     Plan               @relation(fields: [planId], references: [id])
+
+  @@index([planId], map: "workspace_subscriptions_plan_id_idx")
+  @@map("workspace_subscriptions")
+}
+
+model StripeWebhookEvent {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@map("stripe_webhook_events")
+}
+
 model PlanLimit {
-  id        String        @id @default(uuid()) @db.Uuid
-  plan      WorkspacePlan
+  id        String      @id @default(uuid()) @db.Uuid
+  planId    String      @map("plan_id") @db.Uuid
+  plan      Plan        @relation(fields: [planId], references: [id], onDelete: Cascade)
   metric    UsageMetric
   period    UsagePeriod
-  maxValue  Int?          @map("max_value")
-  updatedAt DateTime      @updatedAt @map("updated_at")
+  maxValue  Int?        @map("max_value")
+  updatedAt DateTime    @updatedAt @map("updated_at")
 
-  @@unique([plan, metric], map: "plan_limits_plan_metric_key")
+  @@unique([planId, metric], map: "plan_limits_plan_id_metric_key")
   @@map("plan_limits")
 }
 

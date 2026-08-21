@@ -1,4 +1,10 @@
-import type { UsageMetric, UsageMetricSnapshot, WorkspaceAiMode, WorkspacePlan } from '@/entities';
+import type {
+  PlanSummary,
+  UsageMetric,
+  UsageMetricSnapshot,
+  UsagePeriod,
+  WorkspaceAiMode,
+} from '@/entities';
 
 export const USAGE_METRIC_LABELS: Record<UsageMetric, string> = {
   REPOSITORIES: 'Repository connections',
@@ -8,10 +14,14 @@ export const USAGE_METRIC_LABELS: Record<UsageMetric, string> = {
   MEMBERS: 'Workspace members',
 };
 
-export function formatPlan(plan: WorkspacePlan): string {
-  if (plan === 'FREE') return 'Free';
-  if (plan === 'PRO') return 'Pro';
-  return 'Enterprise';
+/** LLM metrics billed to the workspace key; Hosted AI still uses plan caps. */
+export const BYOK_UNLIMITED_METRICS: ReadonlySet<UsageMetric> = new Set([
+  'AI_QUESTIONS',
+  'GUIDE_GENERATIONS',
+]);
+
+export function formatPlan(plan: PlanSummary): string {
+  return plan.name;
 }
 
 export function formatAiMode(aiMode: WorkspaceAiMode): string {
@@ -25,6 +35,24 @@ export function formatUsageLimit(metric: UsageMetricSnapshot): string {
   return `${metric.used} / ${limitLabel}${periodLabel}${remainingLabel}`;
 }
 
-export function formatUsageSummary(plan: WorkspacePlan, aiMode: WorkspaceAiMode): string {
+export function formatUsageSummary(plan: PlanSummary, aiMode: WorkspaceAiMode): string {
   return `${formatPlan(plan)} plan · ${formatAiMode(aiMode)}`;
+}
+
+export function effectivePlanLimit(
+  maxValue: number | null,
+  metric: UsageMetric,
+  isByok: boolean,
+): number | null {
+  if (isByok && BYOK_UNLIMITED_METRICS.has(metric)) {
+    return null;
+  }
+  return maxValue;
+}
+
+export function formatLimitCap(maxValue: number | null, period: UsagePeriod): string {
+  if (maxValue == null) {
+    return 'Unlimited';
+  }
+  return period === 'MONTHLY' ? `${maxValue}/mo` : String(maxValue);
 }

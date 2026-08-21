@@ -1,13 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AiProvider, Membership } from '@/entities';
 import {
+  createBillingPortalSession,
+  createCheckoutSession,
   createInvitation,
   createWorkspace,
   deleteWorkspaceAiCredential,
   getWorkspaceAiSettings,
+  getWorkspaceBilling,
   getWorkspaceUsage,
   listInvitations,
   listMembers,
+  listPlans,
   listWorkspaces,
   removeMember,
   resendInvitation,
@@ -24,6 +28,8 @@ export const WORKSPACE_QUERY_KEYS = {
   invitations: (workspaceId: string) => ['workspaces', workspaceId, 'invitations'] as const,
   usage: (workspaceId: string) => ['workspaces', workspaceId, 'usage'] as const,
   aiSettings: (workspaceId: string) => ['workspaces', workspaceId, 'ai-settings'] as const,
+  plans: ['plans'] as const,
+  billing: (workspaceId: string) => ['workspaces', workspaceId, 'billing'] as const,
 };
 
 export function useWorkspacesQuery() {
@@ -191,5 +197,32 @@ export function useTestWorkspaceAiCredentialMutation(workspaceId: string) {
   return useMutation({
     mutationFn: ({ provider, apiKey }: { provider: AiProvider; apiKey?: string }) =>
       testWorkspaceAiCredential(workspaceId, provider, apiKey),
+  });
+}
+
+export function usePlansQuery() {
+  return useQuery({
+    queryKey: WORKSPACE_QUERY_KEYS.plans,
+    queryFn: listPlans,
+  });
+}
+
+export function useWorkspaceBillingQuery(workspaceId: string) {
+  return useQuery({
+    queryKey: WORKSPACE_QUERY_KEYS.billing(workspaceId),
+    queryFn: () => getWorkspaceBilling(workspaceId),
+    enabled: Boolean(workspaceId),
+  });
+}
+
+export function useCreateCheckoutSessionMutation(workspaceId: string) {
+  return useMutation({
+    mutationFn: (planId: string) => createCheckoutSession(workspaceId, planId),
+  });
+}
+
+export function useCreateBillingPortalSessionMutation(workspaceId: string) {
+  return useMutation({
+    mutationFn: () => createBillingPortalSession(workspaceId),
   });
 }

@@ -165,8 +165,20 @@ const comparisonRows: Array<{
     docs: 'partial',
     architect: true,
   },
-  { capability: 'Preserves decisions', copilot: false, cursor: false, docs: 'partial', architect: true },
-  { capability: 'Predicts change impact', copilot: false, cursor: false, docs: false, architect: true },
+  {
+    capability: 'Preserves decisions',
+    copilot: false,
+    cursor: false,
+    docs: 'partial',
+    architect: true,
+  },
+  {
+    capability: 'Predicts change impact',
+    copilot: false,
+    cursor: false,
+    docs: false,
+    architect: true,
+  },
   {
     capability: 'Source-cited answers',
     copilot: false,
@@ -294,7 +306,9 @@ function SourceReference({ source }: { source: string }) {
 
 function ComparisonMark({ value }: { value: boolean | 'partial' }) {
   if (value === true) {
-    return <Check className="mx-auto size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />;
+    return (
+      <Check className="mx-auto size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+    );
   }
   if (value === 'partial') {
     return <Minus className="mx-auto size-4 text-muted-foreground" aria-hidden="true" />;

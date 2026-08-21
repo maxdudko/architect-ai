@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { User, WorkspacePlan, WorkspaceRole } from '@prisma/client';
+import { User, WorkspaceRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { SessionStoreService } from './session-store.service';
@@ -50,7 +50,7 @@ describe('AuthService', () => {
     id: workspaceId,
     name: "Test's Workspace",
     slug: 'test-workspace',
-    plan: WorkspacePlan.FREE,
+    planId: 'plan-free',
     createdAt: new Date('2026-06-24T00:00:00.000Z'),
     updatedAt: new Date('2026-06-24T00:00:00.000Z'),
     deletedAt: null,

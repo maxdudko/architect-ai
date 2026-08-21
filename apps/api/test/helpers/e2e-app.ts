@@ -108,7 +108,7 @@ export async function createE2eApp(): Promise<E2eContext> {
     imports: [AppModule],
   }).compile();
 
-  const app = moduleFixture.createNestApplication();
+  const app = moduleFixture.createNestApplication({ rawBody: true });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -141,7 +141,8 @@ export async function resetDatabase(prisma: PrismaService): Promise<void> {
       users,
       admins,
       system_logs,
-      plan_limits
+      plan_limits,
+      stripe_webhook_events
     RESTART IDENTITY CASCADE;
   `);
   await upsertDefaultPlanLimits(prisma);

@@ -29,6 +29,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 Usage
               </Link>
               <Link
+                href="/admin/plans"
+                className="text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Plans
+              </Link>
+              <Link
                 href="/admin/users"
                 className="text-muted-foreground transition-colors hover:text-foreground"
               >

@@ -3,15 +3,12 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  MembershipStatus,
-  Workspace,
-  WorkspacePlan,
-  WorkspaceRole,
-} from '@prisma/client';
+import { MembershipStatus, Workspace, WorkspaceRole } from '@prisma/client';
 import { MembershipsRepository } from '../memberships/memberships.repository';
 import { WorkspacesRepository } from './workspaces.repository';
 import { WorkspacesService } from './workspaces.service';
+
+const FREE_PLAN_ID = 'plan-free';
 
 describe('WorkspacesService', () => {
   const userId = 'user-1';
@@ -21,7 +18,7 @@ describe('WorkspacesService', () => {
     id: workspaceId,
     name: 'Team Workspace',
     slug: 'team-workspace',
-    plan: WorkspacePlan.FREE,
+    planId: FREE_PLAN_ID,
     createdAt: new Date('2026-06-24T00:00:00.000Z'),
     updatedAt: new Date('2026-06-24T00:00:00.000Z'),
     deletedAt: null,
@@ -64,6 +61,11 @@ describe('WorkspacesService', () => {
       {
         getWorkspaceUsage: jest.fn(),
       } as never,
+      {
+        plan: {
+          findUniqueOrThrow: jest.fn().mockResolvedValue({ id: FREE_PLAN_ID }),
+        },
+      } as never,
     );
   });
 
@@ -77,7 +79,7 @@ describe('WorkspacesService', () => {
     expect(workspacesRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "Ada's Workspace",
-        plan: WorkspacePlan.FREE,
+        planId: FREE_PLAN_ID,
       }),
     );
     expect(membershipsRepository.create).toHaveBeenCalledWith({

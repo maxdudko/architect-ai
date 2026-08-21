@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { BillingModule } from '../billing/billing.module';
 import { UsageModule } from '../usage/usage.module';
 import { UsersModule } from '../users/users.module';
 import { AdminsRepository } from './admins.repository';
@@ -22,7 +23,14 @@ import { AdminUsageService } from './usage/admin-usage.service';
 import { AdminUsersController } from './users/admin-users.controller';
 
 @Module({
-  imports: [ConfigModule, PassportModule, JwtModule, UsersModule, UsageModule],
+  imports: [
+    ConfigModule,
+    PassportModule,
+    JwtModule,
+    UsersModule,
+    UsageModule,
+    BillingModule,
+  ],
   controllers: [
     AdminAuthController,
     AdminUsersController,

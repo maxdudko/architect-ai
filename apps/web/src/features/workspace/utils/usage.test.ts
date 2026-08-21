@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { UsageMetricSnapshot } from '@/entities';
-import { formatUsageLimit, formatUsageSummary } from './usage';
+import { formatUsageLimit, formatUsageSummary, effectivePlanLimit } from './usage';
 
 function snapshot(overrides: Partial<UsageMetricSnapshot> = {}): UsageMetricSnapshot {
   return {
@@ -47,7 +47,23 @@ describe('formatUsageLimit', () => {
 
 describe('formatUsageSummary', () => {
   it('joins plan and AI mode', () => {
-    expect(formatUsageSummary('FREE', 'HOSTED')).toBe('Free plan · Hosted AI');
-    expect(formatUsageSummary('PRO', 'BYOK')).toBe('Pro plan · BYOK');
+    expect(formatUsageSummary({ id: 'plan-free', key: 'free', name: 'Free' }, 'HOSTED')).toBe(
+      'Free plan · Hosted AI',
+    );
+    expect(formatUsageSummary({ id: 'plan-pro', key: 'pro', name: 'PRO' }, 'BYOK')).toBe(
+      'PRO plan · BYOK',
+    );
+  });
+});
+
+describe('effectivePlanLimit', () => {
+  it('uncaps AI questions and guides for BYOK', () => {
+    expect(effectivePlanLimit(50, 'AI_QUESTIONS', true)).toBeNull();
+    expect(effectivePlanLimit(3, 'GUIDE_GENERATIONS', true)).toBeNull();
+    expect(effectivePlanLimit(1, 'REPOSITORIES', true)).toBe(1);
+  });
+
+  it('keeps hosted caps', () => {
+    expect(effectivePlanLimit(50, 'AI_QUESTIONS', false)).toBe(50);
   });
 });

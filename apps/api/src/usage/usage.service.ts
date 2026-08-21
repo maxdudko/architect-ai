@@ -5,7 +5,6 @@ import {
   MessageRole,
   UsageMetric,
   UsagePeriod,
-  WorkspacePlan,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsageLimitExceededException } from './usage-limit.exception';
@@ -32,9 +31,15 @@ export interface UsageMetricSnapshot {
   remaining: number | null;
 }
 
+export interface PlanSummary {
+  id: string;
+  key: string;
+  name: string;
+}
+
 export interface WorkspaceUsageSnapshot {
   workspaceId: string;
-  plan: WorkspacePlan;
+  plan: PlanSummary;
   aiMode: 'HOSTED' | 'BYOK';
   metrics: UsageMetricSnapshot[];
 }
@@ -45,7 +50,7 @@ export type MemberCountMode = 'seats' | 'active';
 export class UsageService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getLimitsForPlan(plan: WorkspacePlan): Promise<
+  async getLimitsForPlan(planId: string): Promise<
     Array<{
       metric: UsageMetric;
       period: UsagePeriod;
@@ -53,7 +58,7 @@ export class UsageService {
     }>
   > {
     const rows = await this.prisma.planLimit.findMany({
-      where: { plan },
+      where: { planId },
       orderBy: { metric: 'asc' },
     });
 
@@ -75,7 +80,7 @@ export class UsageService {
       where: { id: workspaceId, deletedAt: null },
       select: {
         id: true,
-        plan: true,
+        plan: { select: { id: true, key: true, name: true } },
         aiSettings: { select: { activeProvider: true } },
       },
     });
@@ -84,7 +89,7 @@ export class UsageService {
     }
 
     const isByok = hasByokKey(workspace.aiSettings);
-    const limits = await this.getLimitsForPlan(workspace.plan);
+    const limits = await this.getLimitsForPlan(workspace.plan.id);
     const metrics = await Promise.all(
       limits.map(async (limit) => {
         const used = await this.countUsed(workspaceId, limit.metric, {
@@ -148,7 +153,7 @@ export class UsageService {
     const workspace = await this.prisma.workspace.findFirst({
       where: { id: workspaceId, deletedAt: null },
       select: {
-        plan: true,
+        planId: true,
         aiSettings: { select: { activeProvider: true } },
       },
     });
@@ -158,8 +163,8 @@ export class UsageService {
 
     const row = await this.prisma.planLimit.findUnique({
       where: {
-        plan_metric: {
-          plan: workspace.plan,
+        planId_metric: {
+          planId: workspace.planId,
           metric,
         },
       },

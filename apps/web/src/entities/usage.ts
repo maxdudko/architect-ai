@@ -1,4 +1,4 @@
-import type { WorkspacePlan } from './workspace';
+import type { PlanSummary } from './workspace';
 
 export type UsageMetric =
   | 'REPOSITORIES'
@@ -23,7 +23,7 @@ export interface UsageMetricSnapshot {
 
 export interface WorkspaceUsage {
   workspaceId: string;
-  plan: WorkspacePlan;
+  plan: PlanSummary;
   aiMode: WorkspaceAiMode;
   metrics: UsageMetricSnapshot[];
 }
@@ -49,7 +49,7 @@ export interface AdminWorkspaceUsageRow {
   workspaceId: string;
   name: string;
   slug: string;
-  plan: WorkspacePlan;
+  plan: PlanSummary;
   createdAt: string;
   aiMode: WorkspaceAiMode;
   metrics: UsageMetricSnapshot[];

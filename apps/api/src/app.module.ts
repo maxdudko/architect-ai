@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
+import { BillingModule } from './billing/billing.module';
 import { ChatModule } from './chat/chat.module';
 import { RateLimitGuard } from './common/guards/rate-limit.guard';
 import { ConversationsModule } from './conversations/conversations.module';
@@ -40,6 +41,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     AuthModule,
     UsageModule,
     WorkspaceAiModule,
+    BillingModule,
     AdminModule,
   ],
   controllers: [AppController],

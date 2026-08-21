@@ -4,9 +4,11 @@ import {
   ForbiddenException,
   HttpException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AiProvider, WorkspaceRole } from '@prisma/client';
+import { BillingService } from '../billing/billing.service';
 import { TokenCipherService } from '../common/crypto/token-cipher.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
@@ -24,11 +26,14 @@ const PROVIDER_LABEL: Record<AiProvider, string> = {
 
 @Injectable()
 export class WorkspaceAiService {
+  private readonly logger = new Logger(WorkspaceAiService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokenCipherService: TokenCipherService,
     private readonly workspacesService: WorkspacesService,
     private readonly configService: ConfigService,
+    private readonly billingService: BillingService,
   ) {}
 
   async getSettings(
@@ -71,6 +76,7 @@ export class WorkspaceAiService {
         update: { activeProvider: provider },
       }),
     ]);
+    await this.syncBillingMode(workspaceId);
 
     return this.loadResponse(workspaceId);
   }
@@ -101,6 +107,7 @@ export class WorkspaceAiService {
       create: { workspaceId, activeProvider: nextProvider },
       update: { activeProvider: nextProvider },
     });
+    await this.syncBillingMode(workspaceId);
 
     return this.loadResponse(workspaceId);
   }
@@ -126,6 +133,7 @@ export class WorkspaceAiService {
         });
       }
     });
+    await this.syncBillingMode(workspaceId);
 
     return this.loadResponse(workspaceId);
   }
@@ -211,6 +219,20 @@ export class WorkspaceAiService {
         updatedAt: credential.updatedAt.toISOString(),
       })),
     };
+  }
+
+  /**
+   * Re-prices any active paid subscription for the new BYOK/hosted mode.
+   * Best-effort: a Stripe hiccup here must not block saving AI settings.
+   */
+  private async syncBillingMode(workspaceId: string): Promise<void> {
+    try {
+      await this.billingService.syncBillingModeForWorkspace(workspaceId);
+    } catch (error) {
+      this.logger.error(
+        `Failed to sync billing mode for workspace ${workspaceId}: ${(error as Error).message}`,
+      );
+    }
   }
 
   private async assertCanManageAi(

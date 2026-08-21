@@ -85,9 +85,12 @@ describeE2e('Usage limits and workspace AI (e2e)', () => {
     const auth = await signUp(app);
     const workspaceId = auth.activeWorkspace.id;
     const admin = await adminSignIn(app);
+    const freePlan = await prisma.plan.findUniqueOrThrow({
+      where: { key: 'free' },
+    });
 
     await request(app.getHttpServer())
-      .patch('/admin/plans/FREE/limits')
+      .patch(`/admin/plans/${freePlan.id}/limits`)
       .set(authHeader(admin.accessToken))
       .send({
         limits: [{ metric: UsageMetric.AI_QUESTIONS, maxValue: 0 }],

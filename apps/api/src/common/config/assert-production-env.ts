@@ -8,6 +8,8 @@ const REQUIRED_PRODUCTION_ENV_VARS = [
   'JWT_REFRESH_SECRET',
   'JWT_ADMIN_ACCESS_SECRET',
   'JWT_ADMIN_REFRESH_SECRET',
+  'STRIPE_SECRET_KEY',
+  'STRIPE_WEBHOOK_SECRET',
 ] as const;
 
 export function assertRequiredProductionEnv(

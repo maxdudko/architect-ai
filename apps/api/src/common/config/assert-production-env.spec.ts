@@ -12,6 +12,8 @@ describe('assertRequiredProductionEnv', () => {
     JWT_REFRESH_SECRET: 'refresh-secret',
     JWT_ADMIN_ACCESS_SECRET: 'admin-access-secret',
     JWT_ADMIN_REFRESH_SECRET: 'admin-refresh-secret',
+    STRIPE_SECRET_KEY: 'sk_test_secret',
+    STRIPE_WEBHOOK_SECRET: 'whsec_test_secret',
   };
 
   it('skips validation in development', () => {

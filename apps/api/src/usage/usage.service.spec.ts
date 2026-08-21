@@ -4,10 +4,13 @@ import {
   MessageRole,
   UsageMetric,
   UsagePeriod,
-  WorkspacePlan,
 } from '@prisma/client';
 import { UsageLimitExceededException } from './usage-limit.exception';
 import { UsageService } from './usage.service';
+
+const FREE_PLAN_ID = 'plan-free';
+const PRO_PLAN_ID = 'plan-pro';
+const ENTERPRISE_PLAN_ID = 'plan-enterprise';
 
 describe('UsageService', () => {
   const workspaceId = 'workspace-1';
@@ -40,7 +43,7 @@ describe('UsageService', () => {
   it('treats a missing plan limit row as unlimited', async () => {
     prisma.workspace.findFirst.mockResolvedValue({
       id: workspaceId,
-      plan: WorkspacePlan.PRO,
+      planId: PRO_PLAN_ID,
     });
     prisma.planLimit.findUnique.mockResolvedValue(null);
     prisma.message.count.mockResolvedValue(12);
@@ -53,7 +56,7 @@ describe('UsageService', () => {
   it('treats a null maxValue as unlimited', async () => {
     prisma.workspace.findFirst.mockResolvedValue({
       id: workspaceId,
-      plan: WorkspacePlan.ENTERPRISE,
+      planId: ENTERPRISE_PLAN_ID,
     });
     prisma.planLimit.findUnique.mockResolvedValue({
       metric: UsageMetric.AI_QUESTIONS,
@@ -70,7 +73,7 @@ describe('UsageService', () => {
   it('throws when used meets the limit', async () => {
     prisma.workspace.findFirst.mockResolvedValue({
       id: workspaceId,
-      plan: WorkspacePlan.FREE,
+      planId: FREE_PLAN_ID,
     });
     prisma.planLimit.findUnique.mockResolvedValue({
       metric: UsageMetric.AI_QUESTIONS,
@@ -97,7 +100,7 @@ describe('UsageService', () => {
   it('counts pending invitations toward member seats', async () => {
     prisma.workspace.findFirst.mockResolvedValue({
       id: workspaceId,
-      plan: WorkspacePlan.FREE,
+      planId: FREE_PLAN_ID,
     });
     prisma.planLimit.findUnique.mockResolvedValue({
       metric: UsageMetric.MEMBERS,
@@ -129,7 +132,7 @@ describe('UsageService', () => {
   it('counts only active members when accepting an invitation', async () => {
     prisma.workspace.findFirst.mockResolvedValue({
       id: workspaceId,
-      plan: WorkspacePlan.FREE,
+      planId: FREE_PLAN_ID,
     });
     prisma.planLimit.findUnique.mockResolvedValue({
       metric: UsageMetric.MEMBERS,
@@ -149,7 +152,7 @@ describe('UsageService', () => {
   it('treats AI questions as unlimited when BYOK is active', async () => {
     prisma.workspace.findFirst.mockResolvedValue({
       id: workspaceId,
-      plan: WorkspacePlan.FREE,
+      planId: FREE_PLAN_ID,
       aiSettings: { activeProvider: 'OPENAI' },
     });
     prisma.planLimit.findUnique.mockResolvedValue({
@@ -167,7 +170,7 @@ describe('UsageService', () => {
   it('treats onboarding guides as unlimited when BYOK is active', async () => {
     prisma.workspace.findFirst.mockResolvedValue({
       id: workspaceId,
-      plan: WorkspacePlan.FREE,
+      planId: FREE_PLAN_ID,
       aiSettings: { activeProvider: 'OPENAI' },
     });
     prisma.planLimit.findUnique.mockResolvedValue({
@@ -185,7 +188,7 @@ describe('UsageService', () => {
   it('still enforces repository limits when BYOK is active', async () => {
     prisma.workspace.findFirst.mockResolvedValue({
       id: workspaceId,
-      plan: WorkspacePlan.FREE,
+      planId: FREE_PLAN_ID,
       aiSettings: { activeProvider: 'OPENAI' },
     });
     prisma.planLimit.findUnique.mockResolvedValue({
@@ -203,7 +206,7 @@ describe('UsageService', () => {
   it('reports BYOK-uncapped metrics in the usage snapshot', async () => {
     prisma.workspace.findFirst.mockResolvedValue({
       id: workspaceId,
-      plan: WorkspacePlan.FREE,
+      plan: { id: FREE_PLAN_ID, key: 'free', name: 'Free' },
       aiSettings: { activeProvider: 'OPENAI' },
     });
     prisma.planLimit.findMany.mockResolvedValue([

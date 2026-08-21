@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UsageService } from '../../usage/usage.service';
@@ -39,7 +39,7 @@ export class AdminUsageService {
           id: true,
           name: true,
           slug: true,
-          plan: true,
+          plan: { select: { id: true, key: true, name: true } },
           createdAt: true,
           aiSettings: {
             select: { activeProvider: true },
@@ -69,5 +69,32 @@ export class AdminUsageService {
       page: params.page,
       pageSize: params.pageSize,
     };
+  }
+
+  /**
+   * Manually moves a workspace onto a plan without a Stripe checkout. Used
+   * to grant the "Contact Sales" Enterprise plan (or any other plan) from
+   * the admin panel.
+   */
+  async assignPlan(workspaceId: string, planId: string) {
+    const [workspace, plan] = await Promise.all([
+      this.prisma.workspace.findFirst({
+        where: { id: workspaceId, deletedAt: null },
+      }),
+      this.prisma.plan.findUnique({ where: { id: planId } }),
+    ]);
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+    if (!plan) {
+      throw new NotFoundException('Plan not found');
+    }
+
+    await this.prisma.workspace.update({
+      where: { id: workspaceId },
+      data: { planId },
+    });
+
+    return this.usageService.getWorkspaceUsage(workspaceId);
   }
 }

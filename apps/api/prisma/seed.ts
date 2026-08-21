@@ -1,15 +1,23 @@
 import * as bcrypt from 'bcrypt';
 import {
+  BillingMode,
   MembershipStatus,
   PrismaClient,
-  WorkspacePlan,
   WorkspaceRole,
 } from '@prisma/client';
 import { upsertDefaultPlanLimits } from '../src/usage/plan-limit.defaults';
 
+const PRO_MONTHLY_PRICES: Record<BillingMode, number> = {
+  [BillingMode.STANDARD]: 2000,
+  [BillingMode.BYOK]: 1200,
+};
+
 const prisma = new PrismaClient();
 
 async function main(): Promise<void> {
+  // Plans must exist before any workspace can reference one via plan_id.
+  const planIds = await upsertDefaultPlanLimits(prisma);
+
   const passwordHash = await bcrypt.hash('Password123!', 12);
 
   const user = await prisma.user.upsert({
@@ -30,7 +38,7 @@ async function main(): Promise<void> {
     create: {
       name: 'Main Workspace',
       slug: 'main-workspace',
-      plan: WorkspacePlan.FREE,
+      planId: planIds.free,
     },
   });
 
@@ -62,7 +70,27 @@ async function main(): Promise<void> {
     },
   });
 
-  await upsertDefaultPlanLimits(prisma);
+  for (const [billingMode, amount] of Object.entries(
+    PRO_MONTHLY_PRICES,
+  ) as Array<[BillingMode, number]>) {
+    await prisma.planPrice.upsert({
+      where: {
+        planId_billingMode_interval: {
+          planId: planIds.pro,
+          billingMode,
+          interval: 'MONTHLY',
+        },
+      },
+      update: {},
+      create: {
+        planId: planIds.pro,
+        billingMode,
+        interval: 'MONTHLY',
+        amount,
+        currency: 'usd',
+      },
+    });
+  }
 }
 
 void main()

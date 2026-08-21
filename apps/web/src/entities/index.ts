@@ -8,3 +8,5 @@ export * from './github';
 export * from './conversation';
 export * from './onboarding-guide';
 export * from './usage';
+export * from './billing';
+export * from './admin-billing';

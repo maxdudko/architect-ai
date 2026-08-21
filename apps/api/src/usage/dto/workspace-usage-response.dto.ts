@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { UsageMetric, UsagePeriod, WorkspacePlan } from '@prisma/client';
+import { UsageMetric, UsagePeriod } from '@prisma/client';
 
 export class UsageMetricSnapshotDto {
   @ApiProperty({ enum: UsageMetric })
@@ -18,12 +18,23 @@ export class UsageMetricSnapshotDto {
   remaining!: number | null;
 }
 
+export class PlanSummaryDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  key!: string;
+
+  @ApiProperty()
+  name!: string;
+}
+
 export class WorkspaceUsageResponseDto {
   @ApiProperty()
   workspaceId!: string;
 
-  @ApiProperty({ enum: WorkspacePlan })
-  plan!: WorkspacePlan;
+  @ApiProperty({ type: PlanSummaryDto })
+  plan!: PlanSummaryDto;
 
   @ApiProperty({ enum: ['HOSTED', 'BYOK'] })
   aiMode!: 'HOSTED' | 'BYOK';
