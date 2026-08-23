@@ -53,6 +53,12 @@ export interface AdminWorkspaceUsageRow {
   createdAt: string;
   aiMode: WorkspaceAiMode;
   metrics: UsageMetricSnapshot[];
+  owner: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+  } | null;
 }
 
 export interface AdminPlanLimit {

@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import type { AdminListedUser } from '@/entities';
+import { getApiErrorMessage } from '@/lib/api/error-message';
 import {
   Badge,
   Button,
@@ -9,12 +11,26 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  ConfirmationDialog,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   EmptyState,
   ErrorState,
+  Input,
+  Loader,
   SearchInput,
   Skeleton,
 } from '@/shared/components';
-import { useAdminUsersQuery } from '../services/admin-users.service';
+import {
+  useAdminUsersQuery,
+  useBanAdminUserMutation,
+  useUnbanAdminUserMutation,
+  useUpdateAdminUserMutation,
+} from '../services/admin-users.service';
 
 function formatDate(value: string | null): string {
   if (!value) {
@@ -26,9 +42,149 @@ function formatDate(value: string | null): string {
   }).format(new Date(value));
 }
 
-function UserRow({ user }: { user: AdminListedUser }) {
+function EditUserDialog({ user }: { user: AdminListedUser }) {
+  const updateMutation = useUpdateAdminUserMutation();
+  const [open, setOpen] = useState(false);
+  const [firstName, setFirstName] = useState(user.firstName);
+  const [lastName, setLastName] = useState(user.lastName);
+  const [email, setEmail] = useState(user.email);
+  const [emailVerified, setEmailVerified] = useState(user.emailVerified);
+
+  const resetForm = () => {
+    setFirstName(user.firstName);
+    setLastName(user.lastName);
+    setEmail(user.email);
+    setEmailVerified(user.emailVerified);
+  };
+
+  const onSave = async () => {
+    try {
+      await updateMutation.mutateAsync({
+        userId: user.id,
+        payload: {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          email: email.trim(),
+          emailVerified,
+        },
+      });
+      toast.success('User updated.');
+      setOpen(false);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Unable to update user.'));
+    }
+  };
+
   return (
-    <div className="grid gap-2 border-b py-3 last:border-b-0 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_auto] md:items-center md:gap-4">
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) {
+          resetForm();
+        }
+      }}
+    >
+      <Button type="button" size="sm" variant="outline" onClick={() => setOpen(true)}>
+        Edit
+      </Button>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit user</DialogTitle>
+          <DialogDescription>
+            Update profile details for {user.email}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <label className="space-y-1 block text-sm">
+            <span className="font-medium">First name</span>
+            <Input
+              value={firstName}
+              onChange={(event) => setFirstName(event.target.value)}
+              disabled={updateMutation.isPending}
+            />
+          </label>
+          <label className="space-y-1 block text-sm">
+            <span className="font-medium">Last name</span>
+            <Input
+              value={lastName}
+              onChange={(event) => setLastName(event.target.value)}
+              disabled={updateMutation.isPending}
+            />
+          </label>
+          <label className="space-y-1 block text-sm">
+            <span className="font-medium">Email</span>
+            <Input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              disabled={updateMutation.isPending}
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={emailVerified}
+              onChange={(event) => setEmailVerified(event.target.checked)}
+              disabled={updateMutation.isPending}
+            />
+            <span>Email verified</span>
+          </label>
+        </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setOpen(false)}
+            disabled={updateMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={
+              updateMutation.isPending ||
+              firstName.trim() === '' ||
+              lastName.trim() === '' ||
+              email.trim() === ''
+            }
+            onClick={() => void onSave()}
+          >
+            {updateMutation.isPending ? <Loader className="mr-2 h-4 w-4" /> : null}
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function UserRow({ user }: { user: AdminListedUser }) {
+  const banMutation = useBanAdminUserMutation();
+  const unbanMutation = useUnbanAdminUserMutation();
+  const isBanned = Boolean(user.deletedAt);
+  const actionPending = banMutation.isPending || unbanMutation.isPending;
+
+  const onBan = async () => {
+    try {
+      await banMutation.mutateAsync(user.id);
+      toast.success('User banned.');
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Unable to ban user.'));
+    }
+  };
+
+  const onUnban = async () => {
+    try {
+      await unbanMutation.mutateAsync(user.id);
+      toast.success('User unbanned.');
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Unable to unban user.'));
+    }
+  };
+
+  return (
+    <div className="grid gap-3 border-b py-3 last:border-b-0 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_auto] md:items-center md:gap-4">
       <div className="min-w-0">
         <p className="truncate font-medium">
           {user.firstName} {user.lastName}
@@ -38,15 +194,42 @@ function UserRow({ user }: { user: AdminListedUser }) {
       <div className="text-sm text-muted-foreground">
         <p>Created {formatDate(user.createdAt)}</p>
         <p>Last login {formatDate(user.lastLoginAt)}</p>
+        {isBanned ? <p>Banned {formatDate(user.deletedAt)}</p> : null}
       </div>
       <div className="flex flex-wrap gap-2">
         <Badge variant={user.emailVerified ? 'default' : 'secondary'}>
           {user.emailVerified ? 'Verified' : 'Unverified'}
         </Badge>
-        {user.deletedAt ? <Badge variant="outline">Deleted</Badge> : null}
+        {isBanned ? <Badge variant="outline">Banned</Badge> : null}
       </div>
-      <div className="text-xs text-muted-foreground md:text-right">
-        {user.deletedAt ? `Deleted ${formatDate(user.deletedAt)}` : null}
+      <div className="flex flex-wrap gap-2 md:justify-end">
+        <EditUserDialog user={user} />
+        {isBanned ? (
+          <ConfirmationDialog
+            title="Unban user"
+            description={`Restore access for ${user.email}? They will be able to sign in again.`}
+            confirmText="Unban"
+            onConfirm={onUnban}
+            trigger={
+              <Button type="button" size="sm" variant="outline" disabled={actionPending}>
+                Unban
+              </Button>
+            }
+          />
+        ) : (
+          <ConfirmationDialog
+            title="Ban user"
+            description={`Ban ${user.email}? They will be signed out and unable to sign in.`}
+            confirmText="Ban"
+            destructive
+            onConfirm={onBan}
+            trigger={
+              <Button type="button" size="sm" variant="destructive" disabled={actionPending}>
+                Ban
+              </Button>
+            }
+          />
+        )}
       </div>
     </div>
   );
@@ -56,6 +239,7 @@ export function UsersList() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [showBanned, setShowBanned] = useState(true);
   const pageSize = 20;
 
   useEffect(() => {
@@ -70,6 +254,7 @@ export function UsersList() {
     page,
     pageSize,
     search: search || undefined,
+    includeDeleted: showBanned,
   });
 
   const total = usersQuery.data?.total ?? 0;
@@ -81,11 +266,24 @@ export function UsersList() {
       <CardHeader className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Users</CardTitle>
-          <SearchInput
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Search by name or email"
-          />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={showBanned}
+                onChange={(event) => {
+                  setShowBanned(event.target.checked);
+                  setPage(1);
+                }}
+              />
+              Show banned
+            </label>
+            <SearchInput
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Search by name or email"
+            />
+          </div>
         </div>
       </CardHeader>
       <CardContent>

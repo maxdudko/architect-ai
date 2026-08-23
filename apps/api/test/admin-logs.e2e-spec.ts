@@ -89,4 +89,65 @@ describeE2e('Admin Logs (e2e)', () => {
   it('rejects /admin/logs without an admin bearer token', async () => {
     await request(app.getHttpServer()).get('/admin/logs').expect(401);
   });
+
+  it('excludes OPTIONS request logs when excludeOptions is true', async () => {
+    await prisma.systemLog.createMany({
+      data: [
+        {
+          category: SystemLogCategory.HTTP,
+          level: 'INFO',
+          event: 'http.request',
+          method: 'OPTIONS',
+          route: '/admin/users',
+          statusCode: 204,
+        },
+        {
+          category: SystemLogCategory.HTTP,
+          level: 'INFO',
+          event: 'http.request',
+          method: 'GET',
+          route: '/admin/users',
+          statusCode: 200,
+        },
+        {
+          category: SystemLogCategory.AUDIT,
+          level: 'INFO',
+          event: 'admin.user.update',
+          message: 'Admin updated user',
+        },
+      ],
+    });
+
+    const adminAuth = await adminSignIn(app);
+
+    const filtered = await request(app.getHttpServer())
+      .get('/admin/logs')
+      .query({ excludeOptions: true, pageSize: 100 })
+      .set(authHeader(adminAuth.accessToken))
+      .expect(200);
+
+    expect(
+      filtered.body.items.every(
+        (item: { method: string | null }) => item.method !== 'OPTIONS',
+      ),
+    ).toBe(true);
+    expect(filtered.body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ method: 'GET', route: '/admin/users' }),
+        expect.objectContaining({ event: 'admin.user.update' }),
+      ]),
+    );
+
+    const unfiltered = await request(app.getHttpServer())
+      .get('/admin/logs')
+      .query({ excludeOptions: false, pageSize: 100 })
+      .set(authHeader(adminAuth.accessToken))
+      .expect(200);
+
+    expect(unfiltered.body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ method: 'OPTIONS', route: '/admin/users' }),
+      ]),
+    );
+  });
 });

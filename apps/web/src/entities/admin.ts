@@ -19,6 +19,13 @@ export interface AdminListedUser {
   deletedAt: string | null;
 }
 
+export interface UpdateAdminUserPayload {
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  emailVerified?: boolean;
+}
+
 export interface AdminUsersPage {
   items: AdminListedUser[];
   total: number;

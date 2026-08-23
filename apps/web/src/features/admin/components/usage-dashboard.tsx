@@ -120,7 +120,7 @@ function WorkspaceUsageTable() {
           <SearchInput
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Search workspaces"
+            placeholder="Search workspaces or owners"
           />
         </div>
         {usageQuery.isLoading ? (
@@ -144,6 +144,15 @@ function WorkspaceUsageTable() {
               <div>
                 <p className="font-medium">{workspace.name}</p>
                 <p className="text-sm text-muted-foreground">{workspace.slug}</p>
+                {workspace.owner ? (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {workspace.owner.firstName} {workspace.owner.lastName}
+                    <span className="mx-1.5 text-border">·</span>
+                    {workspace.owner.email}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-sm text-muted-foreground">No owner</p>
+                )}
               </div>
               <div className="flex gap-2">
                 <Badge variant="outline">{workspace.plan.name}</Badge>

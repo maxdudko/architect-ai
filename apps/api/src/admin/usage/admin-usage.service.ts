@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { MembershipStatus, Prisma, WorkspaceRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UsageService } from '../../usage/usage.service';
 
@@ -23,6 +23,26 @@ export class AdminUsageService {
             OR: [
               { name: { contains: search, mode: 'insensitive' } },
               { slug: { contains: search, mode: 'insensitive' } },
+              {
+                memberships: {
+                  some: {
+                    role: WorkspaceRole.OWNER,
+                    status: MembershipStatus.ACTIVE,
+                    deletedAt: null,
+                    user: {
+                      OR: [
+                        { email: { contains: search, mode: 'insensitive' } },
+                        {
+                          firstName: { contains: search, mode: 'insensitive' },
+                        },
+                        {
+                          lastName: { contains: search, mode: 'insensitive' },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
             ],
           }
         : {}),
@@ -44,6 +64,24 @@ export class AdminUsageService {
           aiSettings: {
             select: { activeProvider: true },
           },
+          memberships: {
+            where: {
+              role: WorkspaceRole.OWNER,
+              status: MembershipStatus.ACTIVE,
+              deletedAt: null,
+            },
+            take: 1,
+            select: {
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
         },
       }),
     ]);
@@ -51,6 +89,7 @@ export class AdminUsageService {
     const items = await Promise.all(
       workspaces.map(async (workspace) => {
         const usage = await this.usageService.getWorkspaceUsage(workspace.id);
+        const owner = workspace.memberships[0]?.user ?? null;
         return {
           workspaceId: workspace.id,
           name: workspace.name,
@@ -59,6 +98,7 @@ export class AdminUsageService {
           createdAt: workspace.createdAt,
           aiMode: workspace.aiSettings?.activeProvider ? 'BYOK' : 'HOSTED',
           metrics: usage.metrics,
+          owner,
         };
       }),
     );

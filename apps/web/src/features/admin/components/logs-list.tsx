@@ -68,7 +68,7 @@ function LogRow({ log }: { log: AdminListedLog }) {
         </p>
       </div>
       <div className="text-xs text-muted-foreground lg:text-right">
-        {log.message && log.method ? <p className="truncate max-w-xs">{log.message}</p> : null}
+        {log.message && log.method ? <p className="absolute truncate max-w-xs border px-2 rounded">{log.message}</p> : null}
       </div>
     </div>
   );
@@ -79,6 +79,7 @@ export function LogsList() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<AdminSystemLogCategory | ''>('');
   const [level, setLevel] = useState<AdminSystemLogLevel | ''>('');
+  const [hideOptions, setHideOptions] = useState(true);
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
@@ -96,6 +97,7 @@ export function LogsList() {
     search: search || undefined,
     category: category || undefined,
     level: level || undefined,
+    excludeOptions: hideOptions,
   });
 
   const total = logsQuery.data?.total ?? 0;
@@ -140,6 +142,17 @@ export function LogsList() {
               <option value="WARN">WARN</option>
               <option value="ERROR">ERROR</option>
             </select>
+            <label className="flex h-9 items-center gap-2 whitespace-nowrap text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={hideOptions}
+                onChange={(event) => {
+                  setHideOptions(event.target.checked);
+                  setPage(1);
+                }}
+              />
+              Hide OPTIONS
+            </label>
           </div>
         </div>
       </CardHeader>
@@ -168,7 +181,7 @@ export function LogsList() {
           <EmptyState
             title="No logs found"
             description={
-              search || category || level
+              search || category || level || hideOptions
                 ? 'Try adjusting search or filters.'
                 : 'HTTP and audit events will appear here as they are recorded.'
             }

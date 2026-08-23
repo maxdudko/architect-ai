@@ -32,6 +32,7 @@ export interface SystemLogListParams {
   level?: SystemLogLevel;
   from?: Date;
   to?: Date;
+  excludeOptions?: boolean;
 }
 
 @Injectable()
@@ -84,6 +85,19 @@ export class SystemLogsRepository {
         { message: { contains: search, mode: 'insensitive' } },
         { route: { contains: search, mode: 'insensitive' } },
         { requestId: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (params.excludeOptions) {
+      where.AND = [
+        ...(Array.isArray(where.AND)
+          ? where.AND
+          : where.AND
+            ? [where.AND]
+            : []),
+        {
+          OR: [{ method: null }, { method: { not: 'OPTIONS' } }],
+        },
       ];
     }
 

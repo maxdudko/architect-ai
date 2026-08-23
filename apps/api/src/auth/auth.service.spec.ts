@@ -262,6 +262,18 @@ describe('AuthService', () => {
       );
     });
 
+    it('rejects refresh for deleted users', async () => {
+      const refreshToken = await issueRefreshToken();
+      usersService.findById.mockResolvedValue({
+        ...user,
+        deletedAt: new Date(),
+      });
+
+      await expect(service.refresh({ refreshToken })).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+    });
+
     it('rejects refresh when active workspace is no longer accessible', async () => {
       const refreshToken = await issueRefreshToken();
       workspacesService.listForUser.mockResolvedValue([]);

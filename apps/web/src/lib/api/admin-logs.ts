@@ -9,6 +9,7 @@ export interface ListAdminLogsParams {
   level?: AdminSystemLogLevel;
   from?: string;
   to?: string;
+  excludeOptions?: boolean;
 }
 
 export async function listAdminLogs(params: ListAdminLogsParams = {}): Promise<AdminLogsPage> {

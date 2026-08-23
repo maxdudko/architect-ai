@@ -166,4 +166,114 @@ describeE2e('Admin (e2e)', () => {
     expect(body.total).toBe(1);
     expect(body.items[0].email).toBe('alpha@example.com');
   });
+
+  it('updates a user for an authenticated admin', async () => {
+    const userAuth = await signUp(
+      app,
+      buildSignUpPayload({
+        email: 'editable@example.com',
+        firstName: 'Before',
+        lastName: 'Name',
+      }),
+    );
+    const adminAuth = await adminSignIn(app);
+
+    const { body } = await request(app.getHttpServer())
+      .patch(`/admin/users/${userAuth.user.id}`)
+      .set(authHeader(adminAuth.accessToken))
+      .send({
+        firstName: 'After',
+        lastName: 'Updated',
+        email: 'updated@example.com',
+        emailVerified: true,
+      })
+      .expect(200);
+
+    expect(body).toEqual(
+      expect.objectContaining({
+        id: userAuth.user.id,
+        firstName: 'After',
+        lastName: 'Updated',
+        email: 'updated@example.com',
+        emailVerified: true,
+        deletedAt: null,
+      }),
+    );
+    expect(body).not.toHaveProperty('passwordHash');
+  });
+
+  it('rejects updating a user to an email that already exists', async () => {
+    await signUp(
+      app,
+      buildSignUpPayload({ email: 'taken@example.com' }),
+    );
+    const userAuth = await signUp(
+      app,
+      buildSignUpPayload({ email: 'other@example.com' }),
+    );
+    const adminAuth = await adminSignIn(app);
+
+    const { body } = await request(app.getHttpServer())
+      .patch(`/admin/users/${userAuth.user.id}`)
+      .set(authHeader(adminAuth.accessToken))
+      .send({ email: 'taken@example.com' })
+      .expect(409);
+
+    assertErrorMessageContains(body, 'A user with this email already exists');
+  });
+
+  it('bans a user and blocks further sign-in', async () => {
+    const payload = buildSignUpPayload({
+      email: 'ban-me@example.com',
+      password: 'Password123!',
+    });
+    const userAuth = await signUp(app, payload);
+    const adminAuth = await adminSignIn(app);
+
+    const { body } = await request(app.getHttpServer())
+      .post(`/admin/users/${userAuth.user.id}/ban`)
+      .set(authHeader(adminAuth.accessToken))
+      .expect(201);
+
+    expect(body.deletedAt).toEqual(expect.any(String));
+
+    await request(app.getHttpServer())
+      .post('/auth/signin')
+      .send({ email: payload.email, password: payload.password })
+      .expect(401);
+
+    const listed = await request(app.getHttpServer())
+      .get('/admin/users')
+      .query({ includeDeleted: true, search: payload.email })
+      .set(authHeader(adminAuth.accessToken))
+      .expect(200);
+
+    expect(listed.body.items[0].deletedAt).toEqual(expect.any(String));
+  });
+
+  it('unbans a banned user', async () => {
+    const payload = buildSignUpPayload({
+      email: 'unban-me@example.com',
+      password: 'Password123!',
+    });
+    const userAuth = await signUp(app, payload);
+    const adminAuth = await adminSignIn(app);
+
+    await request(app.getHttpServer())
+      .post(`/admin/users/${userAuth.user.id}/ban`)
+      .set(authHeader(adminAuth.accessToken))
+      .expect(201);
+
+    const { body } = await request(app.getHttpServer())
+      .post(`/admin/users/${userAuth.user.id}/unban`)
+      .set(authHeader(adminAuth.accessToken))
+      .expect(201);
+
+    expect(body.deletedAt).toBeNull();
+
+    await request(app.getHttpServer())
+      .post('/auth/signin')
+      .send({ email: payload.email, password: payload.password })
+      .expect(201);
+  });
 });

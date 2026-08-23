@@ -1,9 +1,22 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { User } from '@prisma/client';
 import { UsersService } from '../../users/users.service';
+import { CurrentAdmin } from '../decorators/current-admin.decorator';
+import type { AdminJwtPayload } from '../auth/interfaces/admin-jwt-payload.interface';
 import { AdminJwtAuthGuard } from '../guards/admin-jwt-auth.guard';
+import { AdminUsersService } from './admin-users.service';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
+import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 
 export interface AdminPublicUser {
   id: string;
@@ -23,10 +36,13 @@ export interface AdminPublicUser {
 @UseGuards(AdminJwtAuthGuard)
 @Controller('admin/users')
 export class AdminUsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly adminUsersService: AdminUsersService,
+  ) {}
 
   @Get()
-  @ApiOperation({ summary: 'List platform users (read-only)' })
+  @ApiOperation({ summary: 'List platform users' })
   async list(@Query() query: ListUsersQueryDto): Promise<{
     items: AdminPublicUser[];
     total: number;
@@ -46,6 +62,45 @@ export class AdminUsersController {
       page: query.page,
       pageSize: query.pageSize,
     };
+  }
+
+  @Patch(':userId')
+  @ApiOperation({
+    summary: 'Update user profile fields (name, email, verification)',
+  })
+  async update(
+    @Param('userId') userId: string,
+    @Body() dto: UpdateAdminUserDto,
+    @CurrentAdmin() admin: AdminJwtPayload,
+  ): Promise<AdminPublicUser> {
+    const user = await this.adminUsersService.updateUser(
+      userId,
+      dto,
+      admin.sub,
+    );
+    return this.sanitizeUser(user);
+  }
+
+  @Post(':userId/ban')
+  @ApiOperation({
+    summary: 'Ban a user (soft-delete; blocks sign-in and revokes sessions)',
+  })
+  async ban(
+    @Param('userId') userId: string,
+    @CurrentAdmin() admin: AdminJwtPayload,
+  ): Promise<AdminPublicUser> {
+    const user = await this.adminUsersService.banUser(userId, admin.sub);
+    return this.sanitizeUser(user);
+  }
+
+  @Post(':userId/unban')
+  @ApiOperation({ summary: 'Unban a previously banned user' })
+  async unban(
+    @Param('userId') userId: string,
+    @CurrentAdmin() admin: AdminJwtPayload,
+  ): Promise<AdminPublicUser> {
+    const user = await this.adminUsersService.unbanUser(userId, admin.sub);
+    return this.sanitizeUser(user);
   }
 
   private sanitizeUser(user: User): AdminPublicUser {

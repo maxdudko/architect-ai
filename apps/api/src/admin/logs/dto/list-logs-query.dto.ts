@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { SystemLogCategory, SystemLogLevel } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDate,
   IsEnum,
   IsInt,
@@ -61,4 +62,18 @@ export class ListLogsQueryDto {
   @Transform(({ value }) => (value ? new Date(value) : undefined))
   @IsDate()
   to?: Date;
+
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Exclude HTTP OPTIONS (CORS preflight) request logs when true',
+  })
+  @IsOptional()
+  @Transform(({ value }): boolean => {
+    if (value === true || value === 'true' || value === '1') {
+      return true;
+    }
+    return false;
+  })
+  @IsBoolean()
+  excludeOptions = false;
 }

@@ -196,7 +196,7 @@ export class AuthService {
     }
 
     const user = await this.usersService.findById(payload.sub);
-    if (!user) {
+    if (!user || user.deletedAt) {
       throw new UnauthorizedException('User not found');
     }
 
@@ -232,6 +232,10 @@ export class AuthService {
     return { success: true };
   }
 
+  async revokeAllSessions(userId: string): Promise<void> {
+    await this.sessionStoreService.removeRefreshToken(userId);
+  }
+
   async createSessionForUser(
     userId: string,
     activeWorkspaceId: string,
@@ -249,7 +253,7 @@ export class AuthService {
     user: RequestUser,
   ): Promise<Pick<AuthResponse, 'user' | 'workspaces' | 'activeWorkspace'>> {
     const databaseUser = await this.usersService.findById(user.sub);
-    if (!databaseUser) {
+    if (!databaseUser || databaseUser.deletedAt) {
       throw new UnauthorizedException('User not found');
     }
 

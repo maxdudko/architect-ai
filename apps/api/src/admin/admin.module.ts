@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { AuthModule } from '../auth/auth.module';
 import { BillingModule } from '../billing/billing.module';
 import { UsageModule } from '../usage/usage.module';
 import { UsersModule } from '../users/users.module';
@@ -21,6 +22,7 @@ import { AdminPlansService } from './plans/admin-plans.service';
 import { AdminUsageController } from './usage/admin-usage.controller';
 import { AdminUsageService } from './usage/admin-usage.service';
 import { AdminUsersController } from './users/admin-users.controller';
+import { AdminUsersService } from './users/admin-users.service';
 
 @Module({
   imports: [
@@ -28,6 +30,7 @@ import { AdminUsersController } from './users/admin-users.controller';
     PassportModule,
     JwtModule,
     UsersModule,
+    AuthModule,
     UsageModule,
     BillingModule,
   ],
@@ -50,6 +53,7 @@ import { AdminUsersController } from './users/admin-users.controller';
     AdminAnalyticsService,
     AdminPlansService,
     AdminUsageService,
+    AdminUsersService,
   ],
   exports: [AdminsService, AdminAuthService, AdminJwtAuthGuard],
 })

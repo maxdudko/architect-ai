@@ -22,6 +22,18 @@ export class UsersService {
     return this.usersRepository.touchLastLoginAt(userId);
   }
 
+  update(userId: string, data: Prisma.UserUpdateInput): Promise<User> {
+    return this.usersRepository.update(userId, data);
+  }
+
+  softDelete(userId: string): Promise<User> {
+    return this.usersRepository.softDelete(userId);
+  }
+
+  restore(userId: string): Promise<User> {
+    return this.usersRepository.restore(userId);
+  }
+
   findManyPaginated(params: {
     page: number;
     pageSize: number;
