@@ -12,7 +12,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useAdminAuth } from '@/providers/admin-auth-provider';
-import { Button, Dialog, DialogContent, DialogTrigger } from '@/shared/components';
+import { BrandMark, Button, Dialog, DialogContent, DialogTrigger } from '@/shared/components';
 import { cn } from '@/lib/utils';
 
 const adminNavigation: Array<{ href: string; label: string; icon: LucideIcon }> = [
@@ -88,8 +88,8 @@ function AdminTopNav() {
     <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
       <div className="flex h-14 items-center gap-3 px-4 lg:px-6">
         <AdminMobileDrawer />
-        <Link href="/admin/users" className="text-sm font-semibold tracking-tight">
-          Architect AI Admin
+        <Link href="/admin/users" className="text-sm">
+          <BrandMark label="Architect AI Admin" />
         </Link>
         <div className="ml-auto flex items-center gap-3">
           {admin ? (

@@ -270,7 +270,7 @@ export class IndexedTopologyAnalyzer {
   }
 
   private isHighConfidenceEntry(
-    filePath: string,
+    _filePath: string,
     basename: string,
     hints: ReturnType<LanguagePackRegistry['topologyHints']>,
   ): boolean {

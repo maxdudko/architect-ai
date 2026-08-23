@@ -16,15 +16,14 @@ let pythonGrammar: unknown;
 
 function loadPythonGrammar(): unknown {
   if (!pythonGrammar) {
-    const loaded = loadNativeGrammar('tree-sitter-python') as
-      | { python?: unknown }
-      | unknown;
-    pythonGrammar =
-      loaded && typeof loaded === 'object' && 'language' in loaded
-        ? loaded
-        : loaded && typeof loaded === 'object' && 'python' in loaded
-          ? (loaded as { python: unknown }).python
-          : loaded;
+    const loaded = loadNativeGrammar('tree-sitter-python');
+    if (loaded && typeof loaded === 'object' && 'language' in loaded) {
+      pythonGrammar = loaded;
+    } else if (loaded && typeof loaded === 'object' && 'python' in loaded) {
+      pythonGrammar = loaded.python;
+    } else {
+      pythonGrammar = loaded;
+    }
   }
   return pythonGrammar;
 }

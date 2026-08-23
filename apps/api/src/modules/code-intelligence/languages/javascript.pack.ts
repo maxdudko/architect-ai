@@ -38,7 +38,7 @@ function loadGrammars() {
     typescript: unknown;
     tsx: unknown;
   };
-  const JavaScript = loadNativeGrammar('tree-sitter-javascript') as unknown;
+  const JavaScript = loadNativeGrammar('tree-sitter-javascript');
   cachedGrammars = {
     typescript: TypeScript.typescript,
     tsx: TypeScript.tsx,

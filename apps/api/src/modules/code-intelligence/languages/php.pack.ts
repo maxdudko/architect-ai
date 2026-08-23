@@ -16,12 +16,11 @@ let phpGrammar: unknown;
 
 function loadPhpGrammar(): unknown {
   if (!phpGrammar) {
-    const loaded = loadNativeGrammar('tree-sitter-php') as
-      | { php?: unknown; php_only?: unknown }
-      | unknown;
+    const loaded = loadNativeGrammar('tree-sitter-php');
     if (loaded && typeof loaded === 'object') {
-      const record = loaded as { php?: unknown; php_only?: unknown };
-      phpGrammar = record.php ?? record.php_only ?? loaded;
+      const php = 'php' in loaded ? loaded.php : undefined;
+      const phpOnly = 'php_only' in loaded ? loaded.php_only : undefined;
+      phpGrammar = php ?? phpOnly ?? loaded;
     } else {
       phpGrammar = loaded;
     }

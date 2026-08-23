@@ -3,14 +3,12 @@ import { AstNode, AstTree } from '../types/ast.type';
 
 function mapNode(node: SyntaxNode): AstNode {
   const children: AstNode[] = [];
-  const childAt = node.child;
   const childCount = node.childCount;
-  const hasIndexedChildren =
-    typeof childCount === 'number' && typeof childAt === 'function';
+  const getChild = node.child?.bind(node);
 
-  if (hasIndexedChildren && childAt) {
+  if (typeof childCount === 'number' && getChild) {
     for (let index = 0; index < childCount; index += 1) {
-      const child = childAt.call(node, index);
+      const child = getChild(index);
       if (!child) {
         continue;
       }

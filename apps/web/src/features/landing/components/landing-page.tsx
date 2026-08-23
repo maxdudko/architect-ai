@@ -32,6 +32,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useCallback, useState, type SyntheticEvent } from 'react';
+import { BrandMark } from '@/shared/components';
 import { LandingPlansSection } from './landing-plans';
 
 const CREATOR_SITE_URL = 'https://maxdudko.vercel.app/';
@@ -348,15 +349,8 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
       <div id="top" className="h-0 w-0 overflow-hidden" aria-hidden="true" />
       <header className="sticky top-0 z-20 border-b border-border/70 bg-background/90 backdrop-blur">
         <div className="container flex h-16 items-center justify-between">
-          <a
-            href="#top"
-            onClick={(event) => handleNavClick(event, 'top')}
-            className="flex items-center gap-2 font-semibold tracking-tight"
-          >
-            <span className="flex size-7 items-center justify-center rounded-md bg-[hsl(var(--landing-accent))] text-white">
-              <Network className="size-4" aria-hidden="true" />
-            </span>
-            Architect AI
+          <a href="#top" onClick={(event) => handleNavClick(event, 'top')}>
+            <BrandMark />
           </a>
           <nav
             className="hidden items-center gap-6 text-sm text-muted-foreground md:flex"
