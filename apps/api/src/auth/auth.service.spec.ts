@@ -205,6 +205,18 @@ describe('AuthService', () => {
       ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
+    it('rejects OAuth-only users without a password', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...user,
+        passwordHash: null,
+      });
+
+      await expect(
+        service.signIn({ email, password: 'Password123!' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(mockedBcrypt.compare).not.toHaveBeenCalled();
+    });
+
     it('rejects users without workspace memberships', async () => {
       usersService.findByEmail.mockResolvedValue(user);
       usersService.touchLastLoginAt.mockResolvedValue(user);

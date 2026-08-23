@@ -1,4 +1,5 @@
 export * from './components/auth-shell';
+export * from './components/oauth-buttons';
 export * from './components/sign-in-form';
 export * from './components/sign-up-form';
 export * from './hooks/use-sign-in-form';

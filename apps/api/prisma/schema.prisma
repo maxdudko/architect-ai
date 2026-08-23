@@ -133,6 +133,11 @@ enum OAuthProvider {
   GITHUB
 }
 
+enum IdentityProvider {
+  GOOGLE
+  GITHUB
+}
+
 enum AnalyticsEventType {
   REPOSITORY_CONNECTED
   REPOSITORY_INDEXING_SUCCEEDED
@@ -171,7 +176,7 @@ enum UsagePeriod {
 model User {
   id            String           @id @default(uuid()) @db.Uuid
   email         String           @unique
-  passwordHash  String           @map("password_hash")
+  passwordHash  String?          @map("password_hash")
   firstName     String           @map("first_name")
   lastName      String           @map("last_name")
   avatarUrl     String?          @map("avatar_url")
@@ -185,6 +190,7 @@ model User {
   deletedAt     DateTime?        @map("deleted_at")
   lastLoginAt   DateTime?        @map("last_login_at")
   oauthAccounts OAuthAccount[]
+  identityAccounts IdentityAccount[]
 
   @@index([createdAt], map: "users_created_at_idx")
   @@map("users")
@@ -221,6 +227,22 @@ model OAuthAccount {
   @@unique([provider, providerUserId], map: "oauth_accounts_provider_provider_user_id_key")
   @@index([userId], map: "oauth_accounts_user_id_idx")
   @@map("oauth_accounts")
+}
+
+model IdentityAccount {
+  id             String           @id @default(uuid()) @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  provider       IdentityProvider
+  providerUserId String           @map("provider_user_id")
+  email          String?
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider], map: "identity_accounts_user_id_provider_key")
+  @@unique([provider, providerUserId], map: "identity_accounts_provider_provider_user_id_key")
+  @@index([userId], map: "identity_accounts_user_id_idx")
+  @@map("identity_accounts")
 }
 
 model Workspace {

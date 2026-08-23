@@ -21,11 +21,12 @@ export async function signUp(payload: SignUpPayload): Promise<AuthResponse> {
   return data;
 }
 
-export async function fetchCurrentSession(): Promise<
-  Pick<AuthResponse, 'user' | 'workspaces' | 'activeWorkspace'>
-> {
-  const { data } =
-    await apiClient.get<Pick<AuthResponse, 'user' | 'workspaces' | 'activeWorkspace'>>('/auth/me');
+export async function fetchCurrentSession(
+  accessToken?: string,
+): Promise<Pick<AuthResponse, 'user' | 'workspaces' | 'activeWorkspace'>> {
+  const { data } = await apiClient.get<
+    Pick<AuthResponse, 'user' | 'workspaces' | 'activeWorkspace'>
+  >('/auth/me', accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : undefined);
   return data;
 }
 

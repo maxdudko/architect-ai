@@ -32,9 +32,11 @@ Open [http://localhost:3000](http://localhost:3000).
 
 The web app reads configuration from the monorepo root `.env` or environment variables at runtime:
 
-| Variable                   | Default                 | Description          |
-| -------------------------- | ----------------------- | -------------------- |
-| `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:5000` | Backend API base URL |
+| Variable                           | Default                 | Description                                  |
+| ---------------------------------- | ----------------------- | -------------------------------------------- |
+| `NEXT_PUBLIC_API_BASE_URL`         | `http://localhost:5000` | Backend API base URL                         |
+| `NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED` | `true`                  | Show Continue with Google (`false` hides it) |
+| `NEXT_PUBLIC_GITHUB_OAUTH_ENABLED` | `true`                  | Show Continue with GitHub (`false` hides it) |
 
 The API must allow the web origin via CORS (`CORS_ORIGINS=http://localhost:3000` in `apps/api`).
 

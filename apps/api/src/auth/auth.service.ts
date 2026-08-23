@@ -87,6 +87,21 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    if (!user.passwordHash) {
+      this.systemLogsService.record({
+        category: SystemLogCategory.AUDIT,
+        level: SystemLogLevel.WARN,
+        event: 'user.auth.signin.failure',
+        actorType: 'user',
+        actorId: user.id,
+        message: 'Password sign-in attempted for OAuth-only account',
+        metadata: { email },
+      });
+      throw new UnauthorizedException(
+        'This account uses Google or GitHub to sign in',
+      );
+    }
+
     const isValidPassword = await bcrypt.compare(
       dto.password,
       user.passwordHash,

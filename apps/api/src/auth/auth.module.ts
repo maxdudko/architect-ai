@@ -9,6 +9,12 @@ import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { AuthCookieService } from './auth-cookie.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { GithubIdentityOauthClient } from './oauth/github-identity-oauth.client';
+import { GoogleOauthClient } from './oauth/google-oauth.client';
+import { IdentityAccountsRepository } from './oauth/identity-accounts.repository';
+import { OauthController } from './oauth/oauth.controller';
+import { OauthService } from './oauth/oauth.service';
+import { OauthStateService } from './oauth/oauth-state.service';
 import { SessionStoreService } from './session-store.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
@@ -21,13 +27,18 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     forwardRef(() => WorkspacesModule),
     MembershipsModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, OauthController],
   providers: [
     AuthService,
     AuthCookieService,
     SessionStoreService,
     JwtStrategy,
     WorkspaceGuard,
+    OauthStateService,
+    GoogleOauthClient,
+    GithubIdentityOauthClient,
+    IdentityAccountsRepository,
+    OauthService,
   ],
   exports: [AuthService, AuthCookieService],
 })

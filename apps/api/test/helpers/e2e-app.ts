@@ -88,6 +88,16 @@ export function configureTestEnvironment(): void {
   process.env.EMBEDDING_PROVIDER = 'mock';
   process.env.RATE_LIMIT_ENABLED = 'false';
   process.env.REPOSITORY_ACCESS_VALIDATION_ENABLED = 'false';
+  process.env.WEB_URL ??= 'http://localhost:3000';
+  process.env.GOOGLE_CLIENT_ID ??= 'test-google-client-id';
+  process.env.GOOGLE_CLIENT_SECRET ??= 'test-google-client-secret';
+  process.env.GOOGLE_OAUTH_REDIRECT_URI ??=
+    'http://localhost:5000/auth/oauth/google/callback';
+  process.env.AUTH_GITHUB_CLIENT_ID ??= 'test-github-auth-client-id';
+  process.env.AUTH_GITHUB_CLIENT_SECRET ??= 'test-github-auth-client-secret';
+  process.env.AUTH_GITHUB_OAUTH_REDIRECT_URI ??=
+    'http://localhost:5000/auth/oauth/github/callback';
+  process.env.AUTH_OAUTH_STATE_SECRET ??= 'test-oauth-state-secret';
   delete process.env.REDIS_URL;
 }
 
@@ -134,6 +144,7 @@ export async function resetDatabase(prisma: PrismaService): Promise<void> {
       conversations,
       repositories,
       oauth_accounts,
+      identity_accounts,
       invitations,
       memberships,
       workspace_ai_settings,

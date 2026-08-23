@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components';
+import { Network } from 'lucide-react';
 
 interface AuthShellProps {
   title: string;
@@ -23,6 +24,14 @@ export function AuthShell({
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
+        <div className="border-b border-border/70 bg-background/90 backdrop-blur pb-2 mb-4">
+          <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight mb-2">
+            <span className="flex size-7 items-center justify-center rounded-md bg-[hsl(var(--landing-accent))] text-white">
+              <Network className="size-4" aria-hidden="true" />
+            </span>
+            Architect AI
+          </Link>
+        </div>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>

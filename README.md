@@ -117,7 +117,16 @@ GITHUB_OAUTH_STATE_SECRET=replace-with-a-strong-random-secret
 Create the GitHub OAuth App with:
 
 - Homepage URL: `http://localhost:3000`
-- Authorization callback URL: `http://localhost:5000/integrations/github/callback`
+- Authorization callback URLs:
+  - `http://localhost:5000/integrations/github/callback` (repository connect)
+  - `http://localhost:5000/auth/oauth/github/callback` (sign-in / sign-up)
+
+Create a Google Cloud OAuth client (Web application) with:
+
+- Authorized JavaScript origin: `http://localhost:3000`
+- Authorized redirect URI: `http://localhost:5000/auth/oauth/google/callback`
+
+Then set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. `AUTH_GITHUB_CLIENT_ID` / `AUTH_GITHUB_CLIENT_SECRET` are optional and fall back to the repo-connect GitHub app credentials.
 
 The default `mock` LLM and embedding providers let the full flow run without AI credentials. They are for development and smoke testing, not useful semantic answers.
 
@@ -233,6 +242,7 @@ Important configuration groups:
 - data: `DATABASE_URL`, `REDIS_URL`, `QDRANT_URL`, `QDRANT_COLLECTION`;
 - authentication: `JWT_*`, `TOKEN_ENCRYPTION_KEY`, cookie and CORS values;
 - GitHub: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_OAUTH_REDIRECT_URI`, `GITHUB_OAUTH_STATE_SECRET`;
+- identity OAuth: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, `AUTH_GITHUB_OAUTH_REDIRECT_URI` (optional `AUTH_GITHUB_CLIENT_*` fall back to the GitHub integration app);
 - indexing: `INDEXING_WORKER_*`, `INDEXING_TMP_*`, clone size/time limits;
 - retrieval: `EMBEDDING_PROVIDER`, embedding model/dimensions/batch size, retrieval cache variables;
 - generation: `LLM_PROVIDER`, OpenAI/Anthropic/Grok/Gemini keys and models, `LLM_MAX_TOKENS`;

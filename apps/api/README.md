@@ -76,9 +76,15 @@ Required for production (`NODE_ENV=production` fails fast if any are missing):
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
 - `GITHUB_OAUTH_STATE_SECRET`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_OAUTH_REDIRECT_URI`
+- `AUTH_GITHUB_OAUTH_REDIRECT_URI`
 - `REDIS_URL` (recommended for session persistence)
 
 See [docs/deploy-ec2.md](../../docs/deploy-ec2.md) for the AWS EC2 Compose layout.
+
+GitHub has two OAuth callbacks: `/integrations/github/callback` for repository connect (`GITHUB_OAUTH_REDIRECT_URI`) and `/auth/oauth/github/callback` for sign-in (`AUTH_GITHUB_OAUTH_REDIRECT_URI`). Google sign-in uses `/auth/oauth/google/callback`.
 
 ## Local Commands
 
