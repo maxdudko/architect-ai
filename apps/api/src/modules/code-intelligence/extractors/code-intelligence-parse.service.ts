@@ -6,10 +6,12 @@ import {
   UnparseableFileError,
 } from '../errors/unparseable-file.error';
 import { RepositoryInventoryService } from '../inventory/repository-inventory.service';
+import { LanguagePackRegistry } from '../languages/language-pack.registry';
 import { TreeSitterLanguageParserService } from '../parser/tree-sitter-language-parser.service';
 import { SymbolRelationshipExtractorService } from '../relationships/symbol-relationship-extractor.service';
 import { RepositoryScannerService } from '../scanner/repository-scanner.service';
 import { CodeIntelligenceStorageService } from '../storage/code-intelligence-storage.service';
+import { PROGRAMMING_LANGUAGES } from '../types/programming-language.type';
 import { SymbolExtractorService } from './symbol-extractor.service';
 
 @Injectable()
@@ -21,6 +23,7 @@ export class CodeIntelligenceParseService {
     private readonly symbolExtractorService: SymbolExtractorService,
     private readonly relationshipExtractorService: SymbolRelationshipExtractorService,
     private readonly storageService: CodeIntelligenceStorageService,
+    private readonly languagePacks: LanguagePackRegistry,
   ) {}
 
   async parseRepository(params: {
@@ -39,8 +42,6 @@ export class CodeIntelligenceParseService {
       async (candidate) => {
         try {
           const source = await readFile(candidate.absolutePath, 'utf8');
-          const ast = this.parserService.parse(candidate, source);
-
           const inventoryEntry =
             await this.inventoryService.upsertInventoryEntry({
               repositoryId: params.repositoryId,
@@ -48,6 +49,16 @@ export class CodeIntelligenceParseService {
               candidate,
               source,
             });
+
+          if (
+            candidate.language === PROGRAMMING_LANGUAGES.config ||
+            this.languagePacks.isManifest(candidate.relativePath) ||
+            !this.parserService.supports(candidate.language)
+          ) {
+            return;
+          }
+
+          const ast = this.parserService.parse(candidate, source);
 
           const extractedSymbols = this.symbolExtractorService.extract(
             candidate.relativePath,

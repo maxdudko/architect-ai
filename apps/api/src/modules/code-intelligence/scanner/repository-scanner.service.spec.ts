@@ -1,4 +1,5 @@
 import { LanguageDetectorService } from '../languages/language-detector.service';
+import { createDefaultLanguagePackRegistry } from '../languages/default-language-packs';
 import { ChecksumService } from '../utils/checksum.service';
 import { UnparseableFileError } from '../errors/unparseable-file.error';
 import { RepositoryScannerService } from './repository-scanner.service';
@@ -28,6 +29,7 @@ describe('RepositoryScannerService', () => {
     service = new RepositoryScannerService(
       checksumService,
       languageDetectorService,
+      createDefaultLanguagePackRegistry(),
     );
   });
 
@@ -83,5 +85,36 @@ describe('RepositoryScannerService', () => {
       supportedFileCount: 1,
       ignoredFileCount: 1,
     });
+  });
+
+  it('inventories manifests and skips ignored Python/PHP folders', async () => {
+    (readdir as jest.MockedFunction<typeof readdir>).mockResolvedValueOnce([
+      { name: 'venv', isDirectory: () => true, isFile: () => false },
+      { name: 'vendor', isDirectory: () => true, isFile: () => false },
+      { name: 'composer.json', isDirectory: () => false, isFile: () => true },
+      { name: 'pyproject.toml', isDirectory: () => false, isFile: () => true },
+    ] as never);
+
+    (stat as jest.MockedFunction<typeof stat>).mockResolvedValue({
+      size: 120,
+    } as never);
+
+    const candidates: Array<{ path: string; language: string }> = [];
+    const result = await service.scanRepository('/repo', (candidate) => {
+      candidates.push({
+        path: candidate.relativePath,
+        language: candidate.language,
+      });
+      return Promise.resolve();
+    });
+
+    expect(candidates).toEqual(
+      expect.arrayContaining([
+        { path: 'composer.json', language: 'config' },
+        { path: 'pyproject.toml', language: 'config' },
+      ]),
+    );
+    expect(result.supportedFileCount).toBe(2);
+    expect(result.ignoredFileCount).toBe(2);
   });
 });

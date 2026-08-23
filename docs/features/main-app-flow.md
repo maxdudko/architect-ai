@@ -71,7 +71,7 @@ Invoked by the indexing worker’s `parse` and `chunk` jobs (not by chat).
 
 ```text
 Scan files
-  → Detect language (TypeScript / JavaScript today)
+  → Detect language (TypeScript / JavaScript / Python / PHP today)
   → Tree-sitter parse → AST
   → Upsert RepositoryFile inventory
   → Extract CodeSymbol (+ hierarchy, export/async/etc.)

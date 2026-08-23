@@ -12,10 +12,18 @@ import { TextMetricsService } from './utils/text-metrics.service';
 import { GeneratedFileDetectorService } from './utils/generated-file-detector.service';
 import { CodeIntelligenceParseService } from './extractors/code-intelligence-parse.service';
 import { ChunkBuilderService } from './extractors/chunk-builder.service';
+import { loadDefaultLanguagePacks } from './languages/default-language-packs';
+import { LanguagePackRegistry } from './languages/language-pack.registry';
+import { LANGUAGE_PACKS } from './languages/tokens';
 
 @Module({
   providers: [
     RepositoriesRepository,
+    {
+      provide: LANGUAGE_PACKS,
+      useFactory: loadDefaultLanguagePacks,
+    },
+    LanguagePackRegistry,
     RepositoryScannerService,
     LanguageDetectorService,
     ChecksumService,
@@ -29,6 +37,10 @@ import { ChunkBuilderService } from './extractors/chunk-builder.service';
     CodeIntelligenceParseService,
     ChunkBuilderService,
   ],
-  exports: [CodeIntelligenceParseService, ChunkBuilderService],
+  exports: [
+    CodeIntelligenceParseService,
+    ChunkBuilderService,
+    LanguagePackRegistry,
+  ],
 })
 export class CodeIntelligenceModule {}

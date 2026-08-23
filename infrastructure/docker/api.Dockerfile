@@ -2,7 +2,7 @@ FROM node:20-alpine
 
 WORKDIR /workspace
 
-RUN apk add --no-cache git
+RUN apk add --no-cache git python3 make g++
 
 RUN corepack enable && corepack prepare pnpm@10.11.1 --activate
 

@@ -3,20 +3,10 @@ import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { isUnparseableFileError } from '../errors/unparseable-file.error';
 import { LanguageDetectorService } from '../languages/language-detector.service';
+import { LanguagePackRegistry } from '../languages/language-pack.registry';
+import { PROGRAMMING_LANGUAGES } from '../types/programming-language.type';
 import { RepositoryFileCandidate } from '../types/repository-file-candidate.type';
 import { ChecksumService } from '../utils/checksum.service';
-
-const IGNORED_FOLDERS = new Set([
-  'node_modules',
-  'dist',
-  'build',
-  'coverage',
-  '.next',
-  '.git',
-  'vendor',
-  'target',
-  'out',
-]);
 
 const BINARY_EXTENSIONS = new Set([
   '.png',
@@ -41,6 +31,7 @@ export class RepositoryScannerService {
   constructor(
     private readonly checksumService: ChecksumService,
     private readonly languageDetector: LanguageDetectorService,
+    private readonly languagePacks: LanguagePackRegistry,
   ) {}
 
   async scanRepository(
@@ -50,6 +41,7 @@ export class RepositoryScannerService {
     const stack: string[] = [repositoryRoot];
     let supportedFileCount = 0;
     let ignoredFileCount = 0;
+    const ignoredFolders = this.languagePacks.ignoredFolders();
 
     while (stack.length > 0) {
       const currentPath = stack.pop();
@@ -74,7 +66,7 @@ export class RepositoryScannerService {
         const absolutePath = path.join(currentPath, entry.name);
 
         if (entry.isDirectory()) {
-          if (IGNORED_FOLDERS.has(entry.name)) {
+          if (ignoredFolders.has(entry.name)) {
             ignoredFileCount += 1;
             continue;
           }
@@ -93,7 +85,11 @@ export class RepositoryScannerService {
           continue;
         }
 
-        const language = this.languageDetector.detect(absolutePath);
+        const relativePath = path.relative(repositoryRoot, absolutePath);
+        const isManifest = this.languagePacks.isManifest(relativePath);
+        const language = isManifest
+          ? PROGRAMMING_LANGUAGES.config
+          : this.languageDetector.detect(absolutePath);
         if (!language) {
           ignoredFileCount += 1;
           continue;
@@ -133,9 +129,9 @@ export class RepositoryScannerService {
         try {
           await onCandidate({
             absolutePath,
-            relativePath: path.relative(repositoryRoot, absolutePath),
+            relativePath,
             language,
-            extension,
+            extension: extension || path.extname(entry.name),
             size: fileStats.size,
             checksum,
           });

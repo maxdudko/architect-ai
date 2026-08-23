@@ -5,6 +5,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { WorkspaceParamGuard } from '../../common/guards/workspace-param.guard';
 import { MembershipsModule } from '../../memberships/memberships.module';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { CodeIntelligenceModule } from '../code-intelligence/code-intelligence.module';
 import { RetrievalModule } from '../retrieval/retrieval.module';
 import { RepositoriesModule } from '../../repositories/repositories.module';
 import { UsageModule } from '../../usage/usage.module';
@@ -58,6 +59,7 @@ const GENERATOR_CLASSES = [
     MembershipsModule,
     PrismaModule,
     RetrievalModule,
+    CodeIntelligenceModule,
     UsageModule,
     WorkspaceAiModule,
     forwardRef(() => RepositoriesModule),

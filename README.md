@@ -12,7 +12,7 @@ This repository currently implements the **AI Onboarding Assistant** phase. Arch
 - Multi-workspace membership, roles, invitations, and workspace switching
 - GitHub OAuth, repository discovery, branch selection, and encrypted tokens
 - Asynchronous repository indexing with BullMQ and a dedicated worker
-- Tree-sitter parsing for TypeScript and JavaScript
+- Tree-sitter parsing for TypeScript, JavaScript, Python, and PHP
 - File, symbol, static-relation, and semantic-chunk persistence
 - OpenAI or deterministic local embeddings with Qdrant vector search
 - Repository-scoped and workspace-scoped chat with SSE streaming
@@ -27,7 +27,7 @@ Not implemented yet:
 
 - GitLab and Bitbucket ingestion
 - GitHub webhooks or incremental indexing
-- Languages other than TypeScript/JavaScript
+- Languages other than TypeScript, JavaScript, Python, and PHP
 - Hybrid/lexical search, model reranking, or knowledge-graph retrieval
 - Architecture diagrams/explorer
 - ADR and decision-memory ingestion
@@ -83,7 +83,7 @@ Core technology:
 - Next.js 16, React 19, TypeScript, Tailwind CSS
 - NestJS 11, Prisma, PostgreSQL 16
 - BullMQ and Redis 7
-- Tree-sitter for TypeScript/JavaScript analysis
+- Tree-sitter for TypeScript, JavaScript, Python, and PHP analysis
 - Qdrant for vector search
 - OpenAI, Anthropic, Grok, and Gemini provider adapters
 
@@ -308,7 +308,7 @@ See [EC2 deployment](docs/features/deploy-ec2.md) for host sizing, DNS, security
 
 ## Current architectural constraints
 
-- Only TypeScript and JavaScript are parsed.
+- Only TypeScript, JavaScript, Python, and PHP are parsed. Go, Java, and Rust remain unused language-pack slots.
 - Reindexing removes the old searchable index before the new one succeeds.
 - A provider repository is globally unique and cannot currently be connected to multiple workspaces.
 - Rate limiting is in-process and is not coordinated across API replicas.

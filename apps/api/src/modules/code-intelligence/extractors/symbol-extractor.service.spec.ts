@@ -1,8 +1,11 @@
 import { CodeSymbolType } from '@prisma/client';
+import { createDefaultLanguagePackRegistry } from '../languages/default-language-packs';
 import { SymbolExtractorService } from './symbol-extractor.service';
 
 describe('SymbolExtractorService', () => {
-  const service = new SymbolExtractorService();
+  const service = new SymbolExtractorService(
+    createDefaultLanguagePackRegistry(),
+  );
 
   it('extracts class and method symbols', () => {
     const symbols = service.extract('src/auth.service.ts', {

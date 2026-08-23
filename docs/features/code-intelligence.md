@@ -9,7 +9,7 @@ The Code Intelligence layer builds a semantic representation of source code repo
 `apps/api/src/modules/code-intelligence/`
 
 - `scanner/` — repository traversal and candidate file streaming
-- `languages/` — language detection strategy
+- `languages/` — language detection and language packs (grammars, extractors, topology hints)
 - `parser/` — language parser abstraction and Tree-sitter adapter
 - `ast/` — AST abstraction independent from Tree-sitter internals
 - `extractors/` — symbol extraction and semantic chunking
@@ -22,11 +22,11 @@ The Code Intelligence layer builds a semantic representation of source code repo
 
 ## Pipeline
 
-1. `RepositoryScannerService` recursively scans the clone path.
-2. `LanguageDetectorService` resolves language for each file.
-3. `TreeSitterLanguageParserService` parses source and returns `ParsedFileAst`.
-4. `SymbolExtractorService` extracts semantic symbols with metadata and parent hierarchy.
-5. `SymbolRelationshipExtractorService` extracts static relationships.
+1. `RepositoryScannerService` recursively scans the clone path, skipping pack ignore folders and inventorying manifests without parsing.
+2. `LanguageDetectorService` resolves language for each file from registered language packs.
+3. `TreeSitterLanguageParserService` parses source with the pack grammar and returns field-aware `ParsedFileAst`.
+4. `SymbolExtractorService` dispatches to the matching pack to extract symbols.
+5. `SymbolRelationshipExtractorService` dispatches to the matching pack to extract static relationships.
 6. `RepositoryInventoryService` upserts repository file inventory by `repositoryId + path`.
 7. `ChunkBuilderService` creates one semantic chunk per meaningful symbol.
 
@@ -49,6 +49,7 @@ Business logic stays in the Code Intelligence module.
 
 ## Extension Points
 
-- Add new languages by extending `LanguageDetectorService` and parser grammars.
+- Add a new language by creating `languages/<id>.pack.ts` (extensions, grammar, ignore folders, manifests, topology hints, symbol/relation extractors), registering it in `loadDefaultLanguagePacks()`, and adding a Tree-sitter grammar dependency.
+- Preserve Tree-sitter field names on `AstNode` so extractors can read `name` / `body` without regexes on `node.text`.
 - Add new relationship types by extending `SymbolRelationType` and extractor logic.
 - Add embedding generation as a downstream stage via the Retrieval module (`docs/retrieval.md`), independent from chunk generation.

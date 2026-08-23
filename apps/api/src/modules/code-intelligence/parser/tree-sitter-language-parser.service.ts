@@ -1,40 +1,23 @@
 import { Injectable } from '@nestjs/common';
-import { createRequire } from 'node:module';
 import type ParserType from 'tree-sitter';
 import { TreeSitterAstAdapter } from '../ast/tree-sitter-ast.adapter';
 import { UnparseableFileError } from '../errors/unparseable-file.error';
 import { LanguageParser } from '../interfaces/language-parser.interface';
+import { LanguagePackRegistry } from '../languages/language-pack.registry';
+import { loadNativeGrammar } from '../languages/load-native-grammar';
 import { ParsedFileAst } from '../types/ast.type';
-import { PROGRAMMING_LANGUAGES } from '../types/programming-language.type';
 import { RepositoryFileCandidate } from '../types/repository-file-candidate.type';
 
-type GrammarKey = 'typescript' | 'tsx' | 'javascript';
-
-const nodeRequire = createRequire(__filename);
-
-// Native addons are loaded via createRequire so Jest/CJS interop stays stable.
-const Parser = nodeRequire('tree-sitter') as typeof ParserType;
-const TypeScript = nodeRequire('tree-sitter-typescript') as {
-  typescript: unknown;
-  tsx: unknown;
-};
-const JavaScript = nodeRequire('tree-sitter-javascript') as unknown;
+const Parser = loadNativeGrammar('tree-sitter') as typeof ParserType;
 
 @Injectable()
 export class TreeSitterLanguageParserService implements LanguageParser {
   private readonly astAdapter = new TreeSitterAstAdapter();
 
-  private readonly grammars = new Map<GrammarKey, unknown>([
-    ['typescript', TypeScript.typescript],
-    ['tsx', TypeScript.tsx],
-    ['javascript', JavaScript],
-  ]);
+  constructor(private readonly languagePacks: LanguagePackRegistry) {}
 
   supports(language: string): boolean {
-    return (
-      language === PROGRAMMING_LANGUAGES.typescript ||
-      language === PROGRAMMING_LANGUAGES.javascript
-    );
+    return this.languagePacks.canParse(language);
   }
 
   parse(file: RepositoryFileCandidate, source: string): ParsedFileAst {
@@ -42,10 +25,14 @@ export class TreeSitterLanguageParserService implements LanguageParser {
       throw new Error(`Unsupported language parser: ${file.language}`);
     }
 
-    const grammarKey = this.resolveGrammarKey(file);
-    const grammar = this.grammars.get(grammarKey);
+    const pack = this.languagePacks.getByLanguage(file.language);
+    if (!pack) {
+      throw new Error(`Missing language pack for ${file.language}`);
+    }
+
+    const grammar = pack.resolveGrammar(file);
     if (!grammar) {
-      throw new Error(`Missing grammar for ${grammarKey}`);
+      throw new Error(`Missing grammar for ${file.language}`);
     }
 
     try {
@@ -72,17 +59,5 @@ export class TreeSitterLanguageParserService implements LanguageParser {
       }
       throw new UnparseableFileError(file.relativePath, error);
     }
-  }
-
-  private resolveGrammarKey(file: RepositoryFileCandidate): GrammarKey {
-    if (file.extension.toLowerCase() === '.tsx') {
-      return 'tsx';
-    }
-
-    if (file.language === PROGRAMMING_LANGUAGES.javascript) {
-      return 'javascript';
-    }
-
-    return 'typescript';
   }
 }

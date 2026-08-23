@@ -169,6 +169,111 @@ describe('IndexedTopologyAnalyzer', () => {
       }),
     );
   });
+
+  it('discovers Laravel and Django topology from pack hints', async () => {
+    const snapshot: IndexedTopologySnapshot = {
+      repository: {
+        id: 'repository-2',
+        workspaceId: 'workspace-1',
+        name: 'backend',
+        fullName: 'acme/backend',
+        provider: 'github',
+        defaultBranch: 'main',
+        status: 'READY',
+        lastIndexedAt: null,
+      },
+      run: {
+        indexingRunId: 'index-run-2',
+        commitSha: 'def456',
+        branch: 'main',
+        completedAt: new Date('2026-08-23T12:00:00.000Z'),
+      },
+      files: [
+        {
+          path: 'app/Http/Controllers/UserController.php',
+          language: 'php',
+          extension: '.php',
+          lineCount: 80,
+          size: 800,
+        },
+        {
+          path: 'app/views.py',
+          language: 'python',
+          extension: '.py',
+          lineCount: 40,
+          size: 400,
+        },
+        {
+          path: 'manage.py',
+          language: 'python',
+          extension: '.py',
+          lineCount: 20,
+          size: 200,
+        },
+        {
+          path: 'composer.json',
+          language: 'config',
+          extension: '.json',
+          lineCount: 30,
+          size: 300,
+        },
+        {
+          path: 'pyproject.toml',
+          language: 'config',
+          extension: '.toml',
+          lineCount: 20,
+          size: 200,
+        },
+      ],
+      symbols: [
+        {
+          filePath: 'app/Http/Controllers/UserController.php',
+          name: 'UserController',
+          qualifiedName: 'UserController',
+          type: 'CLASS',
+          exported: true,
+          isAsync: false,
+        },
+        {
+          filePath: 'app/views.py',
+          name: 'UserViewSet',
+          qualifiedName: 'UserViewSet',
+          type: 'CLASS',
+          exported: true,
+          isAsync: false,
+        },
+      ],
+      relations: [],
+    };
+    const dataSource = {
+      loadLatest: jest.fn().mockResolvedValue(snapshot),
+    } as jest.Mocked<IndexedTopologyDataSource>;
+
+    const topology = await new IndexedTopologyAnalyzer(dataSource).analyze(
+      'workspace-1',
+      'repository-2',
+    );
+
+    expect(topology.serviceCandidates.map((item) => item.name)).toEqual(
+      expect.arrayContaining(['UserController', 'UserViewSet']),
+    );
+    expect(topology.entryPointHints).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: 'manage.py', confidence: 'high' }),
+      ]),
+    );
+    expect(topology.technologyEvidence.map((item) => item.name)).toEqual(
+      expect.arrayContaining([
+        'PHP Composer',
+        'Python package ecosystem',
+        'php',
+        'python',
+      ]),
+    );
+    expect(
+      topology.technologyEvidence.some((item) => item.name === 'config'),
+    ).toBe(false);
+  });
 });
 
 describe('guide prompt and output contracts', () => {

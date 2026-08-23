@@ -9,7 +9,7 @@ Architect AI is currently a multi-tenant codebase onboarding application. A user
 - create an account and a personal workspace;
 - invite members and assign workspace roles;
 - connect a GitHub account and select a repository and branch;
-- index TypeScript and JavaScript source asynchronously;
+- index TypeScript, JavaScript, Python, and PHP source asynchronously;
 - browse indexed files and symbols;
 - ask repository-scoped questions and receive source citations;
 - generate and browse evidence-backed onboarding guides;
@@ -189,15 +189,15 @@ The code-intelligence module is independent of chat and LLM generation:
 
 ```text
 Recursive scanner
-  → extension-based language detection
+  → language-pack detection (and non-parsed manifests)
   → Tree-sitter AST adapter
-  → symbol extraction
-  → static relationship extraction
+  → pack symbol extraction
+  → pack static relationship extraction
   → PostgreSQL persistence
   → semantic chunk construction
 ```
 
-Current language support is TypeScript and JavaScript, including TSX/JSX and module variants. Ignored build/dependency directories, binaries, unsupported files, empty files, and unparseable files are skipped.
+Current language support is TypeScript, JavaScript, Python, and PHP (including TSX/JSX and PHP/Python module variants). Languages are registered as packs under `apps/api/src/modules/code-intelligence/languages/`. Ignored build/dependency directories, binaries, unsupported files, empty files, and unparseable files are skipped. Manifests such as `package.json`, `composer.json`, and `pyproject.toml` are inventoried without parsing.
 
 Extracted symbols include functions, classes, methods, interfaces, enums, type aliases, variables, constants, namespaces, and modules. Relations include imports, exports, extends, implements, calls, and uses. This is static, syntax-level analysis; it is not a complete runtime call graph.
 
@@ -394,7 +394,7 @@ lint → unit tests → typecheck → API E2E tests → build
 The next architecture work should extend the current boundaries rather than claim already-planned systems:
 
 1. make indexing non-destructive and incremental; add GitHub webhook-triggered refresh;
-2. add more language parsers and improve relationship resolution;
+2. add more language packs (Go, Java, Rust) and improve relationship resolution;
 3. add lexical/hybrid retrieval, reranking, and retrieval evaluation;
 4. remove the global repository/workspace uniqueness constraint;
 5. move rate limiting and all session behavior to shared infrastructure;
