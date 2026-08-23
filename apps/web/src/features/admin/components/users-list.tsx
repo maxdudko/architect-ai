@@ -91,9 +91,7 @@ function EditUserDialog({ user }: { user: AdminListedUser }) {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Edit user</DialogTitle>
-          <DialogDescription>
-            Update profile details for {user.email}.
-          </DialogDescription>
+          <DialogDescription>Update profile details for {user.email}.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <label className="space-y-1 block text-sm">

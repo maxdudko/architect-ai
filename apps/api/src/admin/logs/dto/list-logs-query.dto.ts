@@ -13,6 +13,16 @@ import {
   Min,
 } from 'class-validator';
 
+function toOptionalDate(value: unknown): Date | undefined {
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    return undefined;
+  }
+  if (value === '') {
+    return undefined;
+  }
+  return new Date(value);
+}
+
 export class ListLogsQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
   @IsOptional()
@@ -51,7 +61,7 @@ export class ListLogsQueryDto {
     description: 'Inclusive start of createdAt range (ISO)',
   })
   @IsOptional()
-  @Transform(({ value }) => (value ? new Date(value) : undefined))
+  @Transform(({ value }: { value: unknown }) => toOptionalDate(value))
   @IsDate()
   from?: Date;
 
@@ -59,7 +69,7 @@ export class ListLogsQueryDto {
     description: 'Inclusive end of createdAt range (ISO)',
   })
   @IsOptional()
-  @Transform(({ value }) => (value ? new Date(value) : undefined))
+  @Transform(({ value }: { value: unknown }) => toOptionalDate(value))
   @IsDate()
   to?: Date;
 

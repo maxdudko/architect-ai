@@ -1,7 +1,4 @@
-import {
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { SystemLogCategory, SystemLogLevel, User } from '@prisma/client';
 import { AuthService } from '../../auth/auth.service';
 import { SystemLogsService } from '../../system-logs/system-logs.service';

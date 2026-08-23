@@ -68,7 +68,9 @@ function LogRow({ log }: { log: AdminListedLog }) {
         </p>
       </div>
       <div className="text-xs text-muted-foreground lg:text-right">
-        {log.message && log.method ? <p className="absolute truncate max-w-xs border px-2 rounded">{log.message}</p> : null}
+        {log.message && log.method ? (
+          <p className="absolute truncate max-w-xs border px-2 rounded">{log.message}</p>
+        ) : null}
       </div>
     </div>
   );

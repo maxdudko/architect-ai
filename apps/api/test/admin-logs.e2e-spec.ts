@@ -126,11 +126,10 @@ describeE2e('Admin Logs (e2e)', () => {
       .set(authHeader(adminAuth.accessToken))
       .expect(200);
 
-    expect(
-      filtered.body.items.every(
-        (item: { method: string | null }) => item.method !== 'OPTIONS',
-      ),
-    ).toBe(true);
+    const filteredItems = filtered.body.items as Array<{
+      method: string | null;
+    }>;
+    expect(filteredItems.every((item) => item.method !== 'OPTIONS')).toBe(true);
     expect(filtered.body.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ method: 'GET', route: '/admin/users' }),

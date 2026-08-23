@@ -203,10 +203,7 @@ describeE2e('Admin (e2e)', () => {
   });
 
   it('rejects updating a user to an email that already exists', async () => {
-    await signUp(
-      app,
-      buildSignUpPayload({ email: 'taken@example.com' }),
-    );
+    await signUp(app, buildSignUpPayload({ email: 'taken@example.com' }));
     const userAuth = await signUp(
       app,
       buildSignUpPayload({ email: 'other@example.com' }),

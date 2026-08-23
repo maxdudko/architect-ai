@@ -3,11 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  SystemLogCategory,
-  SystemLogLevel,
-  User,
-} from '@prisma/client';
+import { SystemLogCategory, SystemLogLevel, User } from '@prisma/client';
 import { AuthService } from '../../auth/auth.service';
 import { SystemLogsService } from '../../system-logs/system-logs.service';
 import { UsersService } from '../../users/users.service';
@@ -39,9 +35,7 @@ export class AdminUsersService {
     }
 
     const updated = await this.usersService.update(userId, {
-      ...(dto.email !== undefined
-        ? { email: dto.email.toLowerCase() }
-        : {}),
+      ...(dto.email !== undefined ? { email: dto.email.toLowerCase() } : {}),
       ...(dto.firstName !== undefined ? { firstName: dto.firstName } : {}),
       ...(dto.lastName !== undefined ? { lastName: dto.lastName } : {}),
       ...(dto.emailVerified !== undefined
