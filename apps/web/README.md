@@ -58,7 +58,7 @@ The codebase uses **feature-based architecture** — files are organized by prod
 ```
 src/
 ├── app/          # Next.js routes, layouts, error boundaries
-├── features/     # auth, workspace, repository, onboarding, chat, settings
+├── features/     # auth, workspace, repository, onboarding, chat, dashboard, landing, admin, invitation, settings
 ├── shared/       # Reusable UI components and primitives
 ├── entities/     # Domain types (User, Workspace, Membership, …)
 ├── widgets/      # Composed blocks (app shell, navigation)
@@ -81,21 +81,31 @@ Each feature under `src/features/` contains:
 - `schemas/` — Zod validation schemas
 - `index.ts` — barrel exports
 
-**Phase 1 (implemented):** `auth`, `workspace`  
-**Phase 2 (placeholders):** `repository`, `chat`, `settings` (personal)
+**Phase 1 (shipped):** `auth`, `workspace`, `repository`, `onboarding`, `chat`, `dashboard`, `landing`, `admin`, `invitation`
+
+**Placeholder:** `settings` (personal account preferences are not implemented)
+
+Architecture Explorer and Decision Memory appear on the dashboard as later-phase placeholders.
 
 ### API layer
 
 All HTTP calls go through `src/lib/api/`. Components and pages never import Axios directly.
 
-| File                  | Purpose                                                |
-| --------------------- | ------------------------------------------------------ |
-| `axios.ts`            | Shared client, auth header injection, 401 refresh hook |
-| `auth.ts`             | Sign in, sign up, logout, session                      |
-| `workspace.ts`        | List, create, update, switch workspaces                |
-| `membership.ts`       | List and remove members                                |
-| `invitation.ts`       | Create and accept invitations                          |
-| `onboarding-guide.ts` | List, generate, poll, and read onboarding guides       |
+| File                  | Purpose                                                   |
+| --------------------- | --------------------------------------------------------- |
+| `axios.ts`            | Shared client, auth header injection, 401 refresh hook    |
+| `auth.ts`             | Sign in, sign up, logout, session, identity OAuth         |
+| `workspace.ts`        | List, create, update, switch workspaces                   |
+| `membership.ts`       | List and remove members                                   |
+| `invitation.ts`       | Create and accept invitations                             |
+| `repository.ts`       | Connect, list, retry, reindex, files, symbols             |
+| `github.ts`           | GitHub connect URL, repository and branch discovery       |
+| `conversation.ts`     | Conversations, messages, SSE stream, feedback             |
+| `onboarding-guide.ts` | List, generate, poll, and read onboarding guides          |
+| `usage.ts`            | Workspace usage                                           |
+| `workspace-ai.ts`     | Hosted vs BYOK provider settings                          |
+| `billing.ts`          | Plans, checkout, portal, downgrade, resume                |
+| `admin-*.ts`          | Platform-admin auth, users, plans, usage, logs, analytics |
 
 ### Auth & session
 
@@ -109,27 +119,42 @@ All HTTP calls go through `src/lib/api/`. Components and pages never import Axio
 
 ### Public
 
-| Route      | Description                             |
-| ---------- | --------------------------------------- |
-| `/`        | Redirects to `/dashboard` or `/sign-in` |
-| `/sign-in` | Sign in                                 |
-| `/sign-up` | Create account                          |
+| Route                  | Description                               |
+| ---------------------- | ----------------------------------------- |
+| `/`                    | Marketing landing page                    |
+| `/sign-in`             | Email/password and identity OAuth sign in |
+| `/sign-up`             | Create account                            |
+| `/auth/oauth/complete` | Finishes Google/GitHub identity OAuth     |
+| `/invitations/:token`  | Accept a workspace invitation             |
 
 ### Protected (app shell)
 
-| Route                                         | Description                                        |
-| --------------------------------------------- | -------------------------------------------------- |
-| `/dashboard`                                  | Workspace dashboard with Phase 1 placeholder cards |
-| `/workspaces`                                 | List and create workspaces                         |
-| `/workspace`                                  | Workspace hub (settings, members, invitations)     |
-| `/workspace/settings`                         | Update workspace name and plan                     |
-| `/workspace/members`                          | View and remove members                            |
-| `/workspace/invitations`                      | Invite teammates                                   |
-| `/repositories`                               | Phase 2 placeholder                                |
-| `/repositories/:repositoryId/guides`          | Living onboarding guide library                    |
-| `/repositories/:repositoryId/guides/:guideId` | Living onboarding guide detail                     |
-| `/chat`                                       | Phase 2 placeholder                                |
-| `/settings`                                   | Personal settings placeholder                      |
+| Route                                         | Description                                    |
+| --------------------------------------------- | ---------------------------------------------- |
+| `/dashboard`                                  | Usage, repositories, conversations, and setup  |
+| `/workspaces`                                 | List and create workspaces                     |
+| `/workspace`                                  | Workspace hub (settings, members, invitations) |
+| `/workspace/settings`                         | Name, usage, Stripe billing, and AI provider   |
+| `/workspace/members`                          | View and remove members                        |
+| `/workspace/invitations`                      | Invite teammates                               |
+| `/repositories`                               | Connected repositories and connect flow        |
+| `/repositories/:repositoryId`                 | Status, files, symbols, retry/reindex          |
+| `/repositories/:repositoryId/guides`          | Living onboarding guide library                |
+| `/repositories/:repositoryId/guides/:guideId` | Living onboarding guide detail                 |
+| `/chat`                                       | Streaming repository or workspace chat         |
+| `/settings`                                   | Personal settings placeholder                  |
+
+### Admin
+
+| Route              | Description                     |
+| ------------------ | ------------------------------- |
+| `/admin/sign-in`   | Separate platform-admin sign in |
+| `/admin`           | Admin home                      |
+| `/admin/users`     | User management                 |
+| `/admin/plans`     | Plan limits and Stripe prices   |
+| `/admin/usage`     | Workspace usage                 |
+| `/admin/logs`      | System logs                     |
+| `/admin/analytics` | Product analytics               |
 
 ### System
 
@@ -173,4 +198,4 @@ Theme is controlled by `ThemeProvider` and toggled from the top nav (light / dar
 - Keep route files thin — compose from `features/`, `widgets/`, and `shared/`
 - For server-only code (e.g. `next/headers`), use a `.server.ts` suffix and avoid importing it from client components
 
-See [`docs/onboarding-guides.md`](../../docs/onboarding-guides.md) for the Living Onboarding Guides flow and UI behavior.
+See [`docs/features/onboarding-guides.md`](../../docs/features/onboarding-guides.md) for the Living Onboarding Guides flow and UI behavior.

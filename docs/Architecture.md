@@ -6,14 +6,15 @@ This document describes the architecture that is implemented in the current MVP.
 
 Architect AI is currently a multi-tenant codebase onboarding application. A user can:
 
-- create an account and a personal workspace;
+- create an account (email/password or Google/GitHub identity) and a personal workspace;
 - invite members and assign workspace roles;
 - connect a GitHub account and select a repository and branch;
 - index TypeScript, JavaScript, Python, and PHP source asynchronously;
 - browse indexed files and symbols;
-- ask repository-scoped questions and receive source citations;
+- ask repository-scoped or workspace-scoped questions and receive source citations;
 - generate and browse evidence-backed onboarding guides;
 - use hosted AI or a workspace-owned API key for OpenAI, Anthropic, Grok, or Gemini;
+- subscribe to a paid plan through Stripe or stay on Free;
 - view usage, while platform admins manage limits and inspect analytics and logs.
 
 The MVP does **not** yet implement architecture visualization, decision memory, impact analysis, GitLab or Bitbucket ingestion, repository webhooks, incremental indexing, or a knowledge graph.
@@ -45,7 +46,7 @@ NestJS indexing worker
    └── generates onboarding guides
 
 External services:
-GitHub OAuth/API · OpenAI, Anthropic, Grok, and/or Gemini · Resend (optional) · Sentry (optional)
+GitHub OAuth/API · Google identity OAuth · OpenAI, Anthropic, Grok, and/or Gemini · Stripe · Resend (optional) · Sentry (optional)
 ```
 
 Both the HTTP process and worker bootstrap the same NestJS `AppModule`. `INDEXING_WORKER_ENABLED` prevents queue consumers from running in the API process. The worker has no HTTP listener and enables both repository-indexing and onboarding-guide workers.
@@ -80,13 +81,12 @@ The repository is a pnpm workspace orchestrated by Turborepo. The active code-in
 
 Implemented user surfaces include:
 
-- landing, sign-up, and sign-in;
+- landing, sign-up, and sign-in (email/password plus Google and GitHub identity OAuth);
 - dashboard and workspace switching;
 - repository connection, status, file, and symbol browsing;
 - streaming repository chat, conversation history, citations, and feedback;
 - onboarding guide library and guide detail views;
-- workspace settings, members, and invitations;
-- workspace AI settings and usage;
+- workspace settings, members, invitations, usage, billing, and AI provider keys;
 - separate platform-admin authentication, analytics, users, plans, and logs.
 
 The browser sends access tokens as bearer tokens. Refresh tokens are rotated by the API and stored in an HTTP-only cookie. Next.js middleware uses a lightweight access-token cookie to route users; API guards remain the authorization boundary.
@@ -100,7 +100,7 @@ The browser sends access tokens as bearer tokens. Refresh tokens are rotated by 
 - `modules/code-intelligence`, `modules/retrieval`, and `modules/llm`;
 - `conversations` and `chat`;
 - `modules/onboarding`;
-- `workspace-ai`, `usage`, `analytics`, `system-logs`, and `admin`.
+- `workspace-ai`, `usage`, `billing`, `analytics`, `system-logs`, and `admin`.
 
 Controllers expose REST endpoints; chat additionally exposes Server-Sent Events (SSE). Swagger is available at `/docs` outside production, and `/health` is the container health endpoint.
 
@@ -120,13 +120,15 @@ Jobs use retries and exponential backoff. Repository status and run records make
 ### 5.1 Authentication and workspace authorization
 
 ```text
-Sign up / sign in
-  → bcrypt password verification
+Sign up / sign in (email-password or Google/GitHub identity OAuth)
+  → bcrypt password verification, or IdentityAccount link
   → access JWT + rotating refresh JWT
   → refresh session stored in Redis
   → active workspace encoded in access token
   → workspace and role guards authorize each request
 ```
+
+Email/password accounts store a password hash. Google and GitHub **identity** sign-in create or link an `IdentityAccount` and do not grant GitHub repository access. GitHub **repository connect** is a separate OAuth flow that stores encrypted tokens on `OAuthAccount`.
 
 Sign-up creates a personal `FREE` workspace and `OWNER` membership. Roles are `OWNER`, `ADMIN`, `MEMBER`, and `VIEWER`. Workspace-scoped endpoints verify both active membership and route workspace. Mutating operations add role checks.
 
@@ -182,7 +184,7 @@ The stages are chained BullMQ jobs rather than one long job:
 2. **Clone** performs a shallow clone of the selected/default branch into `INDEXING_TMP_DIR` and records branch and commit SHA.
 3. **Parse** scans supported files, persists inventory for the current run, extracts symbols and static relationships, and prunes unseen files in that run only.
 4. **Chunk** creates one source-backed semantic chunk per meaningful symbol.
-5. **Embed** batches chunks through the configured embedding provider, upserts vectors, marks the run successful and repository `READY`, then deletes the previous generation and cleans temporary files.
+5. **Embed** batches chunks through the configured embedding provider, upserts vectors, marks the run successful and repository `READY`, then deletes the previous generation, cleans temporary files, and enqueues living-guide generation.
 
 ### 5.4 Code intelligence
 
@@ -276,14 +278,14 @@ Generation writes a new guide set only after all requested targets succeed. Exis
 
 Prisma manages relational data in these main groups:
 
-- identity: `User`, `Admin`, `OAuthAccount`;
+- identity: `User`, `Admin`, `IdentityAccount`, `OAuthAccount`;
 - tenancy: `Workspace`, `Membership`, `Invitation`;
-- commercial controls: `PlanLimit`, `WorkspaceAiSettings`;
+- commercial controls: `Plan`, `PlanPrice`, `PlanLimit`, `WorkspaceSubscription`, `WorkspaceAiSettings`;
 - repositories: `Repository`, `IndexingRun`;
 - code knowledge: `RepositoryFile`, `CodeSymbol`, `SymbolRelation`, `Chunk`;
 - generated knowledge: `Guide`, `GuideGenerationRun`;
 - conversations: `Conversation`, `Message`, `MessageSourceCitation`, `AnswerFeedback`;
-- operations and product data: `AnalyticsEvent`, `SystemLog`.
+- operations and product data: `AnalyticsEvent`, `SystemLog`, `StripeWebhookEvent`.
 
 Workspace IDs are carried through repository, conversation, guide, usage, and citation queries. Qdrant payloads repeat workspace and repository IDs so vector searches can enforce tenant filters.
 
@@ -311,9 +313,9 @@ Plan limits are database rows keyed by workspace plan and metric. The MVP enforc
 - monthly AI questions;
 - current active members plus pending invitations.
 
-New workspaces are `FREE`; `PRO` and `ENTERPRISE` are unlimited placeholders. Billing, checkout, invoices, and self-service plan changes are not implemented. Having an active BYOK provider removes question and guide limits but does not remove repository, indexing, or member limits.
+New workspaces are `FREE`. Paid plans (`PRO` and others configured by admins) have monthly Stripe prices for STANDARD and BYOK billing modes. Owners and admins upgrade through Stripe Checkout, manage payment methods in the Stripe billing portal, and can schedule a period-end downgrade to Free or resume that cancellation. Plans marked `isContactSales` (typically Enterprise) skip checkout and point to sales. Having an active BYOK provider removes question and guide limits but does not remove repository, indexing, or member limits, and does not change the Stripe plan price.
 
-Platform-admin endpoints and pages expose workspace usage, user management, editable plan limits, product analytics, and persisted system logs.
+Platform-admin endpoints and pages expose workspace usage, user management, editable plan limits and prices, product analytics, and persisted system logs.
 
 ## 8. Security and isolation
 
@@ -324,13 +326,13 @@ Implemented controls include:
 - HTTP-only refresh cookies;
 - workspace membership and role guards;
 - separate admin authentication secrets;
-- signed GitHub OAuth state;
+- signed GitHub and identity OAuth state;
 - encrypted OAuth and BYOK secrets at rest;
 - repository/workspace filters in PostgreSQL and Qdrant;
 - DTO allow-list validation;
 - configurable CORS;
 - request IDs, audit/system logs, and optional Sentry;
-- production startup validation for critical secrets.
+- production startup validation for critical secrets, including Stripe keys.
 
 Known MVP constraints:
 
@@ -409,6 +411,7 @@ Detailed implementation notes:
 - [Code intelligence](features/code-intelligence.md)
 - [Retrieval](features/retrieval.md)
 - [Living onboarding guides](features/onboarding-guides.md)
-- [Usage limits and AI providers](features/usage-and-ai-providers.md)
+- [Usage limits, billing, and AI providers](features/usage-and-ai-providers.md)
 - [EC2 deployment](features/deploy-ec2.md)
+- [Phase 1 implementation status](phase-1-ai-onboarding-assistant.md)
 - [Product roadmap](Roadmap.md)

@@ -1,10 +1,10 @@
-# Usage limits and AI providers
+# Usage limits, billing, and AI providers
 
-Phase 1 monetization foundation: plan-based usage limits, workspace usage visibility, Hosted AI, and Bring Your Own Key (BYOK). Billing and Stripe are intentionally out of scope.
+Phase 1 monetization: plan-based usage limits, workspace usage visibility, Hosted AI, Bring Your Own Key (BYOK), and Stripe self-serve subscriptions. Invoices other than Stripe's hosted Checkout/portal receipts, additional BYOK vendors, and per-workspace embeddings are out of scope.
 
 ## Limits
 
-Limits are stored in `plan_limits` and keyed by `Workspace.plan` + metric. Business logic never hardcodes Free-plan numbers. Admins change limits from `/admin/usage`; the next request uses the new values.
+Limits are stored in `plan_limits` and keyed by the workspace's current `Plan` + metric. Business logic never hardcodes Free-plan numbers. Admins change limits from `/admin/plans` and `/admin/usage`; the next request uses the new values.
 
 | Metric              | What is counted                                  | Period               |
 | ------------------- | ------------------------------------------------ | -------------------- |
@@ -14,15 +14,37 @@ Limits are stored in `plan_limits` and keyed by `Workspace.plan` + metric. Busin
 | `AI_QUESTIONS`      | User chat messages on non-deleted conversations  | Calendar month (UTC) |
 | `MEMBERS`           | Active members + pending (unexpired) invitations | Current              |
 
-`max_value = null` means unlimited. New workspaces are always `FREE`. `PRO` and `ENTERPRISE` exist as unlimited stubs so a future billing system can flip `Workspace.plan` without changing usage code.
+`max_value = null` means unlimited. New workspaces are always `FREE`. Paid plans (`PRO` and others) store monthly prices and admin-editable limits. A plan can be marked `isContactSales` (typically Enterprise) so the UI offers a sales contact instead of Stripe Checkout.
 
-When a workspace is in **BYOK** (has an active provider set), `AI_QUESTIONS` and `GUIDE_GENERATIONS` are treated as unlimited regardless of the plan row. `REPOSITORIES`, `INDEXING_RUNS`, and `MEMBERS` still use the plan caps. Switching back to Hosted AI restores the plan limits for questions and guides.
+When a workspace is in **BYOK** (has an active provider set), `AI_QUESTIONS` and `GUIDE_GENERATIONS` are treated as unlimited regardless of the plan row. `REPOSITORIES`, `INDEXING_RUNS`, and `MEMBERS` still use the plan caps. Switching back to Hosted AI restores the plan limits for questions and guides. BYOK does not change the Stripe subscription price.
 
 Enforcement is server-side (`403`, `code: USAGE_LIMIT_EXCEEDED`) before the side effect. Post-index auto guide generation is skipped (not failed) when the guide limit is reached.
 
+## Billing
+
+`apps/api/src/billing/` owns Stripe Checkout, the customer portal, period-end downgrade/resume, and webhooks. Workspace owners and admins manage billing from `/workspace/settings`.
+
+Public plans: `GET /plans` returns active plans with STANDARD and BYOK monthly prices and limits. The landing page and workspace billing card use this list.
+
+Workspace billing endpoints (JWT, workspace-scoped):
+
+| Method | Endpoint                            | Roles        | Behavior                                                                 |
+| ------ | ----------------------------------- | ------------ | ------------------------------------------------------------------------ |
+| `GET`  | `/workspaces/:id/billing`           | members      | Current plan, billing mode, subscription status, period end              |
+| `POST` | `/workspaces/:id/billing/checkout`  | Owner, Admin | Stripe Checkout for a paid plan (STANDARD monthly price)                 |
+| `POST` | `/workspaces/:id/billing/portal`    | Owner, Admin | Stripe billing portal (requires an existing Stripe customer)             |
+| `POST` | `/workspaces/:id/billing/downgrade` | Owner, Admin | Schedule cancel-at-period-end; workspace stays paid until Stripe deletes |
+| `POST` | `/workspaces/:id/billing/resume`    | Owner, Admin | Reverse a scheduled period-end cancellation                              |
+
+`POST /billing/webhook` verifies `Stripe-Signature` and applies subscription events. Processed event IDs are stored on `StripeWebhookEvent` so deliveries are idempotent. Checkout success returns to `/workspace/settings?billing=success`.
+
+`WorkspaceSubscription` is the local subscription record (`status`, Stripe customer/subscription IDs, `currentPeriodEnd`, `cancelAtPeriodEnd`, `billingMode`). Checkout always uses the STANDARD monthly `PlanPrice`; BYOK is an AI-mode flag, not a separate Stripe price swap on toggle.
+
+Required production env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`. Outside production the Stripe client can start without a real key; live Checkout/portal/webhook calls fail until credentials are set.
+
 ## Usage and analytics
 
-Counts are live queries against existing tables. Product Validation analytics (`/admin/analytics`) is unchanged: repository events, questions, citations, feedback, and token usage remain observational.
+Counts are live queries against existing tables. Product validation analytics (`/admin/analytics`) remain observational: repository events, questions, citation frequency, feedback, and token usage. Citation frequency is not source-click tracking.
 
 Workspace members can read `GET /workspaces/:id/usage`. Platform admins can list all workspaces at `GET /admin/usage/workspaces`.
 
@@ -47,7 +69,7 @@ Workspace AI settings endpoints (Owner/Admin only), all under `/workspaces/:id/a
 
 ## Out of scope
 
-- Stripe, checkout, invoices, or self-serve plan changes
 - Additional BYOK providers beyond OpenAI, Anthropic, Grok, and Gemini
 - Per-workspace embeddings or vector collections
 - Token quotas as plan limits (token usage remains an analytics cost proxy)
+- In-app invoice history beyond Stripe Checkout and the Stripe customer portal

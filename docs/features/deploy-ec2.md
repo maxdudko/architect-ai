@@ -75,6 +75,7 @@ Replace every `CHANGE_ME` value.
 
 - JWT / OAuth / encryption secrets: `openssl rand -base64 48`
 - `POSTGRES_PASSWORD`: `openssl rand -hex 32` (hex only — base64 `/+` breaks the Postgres URL)
+- Stripe: set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`; point the Stripe webhook at `https://api.<domain>/billing/webhook`
 
 Compose builds `DATABASE_URL` from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`. Keep the password URL-safe.
 

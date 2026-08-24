@@ -32,7 +32,7 @@ Question
   → SearchRankingService
   → ContextAssemblerService
   → RetrievedContext
-  → LLM / Chat / Architecture Explorer
+  → LLM / Chat / onboarding guides
 ```
 
 Indexing path (worker orchestration only):
@@ -120,9 +120,9 @@ Grouped by repository → file → symbol, with duplicate span removal.
 
 ## Schema Decisions
 
-No Prisma migration was required.
+Retrieval does not own a separate Prisma model. It reads `Chunk` rows (content, symbol/file linkage, `vectorId`, `embeddingModel`) scoped to an `IndexingRun`.
 
-- `Chunk` already stores content, symbol/file linkage, `vectorId`, and `embeddingModel`.
+- Qdrant payloads include `workspaceId`, `repositoryId`, and `indexingRunId` so search can pin to the latest successful generation.
 - `workspaceId` and `branch` are resolved at index time from `Repository` / `IndexingRun`.
 - Optional future denormalization: persist `workspaceId` on `Chunk` if query patterns need it without joins.
 

@@ -52,4 +52,4 @@ Business logic stays in the Code Intelligence module.
 - Add a new language by creating `languages/<id>.pack.ts` (extensions, grammar, ignore folders, manifests, topology hints, symbol/relation extractors), registering it in `loadDefaultLanguagePacks()`, and adding a Tree-sitter grammar dependency.
 - Preserve Tree-sitter field names on `AstNode` so extractors can read `name` / `body` without regexes on `node.text`.
 - Add new relationship types by extending `SymbolRelationType` and extractor logic.
-- Add embedding generation as a downstream stage via the Retrieval module (`docs/retrieval.md`), independent from chunk generation.
+- Add embedding generation as a downstream stage via the Retrieval module ([retrieval.md](./retrieval.md)), independent from chunk generation.

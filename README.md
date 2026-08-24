@@ -8,7 +8,7 @@ This repository currently implements the **AI Onboarding Assistant** phase. Arch
 
 ## What works today
 
-- Email/password authentication with rotating refresh sessions
+- Email/password authentication with rotating refresh sessions, plus Google and GitHub identity sign-in
 - Multi-workspace membership, roles, invitations, and workspace switching
 - GitHub OAuth, repository discovery, branch selection, and encrypted tokens
 - Asynchronous repository indexing with BullMQ and a dedicated worker
@@ -21,6 +21,7 @@ This repository currently implements the **AI Onboarding Assistant** phase. Arch
 - Mock, OpenAI, Anthropic, Grok, and Gemini LLM adapters
 - Model-agnostic workspace BYOK (OpenAI, Anthropic, Grok, or Gemini) for chat and guide generation, with instant provider switching
 - Plan-based usage limits plus admin analytics and system logs
+- Stripe self-serve plan checkout, billing portal, and period-end downgrade to Free (Enterprise can be contact-sales)
 - Development and single-host production Docker Compose stacks
 
 Not implemented yet:
@@ -32,9 +33,9 @@ Not implemented yet:
 - Architecture diagrams/explorer
 - ADR and decision-memory ingestion
 - Change-impact analysis
-- Billing, SSO, or multi-node production orchestration
+- SSO, SCIM, or multi-node production orchestration
 
-See [MVP Architecture](docs/Architecture.md) for the current system and its trade-offs, and [Roadmap](docs/Roadmap.md) for the longer-term product direction.
+See [MVP Architecture](docs/Architecture.md) for the current system and its trade-offs, [Phase 1 status](docs/phase-1-ai-onboarding-assistant.md) for the original epic versus shipped behavior, and [Roadmap](docs/Roadmap.md) for the longer-term product direction.
 
 ## Architecture at a glance
 
@@ -246,9 +247,10 @@ Important configuration groups:
 - indexing: `INDEXING_WORKER_*`, `INDEXING_TMP_*`, clone size/time limits;
 - retrieval: `EMBEDDING_PROVIDER`, embedding model/dimensions/batch size, retrieval cache variables;
 - generation: `LLM_PROVIDER`, OpenAI/Anthropic/Grok/Gemini keys and models, `LLM_MAX_TOKENS`;
+- billing: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (required in production);
 - operations: rate-limit values, Sentry, Resend, and repository access validation.
 
-Production startup rejects missing database, GitHub, encryption, and user/admin JWT secrets.
+Production startup rejects missing database, GitHub, Google OAuth, encryption, Stripe, and user/admin JWT secrets.
 
 ## Development commands
 
@@ -303,7 +305,8 @@ See [EC2 deployment](docs/features/deploy-ec2.md) for host sizing, DNS, security
 - [Code intelligence](docs/features/code-intelligence.md)
 - [Retrieval](docs/features/retrieval.md)
 - [Living onboarding guides](docs/features/onboarding-guides.md)
-- [Usage limits and AI providers](docs/features/usage-and-ai-providers.md)
+- [Usage limits, billing, and AI providers](docs/features/usage-and-ai-providers.md)
+- [Phase 1 implementation status](docs/phase-1-ai-onboarding-assistant.md)
 - [Product roadmap](docs/Roadmap.md)
 
 ## Current architectural constraints
@@ -313,7 +316,7 @@ See [EC2 deployment](docs/features/deploy-ec2.md) for host sizing, DNS, security
 - Rate limiting is in-process and is not coordinated across API replicas.
 - The production Compose topology is single-host.
 - Mock AI providers validate integration behavior but not answer quality.
-- Billing and self-service plan upgrades are not present.
+- Personal account settings, Architecture Explorer, and Decision Memory remain placeholders.
 
 These constraints are documented in more detail in [MVP Architecture](docs/Architecture.md).
 
