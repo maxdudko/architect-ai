@@ -543,7 +543,7 @@ model RepositoryFile {
   symbols       CodeSymbol[]
   chunks        Chunk[]
 
-  @@unique([repositoryId, path], map: "repository_files_repository_id_path_key")
+  @@unique([repositoryId, indexingRunId, path], map: "repository_files_repository_run_path_key")
   @@index([repositoryId])
   @@index([indexingRunId])
   @@map("repository_files")

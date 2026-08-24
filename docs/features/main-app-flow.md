@@ -46,15 +46,15 @@ The API authenticates the GitHub repo, creates/updates the `Repository` row, and
 
 Stages run as chained BullMQ jobs (3 attempts, exponential backoff):
 
-| Job       | Status                | What happens                                                                |
-| --------- | --------------------- | --------------------------------------------------------------------------- |
-| `reindex` | `PENDING`             | Create `IndexingRun`; wipe prior PG artifacts + Qdrant vectors for the repo |
-| `clone`   | `CLONING`             | Shallow `git clone --depth 1` into temp storage (`INDEXING_TMP_DIR`)        |
-| `parse`   | `PARSING`             | Tree-sitter code intelligence → files, symbols, relations                   |
-| `chunk`   | `CHUNKING`            | One semantic chunk per meaningful symbol                                    |
-| `embed`   | `EMBEDDING` → `READY` | Batch embed chunks; upsert Qdrant; mark repo ready                          |
+| Job       | Status                | What happens                                                                       |
+| --------- | --------------------- | ---------------------------------------------------------------------------------- |
+| `reindex` | `PENDING`             | Create a new `IndexingRun` alongside the live index; do not wipe prior artifacts   |
+| `clone`   | `CLONING`             | Shallow `git clone --depth 1` into temp storage (`INDEXING_TMP_DIR`)               |
+| `parse`   | `PARSING`             | Tree-sitter code intelligence → files, symbols, relations for this run             |
+| `chunk`   | `CHUNKING`            | One semantic chunk per meaningful symbol                                           |
+| `embed`   | `EMBEDDING` → `READY` | Batch embed chunks; upsert Qdrant; mark repo ready; delete the previous generation |
 
-On failure the repo is marked `FAILED` (with `indexingError`). Temp clone directories are cleaned up after embed or failure.
+On first-time failure the repo is marked `FAILED` (with `indexingError`). If a previous successful index exists, a failed rebuild restores `READY` and keeps that index searchable. Temp clone directories are cleaned up after embed or failure.
 
 ```text
 PENDING → CLONING → PARSING → CHUNKING → EMBEDDING → READY

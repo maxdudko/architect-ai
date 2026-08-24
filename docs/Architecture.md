@@ -156,13 +156,14 @@ The current schema has a global unique constraint on `(provider, externalId)`, s
 
 ```text
 Connect / retry / reindex
-  → reindex job creates IndexingRun and removes prior index artifacts
+  → reindex job creates a new IndexingRun alongside the live index
   → shallow authenticated git clone
   → Tree-sitter parse
   → semantic symbol chunks
   → batch embeddings
-  → Qdrant upsert
+  → Qdrant upsert tagged with the new run id
   → repository READY
+  → delete previous generation's Postgres artifacts and Qdrant vectors
   → enqueue onboarding-guide generation
 ```
 
@@ -173,15 +174,15 @@ PENDING → CLONING → PARSING → CHUNKING → EMBEDDING → READY
      └──────────────── any terminal retry exhaustion ───────► FAILED
 ```
 
+A repository that already has a successful index stays searchable during rebuild. Chat, file browse, and symbol browse pin to the latest `SUCCEEDED` `IndexingRun`. Progress still moves through `CLONING` / `PARSING` / `CHUNKING` / `EMBEDDING`. If the new run fails, status returns to `READY` and `indexingError` records the refresh failure. First-time connect/retry failures still end in `FAILED`.
+
 The stages are chained BullMQ jobs rather than one long job:
 
-1. **Reindex** creates an `IndexingRun`, clears stale PostgreSQL artifacts and Qdrant vectors, then enqueues clone.
+1. **Reindex** creates an `IndexingRun` and enqueues clone. It does not delete the live index.
 2. **Clone** performs a shallow clone of the selected/default branch into `INDEXING_TMP_DIR` and records branch and commit SHA.
-3. **Parse** scans supported files, persists inventory, extracts symbols and static relationships, and prunes stale files.
+3. **Parse** scans supported files, persists inventory for the current run, extracts symbols and static relationships, and prunes unseen files in that run only.
 4. **Chunk** creates one source-backed semantic chunk per meaningful symbol.
-5. **Embed** batches chunks through the configured embedding provider, upserts vectors, marks the run successful and repository `READY`, then cleans temporary files.
-
-Because reindex deletes the previous searchable artifacts before the replacement index succeeds, a failed reindex leaves the repository without its previous searchable index. Blue/green index replacement is a future reliability improvement.
+5. **Embed** batches chunks through the configured embedding provider, upserts vectors, marks the run successful and repository `READY`, then deletes the previous generation and cleans temporary files.
 
 ### 5.4 Code intelligence
 
@@ -217,7 +218,7 @@ Question path:
 ```text
 Question
   → query embedding
-  → Qdrant cosine search with workspace/repository filters
+  → Qdrant cosine search with workspace, repository, and live indexing-run filters
   → similarity ranking with lightweight code-hint bonuses
   → hydrate chunks, files, and symbols from PostgreSQL
   → deduplicate and assemble RetrievedContext
@@ -288,7 +289,7 @@ Workspace IDs are carried through repository, conversation, guide, usage, and ci
 
 ### Qdrant: derived vector index
 
-The shared collection defaults to `architect_chunks`. A point ID is the PostgreSQL chunk ID. Payloads include workspace, repository, file, symbol, language, branch, and commit-related context. Qdrant is rebuildable derived state; PostgreSQL owns chunk content and metadata.
+The shared collection defaults to `architect_chunks`. A point ID is the PostgreSQL chunk ID. Payloads include workspace, repository, indexing run, file, symbol, language, branch, and commit-related context. Qdrant is rebuildable derived state; PostgreSQL owns chunk content and metadata. Search filters by the latest successful indexing run so a rebuild cannot mix generations.
 
 ### Redis: ephemeral coordination
 
@@ -393,7 +394,7 @@ lint → unit tests → typecheck → API E2E tests → build
 
 The next architecture work should extend the current boundaries rather than claim already-planned systems:
 
-1. make indexing non-destructive and incremental; add GitHub webhook-triggered refresh;
+1. add incremental indexing and GitHub webhook-triggered refresh;
 2. add more language packs (Go, Java, Rust) and improve relationship resolution;
 3. add lexical/hybrid retrieval, reranking, and retrieval evaluation;
 4. remove the global repository/workspace uniqueness constraint;

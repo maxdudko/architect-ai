@@ -27,7 +27,7 @@ The Code Intelligence layer builds a semantic representation of source code repo
 3. `TreeSitterLanguageParserService` parses source with the pack grammar and returns field-aware `ParsedFileAst`.
 4. `SymbolExtractorService` dispatches to the matching pack to extract symbols.
 5. `SymbolRelationshipExtractorService` dispatches to the matching pack to extract static relationships.
-6. `RepositoryInventoryService` upserts repository file inventory by `repositoryId + path`.
+6. `RepositoryInventoryService` upserts repository file inventory by `repositoryId + indexingRunId + path`.
 7. `ChunkBuilderService` creates one semantic chunk per meaningful symbol.
 
 ## Worker Orchestration
@@ -40,8 +40,8 @@ Business logic stays in the Code Intelligence module.
 
 ## Schema Decisions
 
-- `RepositoryFile` is unique per `(repositoryId, path)` to prevent duplication across runs.
-- After each successful parse pass, inventory rows whose `indexingRunId` is not the current run are pruned so the file index reflects only files seen in the latest scan.
+- `RepositoryFile` is unique per `(repositoryId, indexingRunId, path)` so two indexing generations can coexist during a rebuild.
+- After each successful parse pass, inventory rows for **this** `indexingRunId` whose paths were not seen in the scan are pruned. Other runs are left untouched until a successful embed swaps the live index.
 - `CodeSymbol` stores coordinates, modifiers, qualified naming, and parent linkage.
 - `SymbolRelation` stores graph edges for traversal (`from`, `to`, relation type).
 - `Chunk.metadata` stores semantic context (`symbolType`, `qualifiedName`, `language`).

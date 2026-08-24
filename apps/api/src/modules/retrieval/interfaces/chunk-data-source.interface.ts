@@ -8,4 +8,13 @@ export interface ChunkDataSource {
   ): Promise<ChunkForIndexing[]>;
 
   getChunksByIds(chunkIds: string[]): Promise<SemanticChunkRecord[]>;
+
+  listLiveIndexingRunIds(
+    workspaceId: string,
+    repositoryIds?: string[],
+  ): Promise<string[]>;
+
+  listVectorizedChunksByIndexingRun(): Promise<
+    Array<{ indexingRunId: string; chunkIds: string[] }>
+  >;
 }

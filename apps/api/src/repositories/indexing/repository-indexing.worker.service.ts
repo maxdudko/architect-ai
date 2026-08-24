@@ -190,6 +190,26 @@ export class RepositoryIndexingWorkerService
           : undefined,
       });
       await this.indexingStorageService.cleanupRunDirectory(data.runId);
+      try {
+        await this.repositoriesRepository.deleteArtifactsForIndexingRun(
+          data.runId,
+        );
+        await this.embeddingService.deleteIndexingRunVectors(data.runId);
+      } catch (cleanupError) {
+        this.logger.warn(
+          JSON.stringify({
+            event: 'indexing_failed_run_cleanup_failed',
+            runId: data.runId,
+            workspaceId: data.workspaceId,
+            repositoryId: data.repositoryId,
+            error:
+              cleanupError instanceof Error
+                ? cleanupError.message
+                : String(cleanupError),
+            service: 'indexing-worker',
+          }),
+        );
+      }
     }
     await this.queueService.markAsFailed({
       workspaceId: data.workspaceId,
@@ -233,14 +253,8 @@ export class RepositoryIndexingWorkerService
       {
         status: RepositoryStatus.CLONING,
         indexingError: null,
-        lastIndexedAt: null,
       },
     );
-
-    await this.repositoriesRepository.deleteArtifactsForRepository(
-      data.repositoryId,
-    );
-    await this.embeddingService.deleteRepositoryVectors(data.repositoryId);
 
     await this.queueService.enqueueCloneJob({
       ...data,
@@ -262,7 +276,6 @@ export class RepositoryIndexingWorkerService
       {
         status: RepositoryStatus.PARSING,
         indexingError: null,
-        lastIndexedAt: null,
       },
     );
     await this.queueService.enqueueParseJob({
@@ -301,7 +314,6 @@ export class RepositoryIndexingWorkerService
       {
         status: RepositoryStatus.CHUNKING,
         indexingError: null,
-        lastIndexedAt: null,
       },
     );
     await this.queueService.enqueueChunkJob(data);
@@ -324,7 +336,6 @@ export class RepositoryIndexingWorkerService
       {
         status: RepositoryStatus.EMBEDDING,
         indexingError: null,
-        lastIndexedAt: null,
       },
     );
     await this.queueService.enqueueEmbedJob(data);
@@ -365,6 +376,7 @@ export class RepositoryIndexingWorkerService
         lastIndexedAt: new Date(),
       },
     );
+    await this.swapLiveIndex(data.repositoryId, data.runId);
     if (data.trigger === 'INITIAL_CONNECT') {
       await this.analyticsService.recordEvent({
         type: AnalyticsEventType.REPOSITORY_INDEXING_SUCCEEDED,
@@ -415,6 +427,36 @@ export class RepositoryIndexingWorkerService
           service: 'indexing-worker',
         }),
       );
+    }
+  }
+
+  private async swapLiveIndex(
+    repositoryId: string,
+    liveRunId: string,
+  ): Promise<void> {
+    const previousRunIds = await this.repositoriesRepository.listIndexingRunIds(
+      repositoryId,
+      { excludeId: liveRunId, status: 'SUCCEEDED' },
+    );
+
+    for (const previousRunId of previousRunIds) {
+      try {
+        await this.repositoriesRepository.deleteArtifactsForIndexingRun(
+          previousRunId,
+        );
+        await this.embeddingService.deleteIndexingRunVectors(previousRunId);
+      } catch (error) {
+        this.logger.warn(
+          JSON.stringify({
+            event: 'indexing_swap_cleanup_failed',
+            liveRunId,
+            previousRunId,
+            repositoryId,
+            error: error instanceof Error ? error.message : String(error),
+            service: 'indexing-worker',
+          }),
+        );
+      }
     }
   }
 }

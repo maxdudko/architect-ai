@@ -48,4 +48,8 @@ export class RepositoryEmbeddingService {
   async deleteRepositoryVectors(repositoryId: string): Promise<void> {
     await this.retrievalIndexingService.deleteRepositoryVectors(repositoryId);
   }
+
+  async deleteIndexingRunVectors(indexingRunId: string): Promise<void> {
+    await this.retrievalIndexingService.deleteIndexingRunVectors(indexingRunId);
+  }
 }

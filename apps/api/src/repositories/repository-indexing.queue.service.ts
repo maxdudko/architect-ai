@@ -176,13 +176,23 @@ export class RepositoryIndexingQueueService
     repositoryId: string;
     errorMessage: string;
   }): Promise<void> {
+    const previousSuccess =
+      await this.repositoriesRepository.hasSucceededIndexingRun(
+        data.repositoryId,
+      );
+
     await this.repositoriesRepository.updateStatus(
       data.workspaceId,
       data.repositoryId,
-      {
-        status: RepositoryStatus.FAILED,
-        indexingError: data.errorMessage,
-      },
+      previousSuccess
+        ? {
+            status: RepositoryStatus.READY,
+            indexingError: data.errorMessage,
+          }
+        : {
+            status: RepositoryStatus.FAILED,
+            indexingError: data.errorMessage,
+          },
     );
   }
 

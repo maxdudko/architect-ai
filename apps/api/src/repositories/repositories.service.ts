@@ -297,20 +297,30 @@ export class RepositoriesService {
       repositoryId,
       userId,
     });
-    this.assertNotIndexingInProgress(repository);
-    if (
-      repository.status !== RepositoryStatus.FAILED &&
-      repository.status !== RepositoryStatus.PENDING
-    ) {
-      throw new BadRequestException(
-        'Retry is only available for failed or stuck pending repositories',
-      );
+    await this.assertNotIndexingInProgress(repository);
+    if (repository.status === RepositoryStatus.FAILED) {
+      return this.startIndexing(workspaceId, repository, userId, {
+        branch: dto.branch ?? repository.defaultBranch,
+        operation: 'retry',
+      });
+    }
+    if (repository.status === RepositoryStatus.PENDING) {
+      const previousSuccess =
+        await this.repositoriesRepository.hasSucceededIndexingRun(repositoryId);
+      if (previousSuccess) {
+        throw new ConflictException(
+          'Repository indexing is already in progress for this repository',
+        );
+      }
+      return this.startIndexing(workspaceId, repository, userId, {
+        branch: dto.branch ?? repository.defaultBranch,
+        operation: 'retry',
+      });
     }
 
-    return this.startIndexing(workspaceId, repository, userId, {
-      branch: dto.branch ?? repository.defaultBranch,
-      operation: 'retry',
-    });
+    throw new BadRequestException(
+      'Retry is only available for failed or stuck pending repositories',
+    );
   }
 
   async reindexRepository(
@@ -328,7 +338,7 @@ export class RepositoriesService {
       repositoryId,
       userId,
     });
-    this.assertNotIndexingInProgress(repository);
+    await this.assertNotIndexingInProgress(repository);
     if (repository.status !== RepositoryStatus.READY) {
       throw new BadRequestException(
         'Reindex is only available for repositories that are ready',
@@ -403,15 +413,9 @@ export class RepositoriesService {
       this.logger.warn(
         `Repository indexing queue unavailable; marking ${params.repositoryId} as failed (${params.operation})`,
       );
-      return this.repositoriesRepository.updateStatus(
+      return this.markIndexingUnavailable(
         params.workspaceId,
         params.repositoryId,
-        {
-          status: RepositoryStatus.FAILED,
-          indexingError:
-            'Indexing queue is currently unavailable. Please retry in a moment.',
-          lastIndexedAt: null,
-        },
       );
     }
 
@@ -445,17 +449,36 @@ export class RepositoriesService {
       this.logger.error(
         `Failed to enqueue repository indexing (${params.operation}) for ${params.repositoryId}: ${message}`,
       );
-      return this.repositoriesRepository.updateStatus(
+      return this.markIndexingUnavailable(
         params.workspaceId,
         params.repositoryId,
-        {
-          status: RepositoryStatus.FAILED,
-          indexingError:
-            'Indexing queue is currently unavailable. Please retry in a moment.',
-          lastIndexedAt: null,
-        },
       );
     }
+  }
+
+  private async markIndexingUnavailable(
+    workspaceId: string,
+    repositoryId: string,
+  ): Promise<Repository | null> {
+    const previousSuccess =
+      await this.repositoriesRepository.hasSucceededIndexingRun(repositoryId);
+    const indexingError =
+      'Indexing queue is currently unavailable. Please retry in a moment.';
+
+    return this.repositoriesRepository.updateStatus(
+      workspaceId,
+      repositoryId,
+      previousSuccess
+        ? {
+            status: RepositoryStatus.READY,
+            indexingError,
+          }
+        : {
+            status: RepositoryStatus.FAILED,
+            indexingError,
+            lastIndexedAt: null,
+          },
+    );
   }
 
   private restoreAfterIndexingLimit(
@@ -493,13 +516,24 @@ export class RepositoriesService {
     return repository;
   }
 
-  private assertNotIndexingInProgress(repository: Repository): void {
+  private async assertNotIndexingInProgress(
+    repository: Repository,
+  ): Promise<void> {
     if (
       repository.status === RepositoryStatus.CLONING ||
       repository.status === RepositoryStatus.PARSING ||
       repository.status === RepositoryStatus.CHUNKING ||
       repository.status === RepositoryStatus.EMBEDDING
     ) {
+      throw new ConflictException(
+        'Repository indexing is already in progress for this repository',
+      );
+    }
+
+    const runningRun = await this.repositoriesRepository.hasRunningIndexingRun(
+      repository.id,
+    );
+    if (runningRun) {
       throw new ConflictException(
         'Repository indexing is already in progress for this repository',
       );

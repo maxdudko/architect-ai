@@ -1,8 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ContextAssemblerService } from './context/context-assembler.service';
+import type { ChunkDataSource } from './interfaces/chunk-data-source.interface';
 import type { RetrievalCache } from './interfaces/retrieval-cache.interface';
-import { RETRIEVAL_CACHE } from './interfaces/tokens';
+import { CHUNK_DATA_SOURCE, RETRIEVAL_CACHE } from './interfaces/tokens';
 import { RetrievalMetricsService } from './metrics/retrieval-metrics.service';
 import { SearchRankingService } from './ranking/search-ranking.service';
 import {
@@ -24,6 +25,8 @@ export class RetrievalService {
     @Inject(RETRIEVAL_CACHE)
     private readonly cache: RetrievalCache,
     private readonly configService: ConfigService,
+    @Inject(CHUNK_DATA_SOURCE)
+    private readonly chunkDataSource: ChunkDataSource,
   ) {
     this.contextCacheTtlSeconds = Number(
       this.configService.get<string>('RETRIEVAL_CONTEXT_CACHE_TTL_SECONDS') ??
@@ -33,8 +36,29 @@ export class RetrievalService {
 
   async retrieve(params: SemanticSearchParams): Promise<RetrievedContext> {
     const startedAt = Date.now();
+    const indexingRunIds =
+      params.indexingRunIds ??
+      (await this.chunkDataSource.listLiveIndexingRunIds(
+        params.workspaceId,
+        params.repositoryIds,
+      ));
+    if (indexingRunIds.length === 0) {
+      this.metrics.recordSearch(Date.now() - startedAt, 0);
+      return {
+        chunks: [],
+        symbols: [],
+        files: [],
+        references: [],
+      };
+    }
+
+    const searchParams = {
+      ...params,
+      indexingRunIds,
+    };
     const cacheKey = buildContextCacheKey(params.workspaceId, params.query, {
       repositoryIds: params.repositoryIds ?? [],
+      indexingRunIds,
       language: params.language ?? null,
       symbolType: params.symbolType ?? null,
       branch: params.branch ?? null,
@@ -49,7 +73,7 @@ export class RetrievalService {
     }
     this.metrics.recordCacheMiss();
 
-    const candidates = await this.semanticSearchService.search(params);
+    const candidates = await this.semanticSearchService.search(searchParams);
     const ranked = this.rankingService.rank(candidates);
     const context = await this.contextAssembler.assemble(ranked);
 

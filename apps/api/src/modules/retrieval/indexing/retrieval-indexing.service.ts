@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { ChunkDataSource } from '../interfaces/chunk-data-source.interface';
 import type { EmbeddingProvider } from '../interfaces/embedding-provider.interface';
@@ -22,7 +22,8 @@ export interface IndexRepositoryChunksParams {
 }
 
 @Injectable()
-export class RetrievalIndexingService {
+export class RetrievalIndexingService implements OnModuleInit {
+  private readonly logger = new Logger(RetrievalIndexingService.name);
   private readonly batchSize: number;
 
   constructor(
@@ -38,6 +39,18 @@ export class RetrievalIndexingService {
     this.batchSize = Number(
       this.configService.get<string>('EMBEDDING_BATCH_SIZE') ?? 64,
     );
+  }
+
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.backfillIndexingRunPayloads();
+    } catch (error) {
+      this.logger.warn(
+        `Failed to backfill Qdrant indexingRunId payloads: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   async indexRepositoryChunks(
@@ -80,6 +93,7 @@ export class RetrievalIndexingService {
             toChunkVectorPayload({
               ...chunk,
               workspaceId: params.workspaceId,
+              indexingRunId: params.indexingRunId,
               branch: params.branch || chunk.branch,
             }),
           ),
@@ -95,6 +109,32 @@ export class RetrievalIndexingService {
 
   async deleteRepositoryVectors(repositoryId: string): Promise<void> {
     await this.vectorStore.deleteByRepository(repositoryId);
+  }
+
+  async deleteIndexingRunVectors(indexingRunId: string): Promise<void> {
+    await this.vectorStore.deleteByIndexingRun(indexingRunId);
+  }
+
+  async backfillIndexingRunPayloads(): Promise<void> {
+    const groups =
+      await this.chunkDataSource.listVectorizedChunksByIndexingRun();
+    if (groups.length === 0) {
+      return;
+    }
+
+    for (const group of groups) {
+      try {
+        await this.vectorStore.setPayload(group.chunkIds, {
+          indexingRunId: group.indexingRunId,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Failed to backfill indexingRunId ${group.indexingRunId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
   }
 
   getEmbeddingModel(): string {

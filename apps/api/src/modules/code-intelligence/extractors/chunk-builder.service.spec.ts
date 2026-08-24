@@ -31,6 +31,7 @@ describe('ChunkBuilderService', () => {
         },
       ]),
       createChunk: jest.fn().mockResolvedValue({}),
+      deleteChunksForIndexingRun: jest.fn().mockResolvedValue({ count: 0 }),
     } as unknown as jest.Mocked<CodeIntelligenceStorageService>;
 
     service = new ChunkBuilderService(storageService, new TextMetricsService());

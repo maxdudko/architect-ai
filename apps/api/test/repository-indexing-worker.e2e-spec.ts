@@ -59,7 +59,9 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     await closeE2eApp(app);
   });
 
-  async function createRepositoryFixture(): Promise<{
+  async function createRepositoryFixture(
+    status: RepositoryStatus = RepositoryStatus.PENDING,
+  ): Promise<{
     workspaceId: string;
     userId: string;
     repositoryId: string;
@@ -74,7 +76,11 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
         name: 'platform-api',
         fullName: 'acme/platform-api',
         defaultBranch: 'main',
-        status: RepositoryStatus.PENDING,
+        status,
+        lastIndexedAt:
+          status === RepositoryStatus.READY
+            ? new Date('2026-08-01T00:00:00Z')
+            : null,
       },
     });
 
@@ -83,6 +89,49 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
       userId: auth.user.id,
       repositoryId: repository.id,
     };
+  }
+
+  async function seedLiveIndex(repositoryId: string): Promise<{
+    runId: string;
+    chunkId: string;
+  }> {
+    const run = await prisma.indexingRun.create({
+      data: {
+        repositoryId,
+        trigger: 'INITIAL_CONNECT',
+        status: 'SUCCEEDED',
+        branch: 'main',
+        commitSha: 'live-sha',
+        completedAt: new Date('2026-08-01T00:00:00Z'),
+      },
+    });
+    const file = await prisma.repositoryFile.create({
+      data: {
+        repositoryId,
+        indexingRunId: run.id,
+        path: 'src/auth.ts',
+        language: 'typescript',
+        contentHash: 'abc',
+        size: 12,
+        lineCount: 3,
+        extension: '.ts',
+      },
+    });
+    const chunk = await prisma.chunk.create({
+      data: {
+        repositoryId,
+        indexingRunId: run.id,
+        fileId: file.id,
+        filePath: 'src/auth.ts',
+        content: 'export function login() {}',
+        tokenCount: 4,
+        startLine: 1,
+        endLine: 1,
+        language: 'typescript',
+      },
+    });
+
+    return { runId: run.id, chunkId: chunk.id };
   }
 
   it('runs reindex -> clone -> parse -> chunk -> embed and marks repository ready', async () => {
@@ -109,7 +158,7 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
       .spyOn(queueService, 'enqueueEmbedJob')
       .mockResolvedValue(undefined);
     jest
-      .spyOn(embeddingService, 'deleteRepositoryVectors')
+      .spyOn(embeddingService, 'deleteIndexingRunVectors')
       .mockResolvedValue(undefined);
     jest.spyOn(embeddingService, 'embedRepository').mockResolvedValue({
       embeddedCount: 39,
@@ -214,6 +263,74 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     expect(cleanupSpy).toHaveBeenCalledWith(run.id);
   });
 
+  it('keeps the previous index searchable until the replacement run succeeds', async () => {
+    const fixture = await createRepositoryFixture(RepositoryStatus.READY);
+    const live = await seedLiveIndex(fixture.repositoryId);
+    const queueService = app.get(RepositoryIndexingQueueService);
+    const worker = app.get(RepositoryIndexingWorkerService);
+    const embeddingService = app.get(RepositoryEmbeddingService);
+    const internals = worker as unknown as WorkerInternals;
+
+    jest.spyOn(queueService, 'enqueueCloneJob').mockResolvedValue(undefined);
+    const deleteRunVectors = jest
+      .spyOn(embeddingService, 'deleteIndexingRunVectors')
+      .mockResolvedValue(undefined);
+    const deleteRepoVectors = jest
+      .spyOn(embeddingService, 'deleteRepositoryVectors')
+      .mockResolvedValue(undefined);
+    jest.spyOn(embeddingService, 'embedRepository').mockResolvedValue({
+      embeddedCount: 2,
+    });
+
+    const reindexData: ReindexJobData = {
+      workspaceId: fixture.workspaceId,
+      repositoryId: fixture.repositoryId,
+      userId: fixture.userId,
+      branch: 'main',
+      trigger: 'MANUAL_REINDEX',
+    };
+
+    await internals.processReindex(reindexData);
+
+    const newRun = await prisma.indexingRun.findFirstOrThrow({
+      where: {
+        repositoryId: fixture.repositoryId,
+        status: 'RUNNING',
+      },
+    });
+    const liveChunk = await prisma.chunk.findUnique({
+      where: { id: live.chunkId },
+    });
+    const repositoryDuringRebuild = await prisma.repository.findUniqueOrThrow({
+      where: { id: fixture.repositoryId },
+    });
+
+    expect(liveChunk).not.toBeNull();
+    expect(deleteRepoVectors).not.toHaveBeenCalled();
+    expect(repositoryDuringRebuild.lastIndexedAt).not.toBeNull();
+
+    await internals.processEmbed({
+      ...reindexData,
+      runId: newRun.id,
+      clonePath: '/tmp/indexing/run-swap/repo',
+    });
+
+    const swappedRepository = await prisma.repository.findUniqueOrThrow({
+      where: { id: fixture.repositoryId },
+    });
+    const previousChunk = await prisma.chunk.findUnique({
+      where: { id: live.chunkId },
+    });
+    const previousFile = await prisma.repositoryFile.findFirst({
+      where: { indexingRunId: live.runId },
+    });
+
+    expect(swappedRepository.status).toBe(RepositoryStatus.READY);
+    expect(previousChunk).toBeNull();
+    expect(previousFile).toBeNull();
+    expect(deleteRunVectors).toHaveBeenCalledWith(live.runId);
+  });
+
   it('marks indexing run and repository as failed when worker handler runs', async () => {
     const fixture = await createRepositoryFixture();
     const queueService = app.get(RepositoryIndexingQueueService);
@@ -224,7 +341,7 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
 
     jest.spyOn(queueService, 'enqueueCloneJob').mockResolvedValue(undefined);
     jest
-      .spyOn(embeddingService, 'deleteRepositoryVectors')
+      .spyOn(embeddingService, 'deleteIndexingRunVectors')
       .mockResolvedValue(undefined);
     const cleanupSpy = jest
       .spyOn(storageService, 'cleanupRunDirectory')
@@ -267,5 +384,79 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     expect(cleanupSpy).toHaveBeenCalledWith(run.id);
     expect(failedRepository.status).toBe(RepositoryStatus.FAILED);
     expect(failedRepository.indexingError).toContain('Parse failed');
+  });
+
+  it('restores READY and keeps the previous index when a reindex fails', async () => {
+    const fixture = await createRepositoryFixture(RepositoryStatus.READY);
+    const live = await seedLiveIndex(fixture.repositoryId);
+    const queueService = app.get(RepositoryIndexingQueueService);
+    const worker = app.get(RepositoryIndexingWorkerService);
+    const embeddingService = app.get(RepositoryEmbeddingService);
+    const storageService = app.get(IndexingStorageService);
+    const internals = worker as unknown as WorkerInternals;
+
+    jest.spyOn(queueService, 'enqueueCloneJob').mockResolvedValue(undefined);
+    jest
+      .spyOn(embeddingService, 'deleteIndexingRunVectors')
+      .mockResolvedValue(undefined);
+    jest
+      .spyOn(storageService, 'cleanupRunDirectory')
+      .mockResolvedValue(undefined);
+
+    await internals.processReindex({
+      workspaceId: fixture.workspaceId,
+      repositoryId: fixture.repositoryId,
+      userId: fixture.userId,
+      branch: 'main',
+      trigger: 'MANUAL_REINDEX',
+    });
+
+    const newRun = await prisma.indexingRun.findFirstOrThrow({
+      where: {
+        repositoryId: fixture.repositoryId,
+        status: 'RUNNING',
+      },
+    });
+    await prisma.chunk.create({
+      data: {
+        repositoryId: fixture.repositoryId,
+        indexingRunId: newRun.id,
+        filePath: 'src/new.ts',
+        content: 'export const next = true;',
+        tokenCount: 4,
+      },
+    });
+
+    await internals.handleWorkerFailure(
+      {
+        data: {
+          workspaceId: fixture.workspaceId,
+          repositoryId: fixture.repositoryId,
+          runId: newRun.id,
+          trigger: 'MANUAL_REINDEX',
+        },
+      },
+      new Error('Embed failed'),
+    );
+
+    const failedRun = await prisma.indexingRun.findUniqueOrThrow({
+      where: { id: newRun.id },
+    });
+    const restoredRepository = await prisma.repository.findUniqueOrThrow({
+      where: { id: fixture.repositoryId },
+    });
+    const liveChunk = await prisma.chunk.findUnique({
+      where: { id: live.chunkId },
+    });
+    const failedRunChunks = await prisma.chunk.count({
+      where: { indexingRunId: newRun.id },
+    });
+
+    expect(failedRun.status).toBe('FAILED');
+    expect(restoredRepository.status).toBe(RepositoryStatus.READY);
+    expect(restoredRepository.indexingError).toContain('Embed failed');
+    expect(restoredRepository.lastIndexedAt).not.toBeNull();
+    expect(liveChunk).not.toBeNull();
+    expect(failedRunChunks).toBe(0);
   });
 });

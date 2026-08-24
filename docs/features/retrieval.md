@@ -66,18 +66,20 @@ Future adapters can add Voyage, Jina, BGE, Ollama without changing callers.
 - `upsert(points)`
 - `delete(ids)`
 - `deleteByRepository(repositoryId)`
+- `deleteByIndexingRun(indexingRunId)`
+- `setPayload(pointIds, payload)`
 - `search(vector, filter, options)`
 
 Qdrant types stay inside `QdrantVectorStore`.
 
 Collection: `architect_chunks` (single shared collection). Isolation is payload-based
-(`workspaceId`, `repositoryId`, optional `language` / `symbolType` / `branch`).
+(`workspaceId`, `repositoryId`, `indexingRunId`, optional `language` / `symbolType` / `branch`). Chat and browse pin to the latest `SUCCEEDED` indexing run per repository.
 
 ### Payload Metadata
 
 Every vector stores:
 
-- `workspaceId`, `repositoryId`, `chunkId`
+- `workspaceId`, `repositoryId`, `indexingRunId`, `chunkId`
 - `symbolId`, `fileId`, `filePath`
 - `symbolName`, `qualifiedName`, `symbolType`
 - `language`, `branch`, `createdAt`

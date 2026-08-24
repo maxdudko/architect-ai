@@ -21,6 +21,8 @@ describe('RetrievalIndexingService', () => {
       upsert: jest.fn().mockResolvedValue(undefined),
       delete: jest.fn(),
       deleteByRepository: jest.fn(),
+      deleteByIndexingRun: jest.fn(),
+      setPayload: jest.fn(),
       search: jest.fn(),
     };
     const chunkDataSource: ChunkDataSource = {
@@ -30,6 +32,7 @@ describe('RetrievalIndexingService', () => {
           content: 'one',
           workspaceId: 'ws-1',
           repositoryId: 'repo-1',
+          indexingRunId: 'run-1',
           fileId: 'file-1',
           symbolId: 'symbol-1',
           filePath: 'a.ts',
@@ -45,6 +48,7 @@ describe('RetrievalIndexingService', () => {
           content: 'two',
           workspaceId: 'ws-1',
           repositoryId: 'repo-1',
+          indexingRunId: 'run-1',
           fileId: 'file-2',
           symbolId: null,
           filePath: 'b.ts',
@@ -57,6 +61,8 @@ describe('RetrievalIndexingService', () => {
         },
       ]),
       getChunksByIds: jest.fn(),
+      listLiveIndexingRunIds: jest.fn(),
+      listVectorizedChunksByIndexingRun: jest.fn(),
     };
 
     const service = new RetrievalIndexingService(
@@ -86,6 +92,7 @@ describe('RetrievalIndexingService', () => {
         payload: expect.objectContaining({
           workspaceId: 'ws-1',
           repositoryId: 'repo-1',
+          indexingRunId: 'run-1',
           chunkId: 'chunk-1',
           branch: 'develop',
           symbolName: 'One',
@@ -113,11 +120,15 @@ describe('RetrievalIndexingService', () => {
       upsert: jest.fn(),
       delete: jest.fn(),
       deleteByRepository: jest.fn(),
+      deleteByIndexingRun: jest.fn(),
+      setPayload: jest.fn(),
       search: jest.fn(),
     };
     const chunkDataSource: ChunkDataSource = {
       listChunksForIndexing: jest.fn().mockResolvedValue([]),
       getChunksByIds: jest.fn(),
+      listLiveIndexingRunIds: jest.fn(),
+      listVectorizedChunksByIndexingRun: jest.fn(),
     };
 
     const service = new RetrievalIndexingService(
@@ -141,5 +152,47 @@ describe('RetrievalIndexingService', () => {
     expect(vectorStore.createCollection).toHaveBeenCalledWith(4);
     expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
     expect(vectorStore.upsert).not.toHaveBeenCalled();
+  });
+
+  it('backfills indexingRunId onto existing vector payloads', async () => {
+    const vectorStore: VectorStore = {
+      createCollection: jest.fn(),
+      upsert: jest.fn(),
+      delete: jest.fn(),
+      deleteByRepository: jest.fn(),
+      deleteByIndexingRun: jest.fn(),
+      setPayload: jest.fn().mockResolvedValue(undefined),
+      search: jest.fn(),
+    };
+    const chunkDataSource: ChunkDataSource = {
+      listChunksForIndexing: jest.fn(),
+      getChunksByIds: jest.fn(),
+      listLiveIndexingRunIds: jest.fn(),
+      listVectorizedChunksByIndexingRun: jest
+        .fn()
+        .mockResolvedValue([
+          { indexingRunId: 'run-1', chunkIds: ['chunk-1', 'chunk-2'] },
+        ]),
+    };
+
+    const service = new RetrievalIndexingService(
+      {
+        model: 'hash-embedding-v1',
+        dimensions: 4,
+        embed: jest.fn(),
+        embedBatch: jest.fn(),
+      },
+      vectorStore,
+      chunkDataSource,
+      new RetrievalMetricsService(),
+      { get: () => undefined } as unknown as ConfigService,
+    );
+
+    await service.backfillIndexingRunPayloads();
+
+    expect(vectorStore.setPayload).toHaveBeenCalledWith(
+      ['chunk-1', 'chunk-2'],
+      { indexingRunId: 'run-1' },
+    );
   });
 });

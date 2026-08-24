@@ -32,9 +32,25 @@ export class CodeIntelligenceStorageService {
   pruneStaleRepositoryFiles(
     repositoryId: string,
     indexingRunId: string,
+    seenPaths: string[],
   ): Promise<{ count: number }> {
     return this.repositoriesRepository.pruneStaleRepositoryFiles(
       repositoryId,
+      indexingRunId,
+      seenPaths,
+    );
+  }
+
+  resetIndexingRunGeneratedCode(indexingRunId: string): Promise<void> {
+    return this.repositoriesRepository.resetIndexingRunGeneratedCode(
+      indexingRunId,
+    );
+  }
+
+  deleteChunksForIndexingRun(
+    indexingRunId: string,
+  ): Promise<{ count: number }> {
+    return this.repositoriesRepository.deleteChunksForIndexingRun(
       indexingRunId,
     );
   }

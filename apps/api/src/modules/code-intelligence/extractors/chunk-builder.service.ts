@@ -17,6 +17,8 @@ export class ChunkBuilderService {
     indexingRunId: string;
     clonePath: string;
   }): Promise<{ chunkCount: number }> {
+    await this.storageService.deleteChunksForIndexingRun(params.indexingRunId);
+
     const files = await this.storageService.listRepositoryFiles(
       params.repositoryId,
       params.indexingRunId,

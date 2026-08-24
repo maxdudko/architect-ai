@@ -6,6 +6,7 @@ import { VectorSearchHit } from '../types/vector-search-hit.type';
 const PAYLOAD_FIELDS = [
   'workspaceId',
   'repositoryId',
+  'indexingRunId',
   'chunkId',
   'symbolId',
   'fileId',

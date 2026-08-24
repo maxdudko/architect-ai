@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { IndexingRunStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ChunkDataSource } from '../interfaces/chunk-data-source.interface';
 import { ChunkForIndexing } from '../types/chunk-for-indexing.type';
@@ -54,6 +54,7 @@ export class PrismaChunkDataSource implements ChunkDataSource {
         content: chunk.content,
         workspaceId: chunk.repository.workspaceId,
         repositoryId: chunk.repositoryId,
+        indexingRunId: chunk.indexingRunId,
         fileId: chunk.fileId,
         symbolId: chunk.symbolId,
         filePath: chunk.filePath,
@@ -108,6 +109,66 @@ export class PrismaChunkDataSource implements ChunkDataSource {
         createdAt: chunk.createdAt,
       };
     });
+  }
+
+  async listLiveIndexingRunIds(
+    workspaceId: string,
+    repositoryIds?: string[],
+  ): Promise<string[]> {
+    const runs = await this.prisma.indexingRun.findMany({
+      where: {
+        status: IndexingRunStatus.SUCCEEDED,
+        repository: {
+          workspaceId,
+          deletedAt: null,
+          ...(repositoryIds && repositoryIds.length > 0
+            ? { id: { in: repositoryIds } }
+            : {}),
+        },
+      },
+      orderBy: [{ completedAt: 'desc' }, { startedAt: 'desc' }],
+      select: {
+        id: true,
+        repositoryId: true,
+      },
+    });
+
+    const seenRepositories = new Set<string>();
+    const liveRunIds: string[] = [];
+    for (const run of runs) {
+      if (seenRepositories.has(run.repositoryId)) {
+        continue;
+      }
+      seenRepositories.add(run.repositoryId);
+      liveRunIds.push(run.id);
+    }
+    return liveRunIds;
+  }
+
+  async listVectorizedChunksByIndexingRun(): Promise<
+    Array<{ indexingRunId: string; chunkIds: string[] }>
+  > {
+    const chunks = await this.prisma.chunk.findMany({
+      where: {
+        vectorId: { not: null },
+      },
+      select: {
+        id: true,
+        indexingRunId: true,
+      },
+    });
+
+    const chunkIdsByRun = new Map<string, string[]>();
+    for (const chunk of chunks) {
+      const existing = chunkIdsByRun.get(chunk.indexingRunId) ?? [];
+      existing.push(chunk.id);
+      chunkIdsByRun.set(chunk.indexingRunId, existing);
+    }
+
+    return [...chunkIdsByRun.entries()].map(([indexingRunId, chunkIds]) => ({
+      indexingRunId,
+      chunkIds,
+    }));
   }
 
   private readMetadata(value: Prisma.JsonValue | null): ChunkMetadata {

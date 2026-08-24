@@ -65,6 +65,8 @@ describe('RepositoriesService', () => {
       updateStatus: jest.fn(),
       listCurrentRepositoryFiles: jest.fn(),
       listCurrentCodeSymbols: jest.fn(),
+      hasRunningIndexingRun: jest.fn().mockResolvedValue(null),
+      hasSucceededIndexingRun: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<RepositoriesRepository>;
 
     repositoryIndexingQueueService = {
@@ -491,6 +493,24 @@ describe('RepositoriesService', () => {
     ).toHaveBeenCalled();
   });
 
+  it('rejects retry of a pending repository that already has a live index', async () => {
+    repositoriesRepository.findById.mockResolvedValue({
+      ...repository,
+      status: RepositoryStatus.PENDING,
+      lastIndexedAt: new Date('2026-08-01T00:00:00.000Z'),
+    });
+    repositoriesRepository.hasSucceededIndexingRun.mockResolvedValue({
+      id: 'run-live',
+    } as never);
+
+    await expect(
+      service.retryIndexing(workspaceA, repositoryId, 'user-1'),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(
+      repositoryIndexingQueueService.enqueueRetryIndexing,
+    ).not.toHaveBeenCalled();
+  });
+
   it('queues manual reindex with optional branch', async () => {
     repositoriesRepository.findById.mockResolvedValue({
       ...repository,
@@ -564,6 +584,23 @@ describe('RepositoriesService', () => {
     await expect(
       service.reindexRepository(workspaceA, repositoryId, 'user-1'),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects reindex when a previous indexing run is still running', async () => {
+    repositoriesRepository.findById.mockResolvedValue({
+      ...repository,
+      status: RepositoryStatus.READY,
+    });
+    repositoriesRepository.hasRunningIndexingRun.mockResolvedValue({
+      id: 'run-running',
+    } as never);
+
+    await expect(
+      service.reindexRepository(workspaceA, repositoryId, 'user-1'),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(
+      repositoryIndexingQueueService.enqueueManualReindex,
+    ).not.toHaveBeenCalled();
   });
 
   it('lists repository files for a workspace-scoped repository', async () => {

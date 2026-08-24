@@ -9,6 +9,11 @@ export interface VectorStore {
   upsert(points: VectorPoint[]): Promise<void>;
   delete(ids: string[]): Promise<void>;
   deleteByRepository(repositoryId: string): Promise<void>;
+  deleteByIndexingRun(indexingRunId: string): Promise<void>;
+  setPayload(
+    pointIds: string[],
+    payload: Record<string, unknown>,
+  ): Promise<void>;
   search(
     vector: number[],
     filter: SearchFilter | undefined,

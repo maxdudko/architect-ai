@@ -309,7 +309,6 @@ See [EC2 deployment](docs/features/deploy-ec2.md) for host sizing, DNS, security
 ## Current architectural constraints
 
 - Only TypeScript, JavaScript, Python, and PHP are parsed. Go, Java, and Rust remain unused language-pack slots.
-- Reindexing removes the old searchable index before the new one succeeds.
 - A provider repository is globally unique and cannot currently be connected to multiple workspaces.
 - Rate limiting is in-process and is not coordinated across API replicas.
 - The production Compose topology is single-host.

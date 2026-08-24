@@ -35,7 +35,12 @@ export class CodeIntelligenceParseService {
     ignoredFileCount: number;
     symbolCount: number;
   }> {
+    await this.storageService.resetIndexingRunGeneratedCode(
+      params.indexingRunId,
+    );
+
     let symbolCount = 0;
+    const seenPaths: string[] = [];
 
     const scanMetrics = await this.scannerService.scanRepository(
       params.clonePath,
@@ -49,6 +54,7 @@ export class CodeIntelligenceParseService {
               candidate,
               source,
             });
+          seenPaths.push(candidate.relativePath);
 
           if (
             candidate.language === PROGRAMMING_LANGUAGES.config ||
@@ -128,6 +134,7 @@ export class CodeIntelligenceParseService {
     await this.storageService.pruneStaleRepositoryFiles(
       params.repositoryId,
       params.indexingRunId,
+      seenPaths,
     );
 
     return {
