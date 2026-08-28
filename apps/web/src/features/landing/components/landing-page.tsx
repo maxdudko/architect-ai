@@ -34,13 +34,10 @@ import {
   Zap,
 } from 'lucide-react';
 import { useCallback, useState, type FormEvent, type SyntheticEvent } from 'react';
-import { BrandMark, Button, Input, Textarea } from '@/shared/components';
+import { submitContactMessage } from '@/lib/api';
+import { getApiErrorMessage } from '@/lib/api/error-message';
+import { BrandMark, Button, Input, Loader, Textarea } from '@/shared/components';
 import { LandingPlansSection } from './landing-plans';
-
-const CREATOR_SITE_URL = 'https://maxdudko.vercel.app/';
-const CREATOR_LINKEDIN_URL: string | null = null;
-const GITHUB_REPO_URL: string | null = null; // 'https://github.com/maxdudko/architect-ai'
-const isGithubPublic = GITHUB_REPO_URL != null;
 
 const questions = [
   {
@@ -282,12 +279,20 @@ function SourceReference({ source }: { source: string }) {
   );
 }
 
-function GitHubLink({ className, iconClassName }: { className: string; iconClassName: string }) {
-  const isDisabled = !isGithubPublic;
+function GitHubLink({
+  className,
+  iconClassName,
+  href,
+}: {
+  className: string;
+  iconClassName: string;
+  href: string | null;
+}) {
+  const isDisabled = href == null;
 
   return (
     <a
-      href={isDisabled ? undefined : GITHUB_REPO_URL}
+      href={isDisabled ? undefined : href}
       target={isDisabled ? undefined : '_blank'}
       rel={isDisabled ? undefined : 'noreferrer'}
       aria-disabled={isDisabled}
@@ -340,10 +345,27 @@ function ProfileLink({
 
 function ContactForm() {
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSubmitted(true);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const name = String(formData.get('name') ?? '').trim();
+    const email = String(formData.get('email') ?? '').trim();
+    const message = String(formData.get('message') ?? '').trim();
+
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await submitContactMessage({ name, email, message });
+      setSubmitted(true);
+    } catch (submitError) {
+      setError(getApiErrorMessage(submitError, 'Unable to send your message. Please try again.'));
+    } finally {
+      setIsSubmitting(false);
+    }
   }, []);
 
   if (submitted) {
@@ -361,7 +383,10 @@ function ContactForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col rounded-xl border border-border bg-card p-6 md:p-8">
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col rounded-xl border border-border bg-card p-6 md:p-8"
+    >
       <div className="space-y-4">
         <div className="space-y-2">
           <label htmlFor="contact-name" className="text-sm font-medium">
@@ -373,6 +398,7 @@ function ContactForm() {
             autoComplete="name"
             required
             placeholder="Your name"
+            disabled={isSubmitting}
           />
         </div>
         <div className="space-y-2">
@@ -386,6 +412,7 @@ function ContactForm() {
             autoComplete="email"
             required
             placeholder="you@company.com"
+            disabled={isSubmitting}
           />
         </div>
         <div className="space-y-2">
@@ -399,10 +426,17 @@ function ContactForm() {
             rows={5}
             placeholder="How can I help?"
             className="min-h-[8.5rem] resize-y"
+            disabled={isSubmitting}
           />
         </div>
       </div>
-      <Button type="submit" className="self-end mt-6 h-11 w-full gap-2 sm:w-auto">
+      {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
+      <Button
+        type="submit"
+        className="mt-6 h-11 w-full gap-2 self-end sm:w-auto"
+        disabled={isSubmitting}
+      >
+        {isSubmitting ? <Loader className="size-4" /> : null}
         Send message
         <Send className="size-4" aria-hidden="true" />
       </Button>
@@ -424,9 +458,20 @@ function ComparisonMark({ value }: { value: boolean | 'partial' }) {
 
 const NAVBAR_OFFSET = 80;
 
-export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
+export function LandingPage({
+  isAuthenticated = false,
+  creatorSiteUrl = null,
+  creatorLinkedinUrl = null,
+  githubRepoUrl = null,
+}: {
+  isAuthenticated?: boolean;
+  creatorSiteUrl?: string | null;
+  creatorLinkedinUrl?: string | null;
+  githubRepoUrl?: string | null;
+}) {
   const [activeQuestion, setActiveQuestion] = useState(questions[0]);
   const [activeRoadmap, setActiveRoadmap] = useState(0);
+  const isGithubPublic = githubRepoUrl != null;
 
   const handleNavClick = useCallback((event: SyntheticEvent, link: string) => {
     event.preventDefault();
@@ -511,6 +556,7 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
             <GitHubLink
               className="hidden items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
               iconClassName="size-4"
+              href={githubRepoUrl}
             />
             {isAuthenticated ? (
               <Link
@@ -1118,11 +1164,18 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
               find me on the web.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <ProfileLink href={CREATOR_SITE_URL} icon={Globe} label="My Landing" />
-              <ProfileLink href={CREATOR_LINKEDIN_URL} icon={Linkedin} label="LinkedIn" />
+              <ProfileLink href={creatorSiteUrl} icon={Globe} label="My Landing" />
+              <ProfileLink href={creatorLinkedinUrl} icon={Linkedin} label="LinkedIn" />
             </div>
           </div>
-          <ContactForm />
+          {/* TODO: Specify email address */}
+          {/* CONTACT_TO_EMAIL=you@your-resend-account.com
+              MAIL_FROM='Architect AI <onboarding@resend.dev>' */}
+          {/* Testing domain restriction: The resend.dev domain
+              is for testing and can only send to your own email address.
+              To send to other recipients, verify a domain and update the from address to use it. */}
+
+           <ContactForm />
         </div>
       </section>
 

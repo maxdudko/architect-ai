@@ -17,3 +17,4 @@ export * from './github';
 export * from './conversation';
 export * from './onboarding-guide';
 export * from './billing';
+export * from './contact';
