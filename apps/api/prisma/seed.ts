@@ -1,9 +1,9 @@
 import * as bcrypt from 'bcrypt';
 import {
   BillingMode,
-  MembershipStatus,
+  // MembershipStatus,
   PrismaClient,
-  WorkspaceRole,
+  // WorkspaceRole,
 } from '@prisma/client';
 import { upsertDefaultPlanLimits } from '../src/usage/plan-limit.defaults';
 
@@ -18,45 +18,45 @@ async function main(): Promise<void> {
   // Plans must exist before any workspace can reference one via plan_id.
   const planIds = await upsertDefaultPlanLimits(prisma);
 
-  const passwordHash = await bcrypt.hash('Password123!', 12);
+  // const passwordHash = await bcrypt.hash('Password123!', 12);
 
-  const user = await prisma.user.upsert({
-    where: { email: 'user@email.com' },
-    update: {},
-    create: {
-      email: 'user@email.com',
-      passwordHash,
-      firstName: 'User',
-      lastName: 'X',
-      emailVerified: true,
-    },
-  });
-
-  const workspace = await prisma.workspace.upsert({
-    where: { slug: 'main-workspace' },
-    update: {},
-    create: {
-      name: 'Main Workspace',
-      slug: 'main-workspace',
-      planId: planIds.free,
-    },
-  });
-
-  await prisma.membership.upsert({
-    where: {
-      workspaceId_userId: {
-        workspaceId: workspace.id,
-        userId: user.id,
-      },
-    },
-    update: { role: WorkspaceRole.OWNER, status: MembershipStatus.ACTIVE },
-    create: {
-      workspaceId: workspace.id,
-      userId: user.id,
-      role: WorkspaceRole.OWNER,
-      status: MembershipStatus.ACTIVE,
-    },
-  });
+  // const user = await prisma.user.upsert({
+  //   where: { email: 'user@email.com' },
+  //   update: {},
+  //   create: {
+  //     email: 'user@email.com',
+  //     passwordHash,
+  //     firstName: 'User',
+  //     lastName: 'X',
+  //     emailVerified: true,
+  //   },
+  // });
+  //
+  // const workspace = await prisma.workspace.upsert({
+  //   where: { slug: 'main-workspace' },
+  //   update: {},
+  //   create: {
+  //     name: 'Main Workspace',
+  //     slug: 'main-workspace',
+  //     planId: planIds.free,
+  //   },
+  // });
+  //
+  // await prisma.membership.upsert({
+  //   where: {
+  //     workspaceId_userId: {
+  //       workspaceId: workspace.id,
+  //       userId: user.id,
+  //     },
+  //   },
+  //   update: { role: WorkspaceRole.OWNER, status: MembershipStatus.ACTIVE },
+  //   create: {
+  //     workspaceId: workspace.id,
+  //     userId: user.id,
+  //     role: WorkspaceRole.OWNER,
+  //     status: MembershipStatus.ACTIVE,
+  //   },
+  // });
 
   const adminPasswordHash = await bcrypt.hash('AdminPassword123!', 12);
   await prisma.admin.upsert({
