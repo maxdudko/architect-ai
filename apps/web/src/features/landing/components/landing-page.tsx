@@ -16,6 +16,7 @@ import {
   Github,
   Globe,
   KeyRound,
+  Linkedin,
   Lock,
   MessageSquare,
   Minus,
@@ -23,6 +24,7 @@ import {
   RefreshCw,
   Rocket,
   Search,
+  Send,
   ServerCog,
   ShieldCheck,
   Sparkles,
@@ -31,11 +33,12 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
-import { useCallback, useState, type SyntheticEvent } from 'react';
-import { BrandMark } from '@/shared/components';
+import { useCallback, useState, type FormEvent, type SyntheticEvent } from 'react';
+import { BrandMark, Button, Input, Textarea } from '@/shared/components';
 import { LandingPlansSection } from './landing-plans';
 
 const CREATOR_SITE_URL = 'https://maxdudko.vercel.app/';
+const CREATOR_LINKEDIN_URL: string | null = null;
 const GITHUB_REPO_URL: string | null = null; // 'https://github.com/maxdudko/architect-ai'
 const isGithubPublic = GITHUB_REPO_URL != null;
 
@@ -302,6 +305,111 @@ function GitHubLink({ className, iconClassName }: { className: string; iconClass
   );
 }
 
+function ProfileLink({
+  href,
+  icon: Icon,
+  label,
+}: {
+  href: string | null;
+  icon: typeof Globe;
+  label: string;
+}) {
+  const isDisabled = href == null;
+  const className =
+    'inline-flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm font-medium transition-colors hover:border-[hsl(var(--landing-accent)/.55)] hover:bg-accent';
+
+  if (isDisabled) {
+    return (
+      <span
+        className={`${className} cursor-not-allowed opacity-50 hover:border-border hover:bg-card`}
+        title="Link coming soon"
+      >
+        <Icon className="size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+        {label}
+      </span>
+    );
+  }
+
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className={className}>
+      <Icon className="size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+      {label}
+    </a>
+  );
+}
+
+function ContactForm() {
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitted(true);
+  }, []);
+
+  if (submitted) {
+    return (
+      <div className="flex min-h-[22rem] flex-col items-start justify-center rounded-xl border border-border bg-card p-6 md:p-8">
+        <span className="flex size-10 items-center justify-center rounded-md border border-[hsl(var(--landing-accent)/.45)] bg-[hsl(var(--landing-accent)/.08)]">
+          <Check className="size-5 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+        </span>
+        <h3 className="mt-5 text-xl font-medium">Message received.</h3>
+        <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
+          Thanks for reaching out. I&apos;ll get back to you soon.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col rounded-xl border border-border bg-card p-6 md:p-8">
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <label htmlFor="contact-name" className="text-sm font-medium">
+            Name
+          </label>
+          <Input
+            id="contact-name"
+            name="name"
+            autoComplete="name"
+            required
+            placeholder="Your name"
+          />
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="contact-email" className="text-sm font-medium">
+            Email
+          </label>
+          <Input
+            id="contact-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            placeholder="you@company.com"
+          />
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="contact-message" className="text-sm font-medium">
+            Message
+          </label>
+          <Textarea
+            id="contact-message"
+            name="message"
+            required
+            rows={5}
+            placeholder="How can I help?"
+            className="min-h-[8.5rem] resize-y"
+          />
+        </div>
+      </div>
+      <Button type="submit" className="self-end mt-6 h-11 w-full gap-2 sm:w-auto">
+        Send message
+        <Send className="size-4" aria-hidden="true" />
+      </Button>
+    </form>
+  );
+}
+
 function ComparisonMark({ value }: { value: boolean | 'partial' }) {
   if (value === true) {
     return (
@@ -391,17 +499,15 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
             >
               FAQ
             </a>
+            <a
+              href="#contact"
+              onClick={(event) => handleNavClick(event, 'contact')}
+              className="transition-colors hover:text-foreground"
+            >
+              Contact
+            </a>
           </nav>
           <div className="flex items-center gap-2">
-            <a
-              href={CREATOR_SITE_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="hidden items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
-            >
-              <Globe className="size-4" aria-hidden="true" />
-              My Landing
-            </a>
             <GitHubLink
               className="hidden items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
               iconClassName="size-4"
@@ -972,7 +1078,7 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
         </div>
       </section>
 
-      <section className="py-20 md:py-28">
+      <section className="border-b border-border/70 py-20 md:py-28">
         <div className="container">
           <div className="rounded-2xl border border-border bg-card p-8 md:p-12">
             <div className="grid gap-10 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -994,39 +1100,38 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
               </Link>
             </div>
           </div>
-          <div className="mt-8 flex flex-col gap-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-            <p className="font-mono">Architect AI · From chat with code to engineering memory.</p>
-            <div className="flex flex-wrap items-center gap-4">
-              <a
-                href={CREATOR_SITE_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 hover:text-foreground"
-              >
-                <Globe className="size-3.5" aria-hidden="true" />
-                My Landing
-              </a>
-              <GitHubLink
-                className="flex items-center gap-1.5 hover:text-foreground"
-                iconClassName="size-3.5"
-              />
-              <a
-                href="#faq"
-                onClick={(event) => handleNavClick(event, 'faq')}
-                className="hover:text-foreground"
-              >
-                FAQ
-              </a>
-              <Link href="/sign-in" className="hover:text-foreground">
-                Sign in
-              </Link>
-              <Link href="/sign-up" className="hover:text-foreground">
-                Create account
-              </Link>
-            </div>
-          </div>
         </div>
       </section>
+
+      <section
+        id="contact"
+        className="scroll-mt-20 border-b border-border/70 bg-accent/30 py-20 md:py-28"
+      >
+        <div className="container grid items-start gap-12 lg:grid-cols-[.85fr_1.15fr]">
+          <div>
+            <SectionEyebrow>Get in touch</SectionEyebrow>
+            <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+              Let&apos;s talk.
+            </h2>
+            <p className="mt-5 max-w-xl text-lg leading-8 text-muted-foreground">
+              Questions about Architect AI, partnerships, or just saying hello—send a message or
+              find me on the web.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <ProfileLink href={CREATOR_SITE_URL} icon={Globe} label="My Landing" />
+              <ProfileLink href={CREATOR_LINKEDIN_URL} icon={Linkedin} label="LinkedIn" />
+            </div>
+          </div>
+          <ContactForm />
+        </div>
+      </section>
+
+      <footer className="py-8">
+        <div className="container flex flex-col gap-2 text-center text-xs text-muted-foreground">
+          <p className="font-mono">Architect AI · From chat with code to engineering memory</p>
+          <p>© {new Date().getFullYear()} Architect AI. All rights reserved.</p>
+        </div>
+      </footer>
     </main>
   );
 }
