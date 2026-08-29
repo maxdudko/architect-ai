@@ -7,6 +7,7 @@ const PROTECTED_PREFIXES = [
   '/repositories',
   '/chat',
   '/settings',
+  '/profile',
   '/workspace',
   '/workspaces',
 ];

@@ -70,6 +70,7 @@ describe('AuthService', () => {
       findByEmail: jest.fn(),
       findById: jest.fn(),
       touchLastLoginAt: jest.fn(),
+      update: jest.fn(),
     } as unknown as jest.Mocked<UsersService>;
 
     workspacesService = {
@@ -425,6 +426,48 @@ describe('AuthService', () => {
           email,
           activeWorkspaceId: workspaceId,
         }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+  });
+
+  describe('updateProfile', () => {
+    it('updates the user name and returns the session context', async () => {
+      usersService.findById.mockResolvedValue(user);
+      usersService.update.mockResolvedValue({
+        ...user,
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+      });
+
+      const result = await service.updateProfile(
+        {
+          sub: userId,
+          email,
+          activeWorkspaceId: workspaceId,
+        },
+        { firstName: ' Ada ', lastName: ' Lovelace ' },
+      );
+
+      expect(usersService.update).toHaveBeenCalledWith(userId, {
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+      });
+      expect(result.user.firstName).toBe('Ada');
+      expect(result.user.lastName).toBe('Lovelace');
+    });
+
+    it('throws when the user no longer exists', async () => {
+      usersService.findById.mockResolvedValue(null);
+
+      await expect(
+        service.updateProfile(
+          {
+            sub: userId,
+            email,
+            activeWorkspaceId: workspaceId,
+          },
+          { firstName: 'Ada', lastName: 'Lovelace' },
+        ),
       ).rejects.toBeInstanceOf(UnauthorizedException);
     });
   });

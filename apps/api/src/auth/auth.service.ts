@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -21,6 +22,7 @@ import { WorkspacesService } from '../workspaces/workspaces.service';
 import { RefreshDto } from './dto/refresh.dto';
 import { SignInDto } from './dto/sign-in.dto';
 import { SignUpDto } from './dto/sign-up.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { AuthResponse } from './interfaces/auth-response.interface';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { RefreshTokenPayload } from './interfaces/refresh-token-payload.interface';
@@ -273,6 +275,39 @@ export class AuthService {
     }
 
     return this.buildUserContext(databaseUser, user.activeWorkspaceId);
+  }
+
+  async updateProfile(
+    user: RequestUser,
+    dto: UpdateProfileDto,
+  ): Promise<Pick<AuthResponse, 'user' | 'workspaces' | 'activeWorkspace'>> {
+    const databaseUser = await this.usersService.findById(user.sub);
+    if (!databaseUser || databaseUser.deletedAt) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const firstName = dto.firstName.trim();
+    const lastName = dto.lastName.trim();
+    if (!firstName || !lastName) {
+      throw new BadRequestException('First name and last name are required');
+    }
+
+    const updatedUser = await this.usersService.update(user.sub, {
+      firstName,
+      lastName,
+    });
+
+    this.systemLogsService.record({
+      category: SystemLogCategory.AUDIT,
+      level: SystemLogLevel.INFO,
+      event: 'user.profile.update.success',
+      actorType: 'user',
+      actorId: updatedUser.id,
+      message: 'User updated profile',
+      metadata: { email: updatedUser.email },
+    });
+
+    return this.buildUserContext(updatedUser, user.activeWorkspaceId);
   }
 
   private async buildAuthResponse(

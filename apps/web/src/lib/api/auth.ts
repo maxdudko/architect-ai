@@ -60,3 +60,13 @@ export async function resetPassword(payload: {
   const { data } = await apiClient.post<{ success: boolean }>('/auth/reset-password', payload);
   return data;
 }
+
+export async function updateProfile(payload: {
+  firstName: string;
+  lastName: string;
+}): Promise<Pick<AuthResponse, 'user' | 'workspaces' | 'activeWorkspace'>> {
+  const { data } = await apiClient.patch<
+    Pick<AuthResponse, 'user' | 'workspaces' | 'activeWorkspace'>
+  >('/auth/me', payload);
+  return data;
+}

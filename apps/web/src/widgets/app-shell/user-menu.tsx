@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { LogOut, UserCircle2 } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
@@ -8,6 +9,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown';
 
@@ -29,11 +32,14 @@ export function UserMenu() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem disabled>
-          <UserCircle2 className="mr-2 h-4 w-4" />
-          {user?.email ?? 'User'}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/profile" className="cursor-pointer">
+            <UserCircle2 className="mr-2 h-4 w-4" />
+            Profile
+          </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => void logout()}>
+        <DropdownMenuItem onClick={() => void logout()} className="cursor-pointer">
           <LogOut className="mr-2 h-4 w-4" />
           Sign out
         </DropdownMenuItem>

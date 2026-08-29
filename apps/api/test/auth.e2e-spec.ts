@@ -115,6 +115,28 @@ describeE2e('Auth (e2e)', () => {
     await request(app.getHttpServer()).get('/auth/me').expect(401);
   });
 
+  it('updates the authenticated user profile', async () => {
+    const signUpAuth = await signUp(app);
+
+    const { body } = await request(app.getHttpServer())
+      .patch('/auth/me')
+      .set(authHeader(signUpAuth.accessToken))
+      .send({ firstName: ' Grace ', lastName: ' Hopper ' })
+      .expect(200);
+
+    assertAuthSession(body);
+    expect(body.user.firstName).toBe('Grace');
+    expect(body.user.lastName).toBe('Hopper');
+    expect(body.user.email).toBe(signUpAuth.user.email);
+  });
+
+  it('rejects profile updates without a bearer token', async () => {
+    await request(app.getHttpServer())
+      .patch('/auth/me')
+      .send({ firstName: 'Grace', lastName: 'Hopper' })
+      .expect(401);
+  });
+
   it('rotates tokens on refresh and preserves the active workspace', async () => {
     const { auth: signUpAuth, agent } = await createAuthSession(app);
 

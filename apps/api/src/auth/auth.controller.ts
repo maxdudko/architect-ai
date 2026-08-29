@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Patch,
   Post,
   Req,
   Res,
@@ -23,6 +24,7 @@ import { RefreshDto } from './dto/refresh.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SignInDto } from './dto/sign-in.dto';
 import { SignUpDto } from './dto/sign-up.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import {
   toPublicAuthResponse,
   toPublicTokenPair,
@@ -128,5 +130,24 @@ export class AuthController {
       ...user,
       activeWorkspaceId: workspace.id,
     });
+  }
+
+  @Patch('me')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, WorkspaceGuard)
+  @RateLimit({ limit: 10, windowMs: 60_000 })
+  @ApiOperation({ summary: 'Update authenticated user profile' })
+  updateProfile(
+    @CurrentUser() user: RequestUser,
+    @CurrentWorkspace() workspace: { id: string },
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.authService.updateProfile(
+      {
+        ...user,
+        activeWorkspaceId: workspace.id,
+      },
+      dto,
+    );
   }
 }
