@@ -47,3 +47,16 @@ export async function refreshTokens(
   });
   return data;
 }
+
+export async function requestPasswordReset(email: string): Promise<{ success: boolean }> {
+  const { data } = await apiClient.post<{ success: boolean }>('/auth/forgot-password', { email });
+  return data;
+}
+
+export async function resetPassword(payload: {
+  token: string;
+  password: string;
+}): Promise<{ success: boolean }> {
+  const { data } = await apiClient.post<{ success: boolean }>('/auth/reset-password', payload);
+  return data;
+}

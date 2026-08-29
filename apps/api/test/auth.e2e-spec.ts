@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { INestApplication } from '@nestjs/common';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { hashPasswordResetToken } from '../src/auth/password-reset.utils';
 import {
   assertAuthResponse,
   assertAuthSession,
@@ -417,6 +418,139 @@ describeE2e('Auth (e2e)', () => {
       expect(location.searchParams.get('redirect_uri')).toBe(
         'http://localhost:5000/auth/oauth/github/callback',
       );
+    });
+  });
+
+  describe('password reset', () => {
+    const resetToken = 'test-reset-token-value-32bytesxx';
+    const nextPassword = 'NewPassword123!';
+
+    async function insertResetToken(params: {
+      userId: string;
+      token?: string;
+      expiresAt?: Date;
+      usedAt?: Date | null;
+    }): Promise<void> {
+      await prisma.passwordResetToken.create({
+        data: {
+          userId: params.userId,
+          tokenHash: hashPasswordResetToken(params.token ?? resetToken),
+          expiresAt: params.expiresAt ?? new Date(Date.now() + 60 * 60 * 1000),
+          usedAt: params.usedAt ?? null,
+        },
+      });
+    }
+
+    it('always returns success for forgot-password and creates a token for password users', async () => {
+      const payload = buildSignUpPayload();
+      const auth = await signUp(app, payload);
+
+      const unknown = await request(app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email: uniqueEmail('missing') })
+        .expect(201);
+      expect(unknown.body).toEqual({ success: true });
+
+      const known = await request(app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email: payload.email.toUpperCase() })
+        .expect(201);
+      expect(known.body).toEqual({ success: true });
+
+      const tokens = await prisma.passwordResetToken.findMany({
+        where: { userId: auth.user.id, usedAt: null },
+      });
+      expect(tokens).toHaveLength(1);
+    });
+
+    it('does not create a reset token for OAuth-only accounts', async () => {
+      const email = uniqueEmail('oauth-reset');
+      const oauthUser = await prisma.user.create({
+        data: {
+          email,
+          firstName: 'OAuth',
+          lastName: 'User',
+          emailVerified: true,
+        },
+      });
+
+      await request(app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email })
+        .expect(201);
+
+      const tokens = await prisma.passwordResetToken.findMany({
+        where: { userId: oauthUser.id },
+      });
+      expect(tokens).toHaveLength(0);
+    });
+
+    it('replaces unused tokens when forgot-password is requested again', async () => {
+      const payload = buildSignUpPayload();
+      const auth = await signUp(app, payload);
+
+      await request(app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email: payload.email })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email: payload.email })
+        .expect(201);
+
+      const unused = await prisma.passwordResetToken.findMany({
+        where: { userId: auth.user.id, usedAt: null },
+      });
+      expect(unused).toHaveLength(1);
+    });
+
+    it('resets the password, revokes sessions, and rejects token reuse', async () => {
+      const payload = buildSignUpPayload();
+      const { auth, agent } = await createAuthSession(app, payload);
+      await insertResetToken({ userId: auth.user.id });
+
+      await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ token: resetToken, password: nextPassword })
+        .expect(201);
+
+      await agent.post('/auth/refresh').send({}).expect(401);
+
+      await request(app.getHttpServer())
+        .post('/auth/signin')
+        .send({ email: payload.email, password: TEST_PASSWORD })
+        .expect(401);
+
+      const { body } = await request(app.getHttpServer())
+        .post('/auth/signin')
+        .send({ email: payload.email, password: nextPassword })
+        .expect(201);
+      assertAuthResponse(body);
+      expect(body.user.emailVerified).toBe(true);
+
+      await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ token: resetToken, password: 'AnotherPass123!' })
+        .expect(400);
+    });
+
+    it('rejects expired and malformed reset tokens', async () => {
+      const payload = buildSignUpPayload();
+      const auth = await signUp(app, payload);
+      await insertResetToken({
+        userId: auth.user.id,
+        expiresAt: new Date(Date.now() - 1000),
+      });
+
+      await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ token: resetToken, password: nextPassword })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ token: 'short', password: nextPassword })
+        .expect(400);
     });
   });
 });

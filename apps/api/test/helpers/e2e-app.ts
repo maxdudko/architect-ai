@@ -99,6 +99,7 @@ export function configureTestEnvironment(): void {
     'http://localhost:5000/auth/oauth/github/callback';
   process.env.AUTH_OAUTH_STATE_SECRET ??= 'test-oauth-state-secret';
   delete process.env.REDIS_URL;
+  process.env.RESEND_API_KEY = '';
 }
 
 export function runMigrations(): void {
@@ -146,6 +147,7 @@ export async function resetDatabase(prisma: PrismaService): Promise<void> {
       oauth_accounts,
       identity_accounts,
       invitations,
+      password_reset_tokens,
       memberships,
       workspace_ai_settings,
       workspaces,

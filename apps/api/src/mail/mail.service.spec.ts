@@ -156,4 +156,42 @@ describe('MailService', () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('builds a password reset URL from WEB_URL', () => {
+    const service = createService({ WEB_URL: 'https://app.example.com/' });
+    expect(service.buildPasswordResetUrl('abc_123')).toBe(
+      'https://app.example.com/reset-password/abc_123',
+    );
+  });
+
+  it('skips password reset emails when RESEND_API_KEY is not set', async () => {
+    const service = createService({});
+
+    await service.sendPasswordReset({
+      to: 'user@example.com',
+      resetUrl: 'http://localhost:3000/reset-password/token',
+      expiresAt: new Date('2026-09-01'),
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('sends a password reset email when Resend is configured', async () => {
+    fetchSpy.mockResolvedValue(okResponse());
+    const service = createService({ RESEND_API_KEY: 're_test' });
+
+    await service.sendPasswordReset({
+      to: 'user@example.com',
+      resetUrl: 'http://localhost:3000/reset-password/token?x="y"',
+      expiresAt: new Date('2026-09-01'),
+    });
+
+    const body = parseBody();
+    expect(body.to).toEqual(['user@example.com']);
+    expect(body.subject).toBe('Reset your Architect AI password');
+    expect(String(body.html)).toContain(
+      'http://localhost:3000/reset-password/token?x=&quot;y&quot;',
+    );
+    expect(String(body.html)).toContain('Reset password');
+  });
 });

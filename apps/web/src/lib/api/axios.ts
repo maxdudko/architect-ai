@@ -28,7 +28,13 @@ function withAuthHeader(config: InternalAxiosRequestConfig): InternalAxiosReques
 
 apiClient.interceptors.request.use(withAuthHeader);
 
-const AUTH_ENDPOINTS_WITHOUT_REFRESH = ['/auth/signin', '/auth/signup', '/auth/refresh'];
+const AUTH_ENDPOINTS_WITHOUT_REFRESH = [
+  '/auth/signin',
+  '/auth/signup',
+  '/auth/refresh',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+];
 
 function shouldAttemptTokenRefresh(config: InternalAxiosRequestConfig): boolean {
   const url = config.url ?? '';

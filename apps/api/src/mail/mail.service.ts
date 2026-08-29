@@ -27,6 +27,16 @@ export interface ContactAcknowledgementEmailParams {
   email: string;
 }
 
+export interface PasswordResetEmailParams {
+  to: string;
+  resetUrl: string;
+  expiresAt: Date;
+}
+
+export interface OauthSignInReminderEmailParams {
+  to: string;
+}
+
 interface SendEmailParams {
   to: string;
   subject: string;
@@ -108,11 +118,72 @@ export class MailService {
     });
   }
 
+  async sendPasswordReset(params: PasswordResetEmailParams): Promise<void> {
+    const { to, resetUrl, expiresAt } = params;
+
+    if (!this.getResendApiKey()) {
+      this.logger.log(
+        `RESEND_API_KEY not set — password reset email not sent. Reset link: ${resetUrl}`,
+      );
+      return;
+    }
+
+    const expiresLabel = expiresAt.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    const safeResetUrl = escapeHtml(resetUrl);
+
+    await this.sendEmail({
+      to,
+      subject: 'Reset your Architect AI password',
+      html: `
+          <p>We received a request to reset the password for your Architect AI account.</p>
+          <p><a href="${safeResetUrl}">Reset password</a></p>
+          <p>This link expires on ${expiresLabel}.</p>
+          <p>If you did not request a password reset, you can ignore this email.</p>
+        `,
+      failureMessage: 'Failed to send password reset email',
+    });
+  }
+
+  async sendOauthSignInReminder(
+    params: OauthSignInReminderEmailParams,
+  ): Promise<void> {
+    const { to } = params;
+
+    if (!this.getResendApiKey()) {
+      this.logger.log(
+        `RESEND_API_KEY not set — OAuth sign-in reminder not sent to ${to}`,
+      );
+      return;
+    }
+
+    await this.sendEmail({
+      to,
+      subject: 'Sign in to Architect AI',
+      html: `
+          <p>We received a password reset request for this email, but this Architect AI account signs in with Google or GitHub.</p>
+          <p>Use <strong>Continue with Google</strong> or <strong>Continue with GitHub</strong> on the sign-in page instead.</p>
+          <p>If you did not request this, you can ignore this email.</p>
+        `,
+      failureMessage: 'Failed to send OAuth sign-in reminder',
+    });
+  }
+
   buildInviteUrl(token: string): string {
-    const webUrl = (
+    return `${this.getWebUrl()}/invitations/${token}`;
+  }
+
+  buildPasswordResetUrl(token: string): string {
+    return `${this.getWebUrl()}/reset-password/${encodeURIComponent(token)}`;
+  }
+
+  private getWebUrl(): string {
+    return (
       this.configService.get<string>('WEB_URL') ?? 'http://localhost:3000'
     ).replace(/\/$/, '');
-    return `${webUrl}/invitations/${token}`;
   }
 
   private getContactToEmail(): string {

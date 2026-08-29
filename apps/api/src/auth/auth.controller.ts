@@ -17,14 +17,17 @@ import { WorkspaceGuard } from '../common/guards/workspace.guard';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
 import { AuthCookieService } from './auth-cookie.service';
 import { AuthService } from './auth.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SignInDto } from './dto/sign-in.dto';
 import { SignUpDto } from './dto/sign-up.dto';
 import {
   toPublicAuthResponse,
   toPublicTokenPair,
 } from './interfaces/public-auth-response.interface';
+import { PasswordResetService } from './password-reset.service';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -32,6 +35,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly authCookieService: AuthCookieService,
+    private readonly passwordResetService: PasswordResetService,
   ) {}
 
   @Post('signup')
@@ -96,6 +100,20 @@ export class AuthController {
     await this.authService.logout(user.sub, refreshToken);
     this.authCookieService.clearRefreshTokenCookie(response);
     return { success: true };
+  }
+
+  @Post('forgot-password')
+  @RateLimit({ limit: 5, windowMs: 60_000 })
+  @ApiOperation({ summary: 'Request a password reset email' })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.passwordResetService.requestReset(dto.email);
+  }
+
+  @Post('reset-password')
+  @RateLimit({ limit: 10, windowMs: 60_000 })
+  @ApiOperation({ summary: 'Reset password with a one-time email token' })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.passwordResetService.resetPassword(dto);
   }
 
   @Get('me')
