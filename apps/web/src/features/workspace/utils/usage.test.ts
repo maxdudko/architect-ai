@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { UsageMetricSnapshot } from '@/entities';
-import { formatUsageLimit, formatUsageSummary, effectivePlanLimit } from './usage';
+import {
+  formatUsageLimit,
+  formatUsageSummary,
+  effectivePlanLimit,
+  formatIndexingResourceCap,
+} from './usage';
 
 function snapshot(overrides: Partial<UsageMetricSnapshot> = {}): UsageMetricSnapshot {
   return {
@@ -65,5 +70,17 @@ describe('effectivePlanLimit', () => {
 
   it('keeps hosted caps', () => {
     expect(effectivePlanLimit(50, 'AI_QUESTIONS', false)).toBe(50);
+  });
+});
+
+describe('formatIndexingResourceCap', () => {
+  it('formats byte caps in MB or GB', () => {
+    expect(formatIndexingResourceCap('REPOSITORY_SIZE_BYTES', 262144000)).toBe('250 MB');
+    expect(formatIndexingResourceCap('FILE_SIZE_BYTES', 1048576)).toBe('1 MB');
+    expect(formatIndexingResourceCap('REPOSITORY_SIZE_BYTES', 1073741824)).toBe('1 GB');
+  });
+
+  it('labels a null cap as unlimited', () => {
+    expect(formatIndexingResourceCap('INDEXABLE_FILES', null)).toBe('Unlimited');
   });
 });

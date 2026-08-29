@@ -18,6 +18,8 @@ import {
 import { AnalyticsService } from '../analytics/analytics.service';
 import { GithubAccessTokenService } from '../integrations/github/github-access-token.service';
 import { GithubHttpService } from '../integrations/github/github-http.service';
+import { isIndexingResourceLimitError } from '../usage/indexing-resource-limit.error';
+import { IndexingResourceLimitExceededException } from '../usage/indexing-resource-limit.exception';
 import { UsageLimitExceededException } from '../usage/usage-limit.exception';
 import { UsageService } from '../usage/usage.service';
 import { CodeSymbolResponseDto } from './dto/code-symbol-response.dto';
@@ -26,6 +28,7 @@ import { RepositoryFileResponseDto } from './dto/repository-file-response.dto';
 import { RepositoryResponseDto } from './dto/repository-response.dto';
 import { RetryIndexingDto } from './dto/retry-indexing.dto';
 import { UpdateRepositoryDto } from './dto/update-repository.dto';
+import { GithubIndexingEstimateService } from './indexing/github-indexing-estimate.service';
 import { RepositoryEmbeddingService } from './indexing/repository-embedding.service';
 import { RepositoryIndexingQueueService } from './repository-indexing.queue.service';
 import { RepositoryAccessValidationService } from './repository-access-validation.service';
@@ -44,6 +47,7 @@ export class RepositoriesService {
     private readonly repositoryAccessValidationService: RepositoryAccessValidationService,
     private readonly analyticsService: AnalyticsService,
     private readonly usageService: UsageService,
+    private readonly githubIndexingEstimateService: GithubIndexingEstimateService,
   ) {}
 
   async listRepositories(
@@ -121,6 +125,15 @@ export class RepositoriesService {
     }
 
     const metadata = await this.resolveRepositoryMetadata(userId, dto);
+    if (dto.provider === RepositoryProvider.GITHUB) {
+      await this.assertIndexingResourceLimits({
+        workspaceId,
+        userId,
+        owner: metadata.owner,
+        name: metadata.name,
+        branch: dto.indexBranch ?? metadata.defaultBranch,
+      });
+    }
     const existing =
       await this.repositoriesRepository.findAnyByProviderAndExternalId(
         dto.provider,
@@ -360,6 +373,15 @@ export class RepositoriesService {
       operation: 'retry' | 'reindex';
     },
   ): Promise<RepositoryResponseDto> {
+    if (repository.provider === RepositoryProvider.GITHUB) {
+      await this.assertIndexingResourceLimits({
+        workspaceId,
+        userId,
+        owner: repository.owner,
+        name: repository.name,
+        branch: params.branch,
+      });
+    }
     await this.usageService.assertWithinLimit(
       workspaceId,
       UsageMetric.INDEXING_RUNS,
@@ -498,6 +520,23 @@ export class RepositoriesService {
         indexingError: status === RepositoryStatus.READY ? null : message,
       },
     );
+  }
+
+  private async assertIndexingResourceLimits(params: {
+    workspaceId: string;
+    userId: string;
+    owner: string;
+    name: string;
+    branch: string;
+  }): Promise<void> {
+    try {
+      await this.githubIndexingEstimateService.assertWithinLimits(params);
+    } catch (error) {
+      if (isIndexingResourceLimitError(error)) {
+        throw new IndexingResourceLimitExceededException(error);
+      }
+      throw error;
+    }
   }
 
   private async findRepositoryInWorkspace(

@@ -236,6 +236,30 @@ describeE2e('Usage limits and workspace AI (e2e)', () => {
       .expect(200);
 
     expect(body.aiMode).toBe('BYOK');
+    expect(body.indexingLimits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          metric: 'REPOSITORY_SIZE_BYTES',
+          limit: 250 * 1024 * 1024,
+        }),
+        expect.objectContaining({
+          metric: 'INDEXABLE_FILES',
+          limit: 10_000,
+        }),
+        expect.objectContaining({
+          metric: 'INDEXED_TOKENS',
+          limit: 2_000_000,
+        }),
+        expect.objectContaining({
+          metric: 'EMBEDDING_CHUNKS',
+          limit: 15_000,
+        }),
+        expect.objectContaining({
+          metric: 'FILE_SIZE_BYTES',
+          limit: 1 * 1024 * 1024,
+        }),
+      ]),
+    );
     expect(body.metrics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

@@ -14,8 +14,10 @@ import {
 } from '@/shared/components';
 import { useWorkspaceUsageQuery } from '@/features/workspace/services/workspace.service';
 import {
+  formatIndexingResourceCap,
   formatUsageLimit,
   formatUsageSummary,
+  INDEXING_RESOURCE_METRIC_LABELS,
   USAGE_METRIC_LABELS,
 } from '@/features/workspace/utils/usage';
 
@@ -93,6 +95,26 @@ export function UsageWidget({ workspaceId }: UsageWidgetProps) {
             </li>
           ))}
         </ul>
+        {usage.indexingLimits?.length ? (
+          <div className="space-y-2 pt-2">
+            <p className="text-xs font-medium text-muted-foreground">Indexing caps</p>
+            <ul className="space-y-2">
+              {usage.indexingLimits.map((limit) => (
+                <li
+                  key={limit.metric}
+                  className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"
+                >
+                  <span className="truncate text-sm font-medium">
+                    {INDEXING_RESOURCE_METRIC_LABELS[limit.metric]}
+                  </span>
+                  <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
+                    {formatIndexingResourceCap(limit.metric, limit.maxValue)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <Button asChild variant="ghost" size="sm" className="w-full">
           <Link href="/workspace/settings">Manage usage and AI provider</Link>
         </Button>

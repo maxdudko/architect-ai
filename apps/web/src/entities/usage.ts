@@ -7,6 +7,13 @@ export type UsageMetric =
   | 'AI_QUESTIONS'
   | 'MEMBERS';
 
+export type IndexingResourceMetric =
+  | 'REPOSITORY_SIZE_BYTES'
+  | 'INDEXABLE_FILES'
+  | 'INDEXED_TOKENS'
+  | 'EMBEDDING_CHUNKS'
+  | 'FILE_SIZE_BYTES';
+
 export type UsagePeriod = 'CURRENT' | 'MONTHLY';
 
 export type WorkspaceAiMode = 'HOSTED' | 'BYOK';
@@ -21,11 +28,17 @@ export interface UsageMetricSnapshot {
   remaining: number | null;
 }
 
+export interface IndexingResourceLimit {
+  metric: IndexingResourceMetric;
+  maxValue: number | null;
+}
+
 export interface WorkspaceUsage {
   workspaceId: string;
   plan: PlanSummary;
   aiMode: WorkspaceAiMode;
   metrics: UsageMetricSnapshot[];
+  indexingLimits: IndexingResourceLimit[];
 }
 
 export interface WorkspaceAiCredentialSummary {
@@ -53,6 +66,7 @@ export interface AdminWorkspaceUsageRow {
   createdAt: string;
   aiMode: WorkspaceAiMode;
   metrics: UsageMetricSnapshot[];
+  indexingLimits: IndexingResourceLimit[];
   owner: {
     id: string;
     email: string;

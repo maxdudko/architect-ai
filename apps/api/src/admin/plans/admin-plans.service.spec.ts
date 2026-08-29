@@ -9,13 +9,16 @@ describe('AdminPlansService', () => {
     plan: {
       findMany: jest.Mock;
       findUnique: jest.Mock;
+      findUniqueOrThrow: jest.Mock;
       create: jest.Mock;
       update: jest.Mock;
     };
     planPrice: { findUnique: jest.Mock; update: jest.Mock; create: jest.Mock };
     planLimit: { upsert: jest.Mock };
+    planIndexingLimit: { upsert: jest.Mock };
   };
   let usageService: { getLimitsForPlan: jest.Mock };
+  let indexingResourceLimitService: { getLimitsForPlan: jest.Mock };
   let billingService: {
     archiveStripePrice: jest.Mock;
     getOrCreateStripePrice: jest.Mock;
@@ -27,6 +30,7 @@ describe('AdminPlansService', () => {
       plan: {
         findMany: jest.fn(),
         findUnique: jest.fn(),
+        findUniqueOrThrow: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
       },
@@ -36,8 +40,12 @@ describe('AdminPlansService', () => {
         create: jest.fn(),
       },
       planLimit: { upsert: jest.fn() },
+      planIndexingLimit: { upsert: jest.fn().mockResolvedValue({}) },
     };
     usageService = { getLimitsForPlan: jest.fn() };
+    indexingResourceLimitService = {
+      getLimitsForPlan: jest.fn().mockResolvedValue([]),
+    };
     billingService = {
       archiveStripePrice: jest.fn().mockResolvedValue(undefined),
       getOrCreateStripePrice: jest.fn().mockResolvedValue('price_stripe_new'),
@@ -45,6 +53,7 @@ describe('AdminPlansService', () => {
     service = new AdminPlansService(
       prisma as never,
       usageService as never,
+      indexingResourceLimitService as never,
       billingService as never,
     );
   });
@@ -71,6 +80,19 @@ describe('AdminPlansService', () => {
         sortOrder: 0,
         prices: [],
         limits: [],
+        indexingLimits: [],
+      });
+      prisma.plan.findUniqueOrThrow.mockResolvedValue({
+        id: 'plan-new',
+        key: 'growth',
+        name: 'Growth',
+        description: null,
+        isContactSales: false,
+        isActive: true,
+        sortOrder: 0,
+        prices: [],
+        limits: [],
+        indexingLimits: [],
       });
 
       const result = await service.createPlan({
@@ -86,7 +108,7 @@ describe('AdminPlansService', () => {
           isContactSales: false,
           sortOrder: 0,
         },
-        include: { prices: true, limits: true },
+        include: { prices: true, limits: true, indexingLimits: true },
       });
       expect(result.key).toBe('growth');
     });
@@ -113,6 +135,7 @@ describe('AdminPlansService', () => {
         sortOrder: 1,
         prices: [],
         limits: [],
+        indexingLimits: [],
       });
 
       await service.updatePlan(planId, { name: 'PRO Plus', sortOrder: 1 });
@@ -120,7 +143,7 @@ describe('AdminPlansService', () => {
       expect(prisma.plan.update).toHaveBeenCalledWith({
         where: { id: planId },
         data: { name: 'PRO Plus', sortOrder: 1 },
-        include: { prices: true, limits: true },
+        include: { prices: true, limits: true, indexingLimits: true },
       });
     });
   });

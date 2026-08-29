@@ -27,3 +27,27 @@ export interface GithubBranchResponse {
   name: string;
   protected: boolean;
 }
+
+export interface GithubGitTreeEntry {
+  path?: string;
+  type?: string;
+  size?: number;
+}
+
+export interface GithubGitTreeResponse {
+  sha: string;
+  truncated: boolean;
+  tree: GithubGitTreeEntry[];
+}
+
+export interface GithubBranchDetailResponse {
+  name: string;
+  commit: {
+    sha: string;
+    commit?: {
+      tree?: {
+        sha: string;
+      };
+    };
+  };
+}

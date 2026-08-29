@@ -10,7 +10,13 @@ import {
   Skeleton,
 } from '@/shared/components';
 import { useWorkspaceUsageQuery } from '../services/workspace.service';
-import { formatPlan, formatUsageLimit, USAGE_METRIC_LABELS } from '../utils/usage';
+import {
+  formatIndexingResourceCap,
+  formatPlan,
+  formatUsageLimit,
+  INDEXING_RESOURCE_METRIC_LABELS,
+  USAGE_METRIC_LABELS,
+} from '../utils/usage';
 
 export function WorkspaceUsageCard({ workspaceId }: { workspaceId: string }) {
   const usageQuery = useWorkspaceUsageQuery(workspaceId);
@@ -50,6 +56,24 @@ export function WorkspaceUsageCard({ workspaceId }: { workspaceId: string }) {
                 </li>
               ))}
             </ul>
+            {usageQuery.data.indexingLimits?.length ? (
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-muted-foreground">Indexing caps</p>
+                <ul className="space-y-3">
+                  {usageQuery.data.indexingLimits.map((limit) => (
+                    <li
+                      key={limit.metric}
+                      className="flex items-center justify-between gap-4 text-sm"
+                    >
+                      <span>{INDEXING_RESOURCE_METRIC_LABELS[limit.metric]}</span>
+                      <span className="tabular-nums text-muted-foreground">
+                        {formatIndexingResourceCap(limit.metric, limit.maxValue)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
         ) : null}
         {!usageQuery.isLoading && !usageQuery.isError && !usageQuery.data ? (

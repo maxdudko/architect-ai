@@ -1,4 +1,5 @@
 import type {
+  IndexingResourceMetric,
   PlanSummary,
   UsageMetric,
   UsageMetricSnapshot,
@@ -12,6 +13,22 @@ export const USAGE_METRIC_LABELS: Record<UsageMetric, string> = {
   GUIDE_GENERATIONS: 'Onboarding guides',
   AI_QUESTIONS: 'AI questions',
   MEMBERS: 'Workspace members',
+};
+
+export const INDEXING_RESOURCE_METRICS: IndexingResourceMetric[] = [
+  'REPOSITORY_SIZE_BYTES',
+  'INDEXABLE_FILES',
+  'INDEXED_TOKENS',
+  'EMBEDDING_CHUNKS',
+  'FILE_SIZE_BYTES',
+];
+
+export const INDEXING_RESOURCE_METRIC_LABELS: Record<IndexingResourceMetric, string> = {
+  REPOSITORY_SIZE_BYTES: 'Repository size',
+  INDEXABLE_FILES: 'Indexable files',
+  INDEXED_TOKENS: 'Indexed tokens',
+  EMBEDDING_CHUNKS: 'Embedding chunks',
+  FILE_SIZE_BYTES: 'Max file size',
 };
 
 /** LLM metrics billed to the workspace key; Hosted AI still uses plan caps. */
@@ -55,4 +72,32 @@ export function formatLimitCap(maxValue: number | null, period: UsagePeriod): st
     return 'Unlimited';
   }
   return period === 'MONTHLY' ? `${maxValue}/mo` : String(maxValue);
+}
+
+export function formatIndexingResourceCap(
+  metric: IndexingResourceMetric,
+  maxValue: number | null,
+): string {
+  if (maxValue == null) {
+    return 'Unlimited';
+  }
+  if (metric === 'REPOSITORY_SIZE_BYTES' || metric === 'FILE_SIZE_BYTES') {
+    return formatByteCap(maxValue);
+  }
+  return maxValue.toLocaleString();
+}
+
+function formatByteCap(bytes: number): string {
+  const gb = 1024 * 1024 * 1024;
+  const mb = 1024 * 1024;
+  if (bytes >= gb && bytes % gb === 0) {
+    return `${bytes / gb} GB`;
+  }
+  if (bytes >= mb && bytes % mb === 0) {
+    return `${bytes / mb} MB`;
+  }
+  if (bytes >= mb) {
+    return `${(bytes / mb).toFixed(1).replace(/\.0$/, '')} MB`;
+  }
+  return `${bytes.toLocaleString()} B`;
 }

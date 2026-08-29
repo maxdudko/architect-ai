@@ -1,27 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { IndexableFilesLimitExceededError } from '../errors/indexable-files-limit-exceeded.error';
 import { isUnparseableFileError } from '../errors/unparseable-file.error';
 import { LanguageDetectorService } from '../languages/language-detector.service';
 import { LanguagePackRegistry } from '../languages/language-pack.registry';
 import { PROGRAMMING_LANGUAGES } from '../types/programming-language.type';
 import { RepositoryFileCandidate } from '../types/repository-file-candidate.type';
 import { ChecksumService } from '../utils/checksum.service';
-
-const BINARY_EXTENSIONS = new Set([
-  '.png',
-  '.jpg',
-  '.gif',
-  '.svg',
-  '.pdf',
-  '.zip',
-  '.exe',
-  '.dll',
-]);
+import {
+  BINARY_EXTENSIONS,
+  classifyIndexableFile,
+} from './indexable-file.policy';
 
 export interface RepositoryScanMetrics {
   supportedFileCount: number;
   ignoredFileCount: number;
+}
+
+export interface RepositoryScanOptions {
+  maxFileSizeBytes?: number | null;
+  maxIndexableFiles?: number | null;
+}
+
+interface DiscoveredFile {
+  absolutePath: string;
+  relativePath: string;
+  language: RepositoryFileCandidate['language'];
+  extension: string;
+  size: number;
 }
 
 @Injectable()
@@ -37,11 +44,60 @@ export class RepositoryScannerService {
   async scanRepository(
     repositoryRoot: string,
     onCandidate: (candidate: RepositoryFileCandidate) => Promise<void>,
+    options: RepositoryScanOptions = {},
   ): Promise<RepositoryScanMetrics> {
-    const stack: string[] = [repositoryRoot];
+    const discovery = await this.discoverIndexableFiles(
+      repositoryRoot,
+      options,
+    );
     let supportedFileCount = 0;
+    let ignoredFileCount = discovery.ignoredFileCount;
+
+    for (const discovered of discovery.candidates) {
+      let checksum: string;
+      try {
+        checksum = await this.checksumService.hashFile(discovered.absolutePath);
+      } catch (error) {
+        this.logger.warn(
+          `Skipping unhashable file ${discovered.absolutePath}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        ignoredFileCount += 1;
+        continue;
+      }
+
+      try {
+        await onCandidate({
+          ...discovered,
+          checksum,
+        });
+        supportedFileCount += 1;
+      } catch (error) {
+        if (isUnparseableFileError(error)) {
+          this.logger.warn(error.message);
+          ignoredFileCount += 1;
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    return { supportedFileCount, ignoredFileCount };
+  }
+
+  async discoverIndexableFiles(
+    repositoryRoot: string,
+    options: RepositoryScanOptions = {},
+  ): Promise<{
+    candidates: DiscoveredFile[];
+    ignoredFileCount: number;
+  }> {
+    const stack: string[] = [repositoryRoot];
+    const candidates: DiscoveredFile[] = [];
     let ignoredFileCount = 0;
     const ignoredFolders = this.languagePacks.ignoredFolders();
+    const maxIndexableFiles = options.maxIndexableFiles ?? null;
 
     while (stack.length > 0) {
       const currentPath = stack.pop();
@@ -79,13 +135,13 @@ export class RepositoryScannerService {
           continue;
         }
 
+        const relativePath = path.relative(repositoryRoot, absolutePath);
         const extension = path.extname(entry.name).toLowerCase();
         if (BINARY_EXTENSIONS.has(extension)) {
           ignoredFileCount += 1;
           continue;
         }
 
-        const relativePath = path.relative(repositoryRoot, absolutePath);
         const isManifest = this.languagePacks.isManifest(relativePath);
         const language = isManifest
           ? PROGRAMMING_LANGUAGES.config
@@ -108,45 +164,40 @@ export class RepositoryScannerService {
           continue;
         }
 
-        if (fileStats.size === 0) {
+        const classification = classifyIndexableFile({
+          relativePath,
+          size: fileStats.size,
+          ignoredFolders,
+          isManifest: (filePath) => this.languagePacks.isManifest(filePath),
+          detectLanguage: (filePath) => this.languageDetector.detect(filePath),
+          maxFileSizeBytes: options.maxFileSizeBytes,
+        });
+
+        if (classification !== 'indexable') {
           ignoredFileCount += 1;
           continue;
         }
 
-        let checksum: string;
-        try {
-          checksum = await this.checksumService.hashFile(absolutePath);
-        } catch (error) {
-          this.logger.warn(
-            `Skipping unhashable file ${absolutePath}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
+        if (
+          maxIndexableFiles != null &&
+          candidates.length + 1 > maxIndexableFiles
+        ) {
+          throw new IndexableFilesLimitExceededError(
+            candidates.length + 1,
+            maxIndexableFiles,
           );
-          ignoredFileCount += 1;
-          continue;
         }
 
-        try {
-          await onCandidate({
-            absolutePath,
-            relativePath,
-            language,
-            extension: extension || path.extname(entry.name),
-            size: fileStats.size,
-            checksum,
-          });
-          supportedFileCount += 1;
-        } catch (error) {
-          if (isUnparseableFileError(error)) {
-            this.logger.warn(error.message);
-            ignoredFileCount += 1;
-            continue;
-          }
-          throw error;
-        }
+        candidates.push({
+          absolutePath,
+          relativePath,
+          language,
+          extension: extension || path.extname(entry.name),
+          size: fileStats.size,
+        });
       }
     }
 
-    return { supportedFileCount, ignoredFileCount };
+    return { candidates, ignoredFileCount };
   }
 }

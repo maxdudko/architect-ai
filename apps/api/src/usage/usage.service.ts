@@ -6,6 +6,12 @@ import {
   UsageMetric,
   UsagePeriod,
 } from '@prisma/client';
+import { INDEXING_RESOURCE_LIMIT_EXCEEDED_CODE } from './indexing-resource-limit.error';
+import {
+  toNumberLimit,
+  type IndexingResourceLimitSnapshot,
+} from './indexing-resource-limit.service';
+import { INDEXING_RESOURCE_METRICS } from './plan-indexing-limit.defaults';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsageLimitExceededException } from './usage-limit.exception';
 
@@ -37,11 +43,14 @@ export interface PlanSummary {
   name: string;
 }
 
+export { type IndexingResourceLimitSnapshot } from './indexing-resource-limit.service';
+
 export interface WorkspaceUsageSnapshot {
   workspaceId: string;
   plan: PlanSummary;
   aiMode: 'HOSTED' | 'BYOK';
   metrics: UsageMetricSnapshot[];
+  indexingLimits: IndexingResourceLimitSnapshot[];
 }
 
 export type MemberCountMode = 'seats' | 'active';
@@ -107,11 +116,23 @@ export class UsageService {
       }),
     );
 
+    const indexingRows = await this.prisma.planIndexingLimit.findMany({
+      where: { planId: workspace.plan.id },
+    });
+    const indexingByMetric = new Map(
+      indexingRows.map((row) => [row.metric, row.maxValue]),
+    );
+    const indexingLimits = INDEXING_RESOURCE_METRICS.map((metric) => ({
+      metric,
+      maxValue: toNumberLimit(indexingByMetric.get(metric) ?? null),
+    }));
+
     return {
       workspaceId: workspace.id,
       plan: workspace.plan,
       aiMode: isByok ? 'BYOK' : 'HOSTED',
       metrics,
+      indexingLimits,
     };
   }
 
@@ -209,6 +230,17 @@ export class UsageService {
           where: {
             repository: { workspaceId, deletedAt: null },
             ...(monthStart ? { startedAt: { gte: monthStart } } : {}),
+            NOT: {
+              AND: [
+                { status: 'FAILED' },
+                {
+                  errors: {
+                    path: ['code'],
+                    equals: INDEXING_RESOURCE_LIMIT_EXCEEDED_CODE,
+                  },
+                },
+              ],
+            },
           },
         });
       case UsageMetric.GUIDE_GENERATIONS:

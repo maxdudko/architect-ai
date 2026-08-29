@@ -1,4 +1,5 @@
 import { UsageMetric, UsagePeriod, type PrismaClient } from '@prisma/client';
+import { upsertDefaultPlanIndexingLimits } from './plan-indexing-limit.defaults';
 
 export const DEFAULT_PLAN_KEYS = ['free', 'pro', 'enterprise'] as const;
 export type DefaultPlanKey = (typeof DEFAULT_PLAN_KEYS)[number];
@@ -161,7 +162,7 @@ export async function upsertDefaultPlans(
 }
 
 export async function upsertDefaultPlanLimits(
-  prisma: Pick<PrismaClient, 'planLimit' | 'plan'>,
+  prisma: Pick<PrismaClient, 'planLimit' | 'planIndexingLimit' | 'plan'>,
 ): Promise<Record<DefaultPlanKey, string>> {
   const planIds = await upsertDefaultPlans(prisma);
   for (const row of DEFAULT_PLAN_LIMIT_ROWS) {
@@ -185,5 +186,6 @@ export async function upsertDefaultPlanLimits(
       },
     });
   }
+  await upsertDefaultPlanIndexingLimits(prisma);
   return planIds;
 }

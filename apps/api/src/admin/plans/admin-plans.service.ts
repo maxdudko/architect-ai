@@ -6,13 +6,23 @@ import {
 import {
   BillingInterval,
   BillingMode,
+  IndexingResourceMetric,
   Plan,
+  PlanIndexingLimit,
   PlanLimit,
   PlanPrice,
   UsageMetric,
 } from '@prisma/client';
 import { BillingService } from '../../billing/billing.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  IndexingResourceLimitService,
+  toNumberLimit,
+} from '../../usage/indexing-resource-limit.service';
+import {
+  INDEXING_RESOURCE_METRICS,
+  seedUnlimitedPlanIndexingLimits,
+} from '../../usage/plan-indexing-limit.defaults';
 import { USAGE_METRICS, UsageService } from '../../usage/usage.service';
 import { AdminPlanDto, AdminPlanPriceDto } from './dto/admin-plan-response.dto';
 import { CreatePlanDto } from './dto/create-plan.dto';
@@ -24,13 +34,14 @@ export class AdminPlansService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly usageService: UsageService,
+    private readonly indexingResourceLimitService: IndexingResourceLimitService,
     private readonly billingService: BillingService,
   ) {}
 
   async listPlans(): Promise<AdminPlanDto[]> {
     const plans = await this.prisma.plan.findMany({
       orderBy: { sortOrder: 'asc' },
-      include: { prices: true, limits: true },
+      include: { prices: true, limits: true, indexingLimits: true },
     });
     return plans.map((plan) => this.toPlanDto(plan));
   }
@@ -53,9 +64,14 @@ export class AdminPlansService {
         isContactSales: dto.isContactSales ?? false,
         sortOrder: dto.sortOrder ?? 0,
       },
-      include: { prices: true, limits: true },
+      include: { prices: true, limits: true, indexingLimits: true },
     });
-    return this.toPlanDto(plan);
+    await seedUnlimitedPlanIndexingLimits(this.prisma, plan.id);
+    const seeded = await this.prisma.plan.findUniqueOrThrow({
+      where: { id: plan.id },
+      include: { prices: true, limits: true, indexingLimits: true },
+    });
+    return this.toPlanDto(seeded);
   }
 
   async updatePlan(planId: string, dto: UpdatePlanDto): Promise<AdminPlanDto> {
@@ -73,7 +89,7 @@ export class AdminPlansService {
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
         ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
       },
-      include: { prices: true, limits: true },
+      include: { prices: true, limits: true, indexingLimits: true },
     });
     return this.toPlanDto(plan);
   }
@@ -181,6 +197,45 @@ export class AdminPlansService {
     return this.usageService.getLimitsForPlan(planId);
   }
 
+  async getIndexingLimits(planId: string) {
+    await this.assertPlanExists(planId);
+    return this.indexingResourceLimitService.getLimitsForPlan(planId);
+  }
+
+  async updateIndexingLimits(
+    planId: string,
+    limits: Array<{ metric: IndexingResourceMetric; maxValue: number | null }>,
+  ) {
+    await this.assertPlanExists(planId);
+    const seen = new Set<IndexingResourceMetric>();
+    for (const item of limits) {
+      if (seen.has(item.metric)) {
+        continue;
+      }
+      seen.add(item.metric);
+      if (!INDEXING_RESOURCE_METRICS.includes(item.metric)) {
+        continue;
+      }
+      await this.prisma.planIndexingLimit.upsert({
+        where: {
+          planId_metric: {
+            planId,
+            metric: item.metric,
+          },
+        },
+        update: {
+          maxValue: item.maxValue == null ? null : BigInt(item.maxValue),
+        },
+        create: {
+          planId,
+          metric: item.metric,
+          maxValue: item.maxValue == null ? null : BigInt(item.maxValue),
+        },
+      });
+    }
+    return this.indexingResourceLimitService.getLimitsForPlan(planId);
+  }
+
   private async assertPlanExists(planId: string): Promise<Plan> {
     const plan = await this.prisma.plan.findUnique({ where: { id: planId } });
     if (!plan) {
@@ -190,7 +245,11 @@ export class AdminPlansService {
   }
 
   private toPlanDto(
-    plan: Plan & { prices: PlanPrice[]; limits: PlanLimit[] },
+    plan: Plan & {
+      prices: PlanPrice[];
+      limits: PlanLimit[];
+      indexingLimits: PlanIndexingLimit[];
+    },
   ): AdminPlanDto {
     return {
       id: plan.id,
@@ -206,6 +265,15 @@ export class AdminPlansService {
         period: limit.period,
         maxValue: limit.maxValue,
       })),
+      indexingLimits: INDEXING_RESOURCE_METRICS.map((metric) => {
+        const row = plan.indexingLimits.find(
+          (limit) => limit.metric === metric,
+        );
+        return {
+          metric,
+          maxValue: toNumberLimit(row?.maxValue ?? null),
+        };
+      }),
     };
   }
 

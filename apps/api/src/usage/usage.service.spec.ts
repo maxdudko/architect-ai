@@ -17,6 +17,7 @@ describe('UsageService', () => {
   let prisma: {
     workspace: { findFirst: jest.Mock };
     planLimit: { findMany: jest.Mock; findUnique: jest.Mock };
+    planIndexingLimit: { findMany: jest.Mock };
     repository: { count: jest.Mock };
     indexingRun: { count: jest.Mock };
     guideGenerationRun: { count: jest.Mock };
@@ -30,6 +31,7 @@ describe('UsageService', () => {
     prisma = {
       workspace: { findFirst: jest.fn() },
       planLimit: { findMany: jest.fn(), findUnique: jest.fn() },
+      planIndexingLimit: { findMany: jest.fn().mockResolvedValue([]) },
       repository: { count: jest.fn() },
       indexingRun: { count: jest.fn() },
       guideGenerationRun: { count: jest.fn() },

@@ -15,6 +15,7 @@ import { AdminJwtAuthGuard } from '../guards/admin-jwt-auth.guard';
 import { AdminPlansService } from './admin-plans.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
+import { UpdatePlanIndexingLimitsDto } from './dto/update-plan-indexing-limits.dto';
 import { UpdatePlanLimitsDto } from './dto/update-plan-limits.dto';
 import { UpsertPlanPriceDto } from './dto/upsert-plan-price.dto';
 
@@ -71,5 +72,20 @@ export class AdminPlansController {
     @Body() dto: UpdatePlanLimitsDto,
   ) {
     return this.adminPlansService.updateLimits(planId, dto.limits);
+  }
+
+  @Get(':planId/indexing-limits')
+  @ApiOperation({ summary: 'Get plan indexing resource limits' })
+  getIndexingLimits(@Param('planId') planId: string) {
+    return this.adminPlansService.getIndexingLimits(planId);
+  }
+
+  @Patch(':planId/indexing-limits')
+  @ApiOperation({ summary: 'Update plan indexing resource limits' })
+  updateIndexingLimits(
+    @Param('planId') planId: string,
+    @Body() dto: UpdatePlanIndexingLimitsDto,
+  ) {
+    return this.adminPlansService.updateIndexingLimits(planId, dto.limits);
   }
 }

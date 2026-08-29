@@ -98,6 +98,7 @@ export class AdminUsageService {
           createdAt: workspace.createdAt,
           aiMode: workspace.aiSettings?.activeProvider ? 'BYOK' : 'HOSTED',
           metrics: usage.metrics,
+          indexingLimits: usage.indexingLimits,
           owner,
         };
       }),

@@ -1,5 +1,5 @@
 import type { PlanSummary } from './workspace';
-import type { UsageMetric, UsagePeriod } from './usage';
+import type { IndexingResourceMetric, UsageMetric, UsagePeriod } from './usage';
 
 export type BillingMode = 'STANDARD' | 'BYOK';
 export type BillingInterval = 'MONTHLY';
@@ -26,6 +26,11 @@ export interface PlanLimit {
   maxValue: number | null;
 }
 
+export interface PlanIndexingLimit {
+  metric: IndexingResourceMetric;
+  maxValue: number | null;
+}
+
 export interface Plan {
   id: string;
   key: string;
@@ -35,6 +40,7 @@ export interface Plan {
   sortOrder: number;
   prices: PlanPrice[];
   limits: PlanLimit[];
+  indexingLimits: PlanIndexingLimit[];
 }
 
 export interface WorkspaceBilling {

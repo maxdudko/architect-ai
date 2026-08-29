@@ -17,6 +17,7 @@ describe('ChunkBuilderService', () => {
         {
           id: 'file-1',
           path: 'src/auth.service.ts',
+          generated: false,
         },
       ]),
       listCodeSymbols: jest.fn().mockResolvedValue([
@@ -51,5 +52,25 @@ describe('ChunkBuilderService', () => {
 
     expect(storageService.createChunk).toHaveBeenCalledTimes(1);
     expect(result.chunkCount).toBe(1);
+    expect(result.tokenCount).toBeGreaterThan(0);
+  });
+
+  it('skips generated files when building chunks', async () => {
+    storageService.listRepositoryFiles.mockResolvedValue([
+      {
+        id: 'file-1',
+        path: 'src/auth.generated.ts',
+        generated: true,
+      },
+    ] as never);
+
+    const result = await service.buildChunks({
+      repositoryId: 'repo-1',
+      indexingRunId: 'run-1',
+      clonePath: '/tmp/repo',
+    });
+
+    expect(storageService.createChunk).not.toHaveBeenCalled();
+    expect(result).toEqual({ chunkCount: 0, tokenCount: 0 });
   });
 });

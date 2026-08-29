@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   BillingInterval,
   BillingMode,
+  IndexingResourceMetric,
   UsageMetric,
   UsagePeriod,
 } from '@prisma/client';
@@ -37,6 +38,14 @@ export class AdminPlanLimitDto {
   maxValue!: number | null;
 }
 
+export class AdminPlanIndexingLimitDto {
+  @ApiProperty({ enum: IndexingResourceMetric })
+  metric!: IndexingResourceMetric;
+
+  @ApiPropertyOptional({ nullable: true })
+  maxValue!: number | null;
+}
+
 export class AdminPlanDto {
   @ApiProperty()
   id!: string;
@@ -64,4 +73,7 @@ export class AdminPlanDto {
 
   @ApiProperty({ type: [AdminPlanLimitDto] })
   limits!: AdminPlanLimitDto[];
+
+  @ApiProperty({ type: [AdminPlanIndexingLimitDto] })
+  indexingLimits!: AdminPlanIndexingLimitDto[];
 }

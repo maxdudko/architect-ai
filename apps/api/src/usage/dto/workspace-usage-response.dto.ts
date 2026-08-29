@@ -1,5 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { UsageMetric, UsagePeriod } from '@prisma/client';
+import {
+  IndexingResourceMetric,
+  UsageMetric,
+  UsagePeriod,
+} from '@prisma/client';
 
 export class UsageMetricSnapshotDto {
   @ApiProperty({ enum: UsageMetric })
@@ -29,6 +33,14 @@ export class PlanSummaryDto {
   name!: string;
 }
 
+export class IndexingResourceLimitDto {
+  @ApiProperty({ enum: IndexingResourceMetric })
+  metric!: IndexingResourceMetric;
+
+  @ApiPropertyOptional({ nullable: true })
+  maxValue!: number | null;
+}
+
 export class WorkspaceUsageResponseDto {
   @ApiProperty()
   workspaceId!: string;
@@ -41,4 +53,7 @@ export class WorkspaceUsageResponseDto {
 
   @ApiProperty({ type: [UsageMetricSnapshotDto] })
   metrics!: UsageMetricSnapshotDto[];
+
+  @ApiProperty({ type: [IndexingResourceLimitDto] })
+  indexingLimits!: IndexingResourceLimitDto[];
 }

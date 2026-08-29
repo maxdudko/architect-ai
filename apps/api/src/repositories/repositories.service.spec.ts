@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import {
   CodeSymbolType,
+  IndexingResourceMetric,
   RepositoryProvider,
   RepositoryStatus,
   UsageMetric,
@@ -12,6 +13,8 @@ import {
 } from '@prisma/client';
 import { GithubAccessTokenService } from '../integrations/github/github-access-token.service';
 import { GithubHttpService } from '../integrations/github/github-http.service';
+import { IndexingResourceLimitError } from '../usage/indexing-resource-limit.error';
+import { IndexingResourceLimitExceededException } from '../usage/indexing-resource-limit.exception';
 import { UsageLimitExceededException } from '../usage/usage-limit.exception';
 import { RepositoryEmbeddingService } from './indexing/repository-embedding.service';
 import { RepositoryAccessValidationService } from './repository-access-validation.service';
@@ -49,6 +52,7 @@ describe('RepositoriesService', () => {
   let embeddingService: jest.Mocked<RepositoryEmbeddingService>;
   let repositoryAccessValidationService: jest.Mocked<RepositoryAccessValidationService>;
   let usageService: { assertWithinLimit: jest.Mock; hasRemaining: jest.Mock };
+  let githubIndexingEstimateService: { assertWithinLimits: jest.Mock };
   let service: RepositoriesService;
 
   beforeEach(() => {
@@ -108,6 +112,9 @@ describe('RepositoriesService', () => {
       assertWithinLimit: jest.fn().mockResolvedValue(undefined),
       hasRemaining: jest.fn().mockResolvedValue(true),
     };
+    githubIndexingEstimateService = {
+      assertWithinLimits: jest.fn().mockResolvedValue(undefined),
+    };
 
     service = new RepositoriesService(
       repositoriesRepository,
@@ -118,6 +125,7 @@ describe('RepositoriesService', () => {
       repositoryAccessValidationService,
       analyticsService as never,
       usageService as never,
+      githubIndexingEstimateService as never,
     );
   });
 
@@ -181,6 +189,45 @@ describe('RepositoriesService', () => {
       }),
     ).rejects.toBeInstanceOf(UsageLimitExceededException);
     expect(repositoriesRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('does not create or enqueue a repository that exceeds indexing resource limits', async () => {
+    repositoriesRepository.findByProviderAndExternalId.mockResolvedValue(null);
+    githubHttpService.getRepositoryById.mockResolvedValue({
+      id: 123,
+      name: 'platform-api',
+      full_name: 'acme/platform-api',
+      private: true,
+      default_branch: 'main',
+      owner: {
+        login: 'acme',
+      },
+    });
+    githubAccessTokenService.executeWithAccessToken.mockImplementation(
+      async (_userId, operation) => operation('plain-token'),
+    );
+    githubIndexingEstimateService.assertWithinLimits.mockRejectedValue(
+      new IndexingResourceLimitError(
+        IndexingResourceMetric.REPOSITORY_SIZE_BYTES,
+        300 * 1024 * 1024,
+        250 * 1024 * 1024,
+        'This repository exceeds the plan size limit',
+      ),
+    );
+
+    await expect(
+      service.createRepository(workspaceA, 'user-1', {
+        provider: RepositoryProvider.GITHUB,
+        externalId: '123',
+        owner: 'acme',
+        name: 'platform-api',
+        fullName: 'acme/platform-api',
+      }),
+    ).rejects.toBeInstanceOf(IndexingResourceLimitExceededException);
+    expect(repositoriesRepository.create).not.toHaveBeenCalled();
+    expect(
+      repositoryIndexingQueueService.enqueueInitialIndexing,
+    ).not.toHaveBeenCalled();
   });
 
   it('queues indexing after connecting a repository', async () => {

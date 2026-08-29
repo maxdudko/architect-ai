@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import type { AdminPlan, BillingMode, UsageMetric } from '@/entities';
+import type { AdminPlan, BillingMode, IndexingResourceMetric, UsageMetric } from '@/entities';
 import { getApiErrorMessage } from '@/lib/api/error-message';
 import {
   Badge,
@@ -19,7 +19,9 @@ import {
   Textarea,
 } from '@/shared/components';
 import {
+  useAdminPlanIndexingLimitsQuery,
   useAdminPlanLimitsQuery,
+  useUpdateAdminPlanIndexingLimitsMutation,
   useUpdateAdminPlanLimitsMutation,
 } from '../services/admin-usage.service';
 import {
@@ -43,6 +45,22 @@ const METRIC_LABELS: Record<UsageMetric, string> = {
   GUIDE_GENERATIONS: 'Guide generations',
   AI_QUESTIONS: 'AI questions',
   MEMBERS: 'Members',
+};
+
+const INDEXING_METRICS: IndexingResourceMetric[] = [
+  'REPOSITORY_SIZE_BYTES',
+  'INDEXABLE_FILES',
+  'INDEXED_TOKENS',
+  'EMBEDDING_CHUNKS',
+  'FILE_SIZE_BYTES',
+];
+
+const INDEXING_METRIC_LABELS: Record<IndexingResourceMetric, string> = {
+  REPOSITORY_SIZE_BYTES: 'Repo size (bytes)',
+  INDEXABLE_FILES: 'Indexable files',
+  INDEXED_TOKENS: 'Indexed tokens',
+  EMBEDDING_CHUNKS: 'Embedding chunks',
+  FILE_SIZE_BYTES: 'File size (bytes)',
 };
 
 function centsToInput(amount: number): string {
@@ -121,6 +139,73 @@ function PlanLimitsEditor({ planId }: { planId: string }) {
       >
         {updateMutation.isPending ? <Loader className="mr-2 h-4 w-4" /> : null}
         Save limits
+      </Button>
+    </div>
+  );
+}
+
+function PlanIndexingLimitsEditor({ planId }: { planId: string }) {
+  const limitsQuery = useAdminPlanIndexingLimitsQuery(planId);
+  const updateMutation = useUpdateAdminPlanIndexingLimitsMutation(planId);
+  const [values, setValues] = useState<Partial<Record<IndexingResourceMetric, string>>>({});
+
+  const limitByMetric = new Map((limitsQuery.data ?? []).map((limit) => [limit.metric, limit]));
+
+  const onSave = async () => {
+    const limits = INDEXING_METRICS.map((metric) => {
+      const raw = values[metric];
+      const existing = limitByMetric.get(metric);
+      const trimmed = raw === undefined ? String(existing?.maxValue ?? '') : raw.trim();
+      const maxValue = trimmed === '' ? null : Number.parseInt(trimmed, 10);
+      return { metric, maxValue: Number.isNaN(maxValue as number) ? null : maxValue };
+    });
+    try {
+      await updateMutation.mutateAsync(limits);
+      toast.success('Indexing limits updated.');
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Unable to update indexing limits.'));
+    }
+  };
+
+  if (limitsQuery.isLoading) {
+    return <Skeleton className="h-24 w-full" />;
+  }
+  if (limitsQuery.isError) {
+    return (
+      <ErrorState title="Unable to load indexing limits" description="Try refreshing the page." />
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        {INDEXING_METRICS.map((metric) => {
+          const existing = limitByMetric.get(metric);
+          const value = values[metric] ?? String(existing?.maxValue ?? '');
+          return (
+            <label key={metric} className="space-y-1 text-xs">
+              <span className="text-muted-foreground">{INDEXING_METRIC_LABELS[metric]}</span>
+              <Input
+                inputMode="numeric"
+                placeholder="Unlimited"
+                value={value}
+                onChange={(event) =>
+                  setValues((current) => ({ ...current, [metric]: event.target.value }))
+                }
+              />
+            </label>
+          );
+        })}
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={updateMutation.isPending}
+        onClick={() => void onSave()}
+      >
+        {updateMutation.isPending ? <Loader className="mr-2 h-4 w-4" /> : null}
+        Save indexing limits
       </Button>
     </div>
   );
@@ -279,6 +364,13 @@ function PlanCard({ plan }: { plan: AdminPlan }) {
         <div className="border-t pt-4">
           <p className="mb-2 text-sm font-medium">Usage limits</p>
           <PlanLimitsEditor planId={plan.id} />
+        </div>
+        <div className="border-t pt-4">
+          <p className="mb-2 text-sm font-medium">Indexing resource limits</p>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Per-index caps. Empty means unlimited. BYOK does not uncap these.
+          </p>
+          <PlanIndexingLimitsEditor planId={plan.id} />
         </div>
       </CardContent>
     </Card>

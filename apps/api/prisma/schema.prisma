@@ -173,6 +173,14 @@ enum UsagePeriod {
   MONTHLY
 }
 
+enum IndexingResourceMetric {
+  REPOSITORY_SIZE_BYTES
+  INDEXABLE_FILES
+  INDEXED_TOKENS
+  EMBEDDING_CHUNKS
+  FILE_SIZE_BYTES
+}
+
 model User {
   id            String           @id @default(uuid()) @db.Uuid
   email         String           @unique
@@ -282,6 +290,7 @@ model Plan {
   updatedAt       DateTime                 @updatedAt @map("updated_at")
   prices          PlanPrice[]
   limits          PlanLimit[]
+  indexingLimits  PlanIndexingLimit[]
   workspaces      Workspace[]
   subscriptions   WorkspaceSubscription[]
 
@@ -342,6 +351,18 @@ model PlanLimit {
 
   @@unique([planId, metric], map: "plan_limits_plan_id_metric_key")
   @@map("plan_limits")
+}
+
+model PlanIndexingLimit {
+  id        String                  @id @default(uuid()) @db.Uuid
+  planId    String                  @map("plan_id") @db.Uuid
+  plan      Plan                    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  metric    IndexingResourceMetric
+  maxValue  BigInt?                 @map("max_value")
+  updatedAt DateTime                @updatedAt @map("updated_at")
+
+  @@unique([planId, metric], map: "plan_indexing_limits_plan_id_metric_key")
+  @@map("plan_indexing_limits")
 }
 
 enum AiProvider {

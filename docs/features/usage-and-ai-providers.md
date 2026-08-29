@@ -4,7 +4,7 @@ Phase 1 monetization: plan-based usage limits, workspace usage visibility, Hoste
 
 ## Limits
 
-Limits are stored in `plan_limits` and keyed by the workspace's current `Plan` + metric. Business logic never hardcodes Free-plan numbers. Admins change limits from `/admin/plans` and `/admin/usage`; the next request uses the new values.
+Limits are stored in `plan_limits` (usage quotas) and `plan_indexing_limits` (per-index resource caps), keyed by the workspace's current `Plan`. Business logic never hardcodes Free-plan numbers. Admins change limits from `/admin/plans` and `/admin/usage`; the next request uses the new values.
 
 | Metric              | What is counted                                  | Period               |
 | ------------------- | ------------------------------------------------ | -------------------- |
@@ -14,11 +14,21 @@ Limits are stored in `plan_limits` and keyed by the workspace's current `Plan` +
 | `AI_QUESTIONS`      | User chat messages on non-deleted conversations  | Calendar month (UTC) |
 | `MEMBERS`           | Active members + pending (unexpired) invitations | Current              |
 
+Indexing resource caps (not usage counts; BYOK does not uncap them):
+
+| Metric                  | What is measured                                    |
+| ----------------------- | --------------------------------------------------- |
+| `REPOSITORY_SIZE_BYTES` | Cloned working tree size excluding `.git`           |
+| `INDEXABLE_FILES`       | Scanner-supported source/manifest files             |
+| `INDEXED_TOKENS`        | Sum of whitespace word counts on embedded chunks    |
+| `EMBEDDING_CHUNKS`      | Chunks that would be sent to the embedding provider |
+| `FILE_SIZE_BYTES`       | Per-file skip threshold for indexable candidates    |
+
 `max_value = null` means unlimited. New workspaces are always `FREE`. Paid plans (`PRO` and others) store monthly prices and admin-editable limits. A plan can be marked `isContactSales` (typically Enterprise) so the UI offers a sales contact instead of Stripe Checkout.
 
-When a workspace is in **BYOK** (has an active provider set), `AI_QUESTIONS` and `GUIDE_GENERATIONS` are treated as unlimited regardless of the plan row. `REPOSITORIES`, `INDEXING_RUNS`, and `MEMBERS` still use the plan caps. Switching back to Hosted AI restores the plan limits for questions and guides. BYOK does not change the Stripe subscription price.
+When a workspace is in **BYOK** (has an active provider set), `AI_QUESTIONS` and `GUIDE_GENERATIONS` are treated as unlimited regardless of the plan row. `REPOSITORIES`, `INDEXING_RUNS`, `MEMBERS`, and indexing resource caps still use the plan values. Switching back to Hosted AI restores the plan limits for questions and guides. BYOK does not change the Stripe subscription price.
 
-Enforcement is server-side (`403`, `code: USAGE_LIMIT_EXCEEDED`) before the side effect. Post-index auto guide generation is skipped (not failed) when the guide limit is reached.
+Enforcement is server-side (`403`, `code: USAGE_LIMIT_EXCEEDED` for quotas, `code: INDEXING_RESOURCE_LIMIT_EXCEEDED` for indexing caps) before the side effect. Post-index auto guide generation is skipped (not failed) when the guide limit is reached.
 
 ## Billing
 

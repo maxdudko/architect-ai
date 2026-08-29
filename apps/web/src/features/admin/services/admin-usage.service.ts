@@ -1,8 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AdminPlanLimit, UsageMetric } from '@/entities';
+import type {
+  AdminPlanIndexingLimit,
+  AdminPlanLimit,
+  IndexingResourceMetric,
+  UsageMetric,
+} from '@/entities';
 import {
+  getAdminPlanIndexingLimits,
   getAdminPlanLimits,
   listAdminWorkspaceUsage,
+  updateAdminPlanIndexingLimits,
   updateAdminPlanLimits,
   type AdminUsageListParams,
 } from '@/lib/api';
@@ -34,4 +41,26 @@ export function useUpdateAdminPlanLimitsMutation(planId: string) {
   });
 }
 
-export type { AdminPlanLimit };
+export function useAdminPlanIndexingLimitsQuery(planId: string) {
+  return useQuery({
+    queryKey: ['admin', 'plans', planId, 'indexing-limits'],
+    queryFn: () => getAdminPlanIndexingLimits(planId),
+    enabled: Boolean(planId),
+  });
+}
+
+export function useUpdateAdminPlanIndexingLimitsMutation(planId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (limits: Array<{ metric: IndexingResourceMetric; maxValue: number | null }>) =>
+      updateAdminPlanIndexingLimits(planId, limits),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['admin', 'plans', planId, 'indexing-limits'],
+      });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'plans'] });
+    },
+  });
+}
+
+export type { AdminPlanIndexingLimit, AdminPlanLimit };

@@ -3,12 +3,14 @@
 import Link from 'next/link';
 import { CircleDot } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import type { Plan, PlanLimit } from '@/entities';
+import type { Plan, PlanIndexingLimit, PlanLimit } from '@/entities';
 import { listPlans } from '@/lib/api';
 import { formatMonthlyPrice, isFreePlan } from '@/features/workspace/utils/billing';
 import {
+  INDEXING_RESOURCE_METRIC_LABELS,
   USAGE_METRIC_LABELS,
   effectivePlanLimit,
+  formatIndexingResourceCap,
   formatLimitCap,
 } from '@/features/workspace/utils/usage';
 
@@ -77,7 +79,7 @@ export function LandingPlansSection({ isAuthenticated }: { isAuthenticated: bool
 
         <p className="mt-8 text-center text-xs text-muted-foreground">
           BYOK uncaps AI questions and onboarding guides. Limits for repositories, indexing runs,
-          and workspace members still follow the selected plan.
+          workspace members, and indexing resource caps still follow the selected plan.
         </p>
       </div>
     </section>
@@ -128,6 +130,9 @@ function LandingPlanCard({
         {(plan.limits ?? []).map((limit) => (
           <LandingLimitRow key={limit.metric} limit={limit} />
         ))}
+        {(plan.indexingLimits ?? []).map((limit) => (
+          <LandingIndexingLimitRow key={limit.metric} limit={limit} />
+        ))}
       </div>
 
       <div className="mt-auto pt-6">
@@ -157,6 +162,18 @@ function LandingPlanCard({
           </Link>
         )}
       </div>
+    </div>
+  );
+}
+
+function LandingIndexingLimitRow({ limit }: { limit: PlanIndexingLimit }) {
+  const cap = formatIndexingResourceCap(limit.metric, limit.maxValue);
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] items-baseline border-b px-2 py-1.5 last:border-b-0">
+      <span className="text-muted-foreground">{INDEXING_RESOURCE_METRIC_LABELS[limit.metric]}</span>
+      <span>{cap}</span>
+      <span>{cap}</span>
     </div>
   );
 }

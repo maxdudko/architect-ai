@@ -6,7 +6,9 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  GithubBranchDetailResponse,
   GithubBranchResponse,
+  GithubGitTreeResponse,
   GithubRepositoryResponse,
   GithubTokenResponse,
   GithubViewerResponse,
@@ -313,6 +315,78 @@ export class GithubHttpService {
     return {
       branches: body,
       hasNextPage,
+    };
+  }
+
+  async getBranch(
+    accessToken: string,
+    owner: string,
+    name: string,
+    branch: string,
+  ): Promise<GithubBranchDetailResponse> {
+    const response = await fetch(
+      `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/branches/${encodeURIComponent(branch)}`,
+      {
+        headers: this.githubHeaders(accessToken),
+      },
+    );
+
+    if (response.status === 401) {
+      throw new GithubUnauthorizedError();
+    }
+    if (response.status === 404) {
+      throw new NotFoundException(
+        'GitHub branch not found or is not accessible',
+      );
+    }
+    if (!response.ok) {
+      throw new BadGatewayException('Failed to fetch GitHub branch details');
+    }
+
+    const body = (await response.json()) as GithubBranchDetailResponse;
+    if (!body?.commit?.sha) {
+      throw new BadGatewayException('Unexpected GitHub branch response');
+    }
+    return body;
+  }
+
+  async getRecursiveTree(
+    accessToken: string,
+    owner: string,
+    name: string,
+    treeSha: string,
+  ): Promise<GithubGitTreeResponse> {
+    const response = await fetch(
+      `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/git/trees/${encodeURIComponent(treeSha)}?recursive=1`,
+      {
+        headers: this.githubHeaders(accessToken),
+      },
+    );
+
+    if (response.status === 401) {
+      throw new GithubUnauthorizedError();
+    }
+    if (response.status === 404) {
+      throw new NotFoundException(
+        'GitHub repository tree not found or is not accessible',
+      );
+    }
+    if (!response.ok) {
+      throw new BadGatewayException('Failed to fetch GitHub repository tree');
+    }
+
+    const body = (await response.json()) as GithubGitTreeResponse;
+    if (!body || !Array.isArray(body.tree)) {
+      throw new BadGatewayException('Unexpected GitHub tree response');
+    }
+    return body;
+  }
+
+  private githubHeaders(accessToken: string): Record<string, string> {
+    return {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-GitHub-Api-Version': '2022-11-28',
     };
   }
 }

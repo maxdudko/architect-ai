@@ -176,6 +176,7 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     });
     jest.spyOn(chunkService, 'chunkRepository').mockResolvedValue({
       chunkCount: 39,
+      tokenCount: 1200,
     });
     const cleanupSpy = jest
       .spyOn(storageService, 'cleanupRunDirectory')

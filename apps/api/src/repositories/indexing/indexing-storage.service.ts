@@ -68,7 +68,14 @@ export class IndexingStorageService {
     return deleted;
   }
 
-  private async getDirectorySize(targetPath: string): Promise<number> {
+  async getWorkingTreeSize(clonePath: string): Promise<number> {
+    return this.getDirectorySize(clonePath, new Set(['.git']));
+  }
+
+  private async getDirectorySize(
+    targetPath: string,
+    excludeNames: ReadonlySet<string> = new Set(),
+  ): Promise<number> {
     const info = await stat(targetPath);
     if (info.isFile()) {
       return info.size;
@@ -76,8 +83,11 @@ export class IndexingStorageService {
     const entries = await readdir(targetPath, { withFileTypes: true });
     let total = 0;
     for (const entry of entries) {
+      if (excludeNames.has(entry.name)) {
+        continue;
+      }
       const childPath = path.join(targetPath, entry.name);
-      total += await this.getDirectorySize(childPath);
+      total += await this.getDirectorySize(childPath, excludeNames);
     }
     return total;
   }

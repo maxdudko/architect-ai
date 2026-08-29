@@ -30,6 +30,8 @@ export class CodeIntelligenceParseService {
     repositoryId: string;
     indexingRunId: string;
     clonePath: string;
+    maxFileSizeBytes?: number | null;
+    maxIndexableFiles?: number | null;
   }): Promise<{
     supportedFileCount: number;
     ignoredFileCount: number;
@@ -128,6 +130,10 @@ export class CodeIntelligenceParseService {
           // skip the file instead of failing the whole indexing run.
           throw new UnparseableFileError(candidate.relativePath, error);
         }
+      },
+      {
+        maxFileSizeBytes: params.maxFileSizeBytes,
+        maxIndexableFiles: params.maxIndexableFiles,
       },
     );
 

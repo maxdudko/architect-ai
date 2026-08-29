@@ -1,5 +1,5 @@
 import type { BillingInterval, BillingMode } from './billing';
-import type { UsageMetric, UsagePeriod } from './usage';
+import type { IndexingResourceMetric, UsageMetric, UsagePeriod } from './usage';
 
 export interface AdminPlanPrice {
   id: string;
@@ -16,6 +16,11 @@ export interface AdminPlanLimitRow {
   maxValue: number | null;
 }
 
+export interface AdminPlanIndexingLimit {
+  metric: IndexingResourceMetric;
+  maxValue: number | null;
+}
+
 export interface AdminPlan {
   id: string;
   key: string;
@@ -26,6 +31,7 @@ export interface AdminPlan {
   sortOrder: number;
   prices: AdminPlanPrice[];
   limits: AdminPlanLimitRow[];
+  indexingLimits: AdminPlanIndexingLimit[];
 }
 
 export interface CreatePlanPayload {

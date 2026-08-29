@@ -1175,7 +1175,7 @@ export function LandingPage({
               is for testing and can only send to your own email address.
               To send to other recipients, verify a domain and update the from address to use it. */}
 
-           <ContactForm />
+          <ContactForm />
         </div>
       </section>
 

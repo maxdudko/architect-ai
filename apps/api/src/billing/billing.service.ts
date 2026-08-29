@@ -18,6 +18,8 @@ import {
 } from '@prisma/client';
 import type Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
+import { toNumberLimit } from '../usage/indexing-resource-limit.service';
+import { INDEXING_RESOURCE_METRICS } from '../usage/plan-indexing-limit.defaults';
 import { USAGE_METRICS } from '../usage/usage.service';
 import { CheckoutSessionResponseDto } from './dto/checkout-session-response.dto';
 import { PlanResponseDto } from './dto/plan-response.dto';
@@ -57,7 +59,7 @@ export class BillingService {
     const plans = await this.prisma.plan.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: 'asc' },
-      include: { prices: true, limits: true },
+      include: { prices: true, limits: true, indexingLimits: true },
     });
 
     return plans.map((plan) => {
@@ -83,6 +85,15 @@ export class BillingService {
             metric,
             period: row?.period ?? defaultPeriodForMetric(metric),
             maxValue: row?.maxValue ?? null,
+          };
+        }),
+        indexingLimits: INDEXING_RESOURCE_METRICS.map((metric) => {
+          const row = plan.indexingLimits.find(
+            (limit) => limit.metric === metric,
+          );
+          return {
+            metric,
+            maxValue: toNumberLimit(row?.maxValue ?? null),
           };
         }),
       };
