@@ -9,8 +9,10 @@ This repository currently implements the **AI Onboarding Assistant** phase. Arch
 ## What works today
 
 - Email/password authentication with rotating refresh sessions, plus Google and GitHub identity sign-in
-- Multi-workspace membership, roles, invitations, and workspace switching
-- GitHub OAuth, repository discovery, branch selection, and encrypted tokens
+- Password reset by email, and a `/profile` page to update first and last name
+- Multi-workspace membership, roles (including role updates), invitations with resend, and workspace switching
+- GitHub OAuth, repository discovery, public URL/`owner/repo` resolve, branch selection, and encrypted tokens
+- Landing-page contact form (Resend)
 - Asynchronous repository indexing with BullMQ and a dedicated worker
 - Tree-sitter parsing for TypeScript, JavaScript, Python, and PHP
 - File, symbol, static-relation, and semantic-chunk persistence
@@ -35,7 +37,7 @@ Not implemented yet:
 - Change-impact analysis
 - SSO, SCIM, or multi-node production orchestration
 
-See [MVP Architecture](docs/Architecture.md) for the current system and its trade-offs, [Phase 1 status](docs/phase-1-ai-onboarding-assistant.md) for the original epic versus shipped behavior, and [Roadmap](docs/Roadmap.md) for the longer-term product direction.
+See [MVP Architecture](docs/Architecture.md) for the current system and its trade-offs, and [Roadmap](docs/Roadmap.md) for the longer-term product direction.
 
 ## Architecture at a glance
 
@@ -300,13 +302,16 @@ See [EC2 deployment](docs/features/deploy-ec2.md) for host sizing, DNS, security
 
 ## Feature documentation
 
+Index: [docs/README.md](docs/README.md).
+
 - [Current architecture](docs/Architecture.md)
 - [End-to-end application flow](docs/features/main-app-flow.md)
+- [Auth and identity](docs/features/auth-and-identity.md)
 - [Code intelligence](docs/features/code-intelligence.md)
 - [Retrieval](docs/features/retrieval.md)
 - [Living onboarding guides](docs/features/onboarding-guides.md)
 - [Usage limits, billing, and AI providers](docs/features/usage-and-ai-providers.md)
-- [Phase 1 implementation status](docs/phase-1-ai-onboarding-assistant.md)
+- [EC2 deployment](docs/features/deploy-ec2.md)
 - [Product roadmap](docs/Roadmap.md)
 
 ## Current architectural constraints
@@ -316,7 +321,7 @@ See [EC2 deployment](docs/features/deploy-ec2.md) for host sizing, DNS, security
 - Rate limiting is in-process and is not coordinated across API replicas.
 - The production Compose topology is single-host.
 - Mock AI providers validate integration behavior but not answer quality.
-- Personal account settings, Architecture Explorer, and Decision Memory remain placeholders.
+- Personal `/settings`, Architecture Explorer, and Decision Memory remain placeholders (`/profile` name updates are shipped).
 
 These constraints are documented in more detail in [MVP Architecture](docs/Architecture.md).
 

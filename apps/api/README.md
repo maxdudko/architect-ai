@@ -6,10 +6,10 @@ Backend service for authentication, workspaces, GitHub indexing, retrieval, chat
 
 This service follows a modular DDD-inspired structure:
 
-- `src/auth`: email/password and Google/GitHub identity OAuth, JWT strategy, token/session concerns
+- `src/auth`: email/password and Google/GitHub identity OAuth, password reset, profile updates, JWT strategy, token/session concerns
 - `src/workspaces`: workspace lifecycle and active-workspace switching
 - `src/memberships`: workspace access, roles, and member lifecycle
-- `src/invitations`: invitation creation and acceptance
+- `src/invitations`: invitation creation, resend, preview, and acceptance
 - `src/users`: user persistence and user-domain service
 - `src/integrations/github`: GitHub repository-connect OAuth and API client
 - `src/repositories`: repository connect, status, files/symbols, indexing queue
@@ -22,6 +22,8 @@ This service follows a modular DDD-inspired structure:
 - `src/workspace-ai`: Hosted vs BYOK generation provider resolution
 - `src/usage`: plan-limit enforcement and workspace usage
 - `src/billing`: Stripe Checkout, portal, subscriptions, and webhooks
+- `src/contact`: landing-page contact form
+- `src/mail`: Resend transactional email (reset, invitations, contact)
 - `src/admin`: platform-admin auth, users, plans, usage, logs, analytics
 - `src/common`: reusable guards, decorators, and exception filter
 - `src/prisma`: database gateway
@@ -50,12 +52,14 @@ The HTTP API and the indexing worker bootstrap the same NestJS `AppModule`. `IND
 
 Swagger is available at `GET /docs` outside production.
 
-- Auth: `POST /auth/signup`, `POST /auth/signin`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me`, `GET /auth/oauth/{google,github}/start`
+- Auth: `POST /auth/signup`, `POST /auth/signin`, `POST /auth/refresh`, `POST /auth/logout`, `POST /auth/forgot-password`, `POST /auth/reset-password`, `GET /auth/me`, `PATCH /auth/me`, `GET /auth/oauth/{google,github}/start`
 - Workspaces: `GET /workspaces`, `POST /workspaces`, `PATCH /workspaces/:id`, `POST /workspaces/:id/switch`
-- Membership: `GET /workspaces/:id/members`, `DELETE /workspaces/:id/members/:memberId`
-- Invitation: `POST /workspaces/:id/invitations`, `POST /invitations/:token/accept`
-- GitHub / repositories: connect URL, list remotes and branches, connect/retry/reindex, files and symbols
-- Chat: `POST /workspaces/:id/conversations`, `POST .../messages`, `POST .../messages/stream` (SSE)
+- Membership: `GET /workspaces/:id/members`, `PATCH /workspaces/:id/members/:memberId`, `DELETE /workspaces/:id/members/:memberId`
+- Invitation: `GET /workspaces/:id/invitations`, `POST /workspaces/:id/invitations`, `POST /workspaces/:id/invitations/:invitationId/resend`, `GET /invitations/:token`, `POST /invitations/:token/accept`
+- GitHub: `GET /integrations/github/connect-url`, `GET /integrations/github/connection`, `DELETE /integrations/github/connection`, `GET /integrations/github/resolve`, list remotes and branches
+- Repositories: connect, `PATCH`/`DELETE`, retry/reindex, files and symbols
+- Chat: `POST /workspaces/:id/conversations`, `GET`/`PATCH`/`DELETE .../conversations/:conversationId`, `POST .../messages`, `POST .../messages/stream` (SSE), `POST .../messages/:messageId/feedback`
+- Contact: `POST /contact`
 - Living onboarding guides:
   - `GET /workspaces/:id/repositories/:repositoryId/guides`
   - `GET /workspaces/:id/repositories/:repositoryId/guides/generation-runs/latest`
@@ -65,6 +69,8 @@ Swagger is available at `GET /docs` outside production.
 - Usage and AI settings: `GET /workspaces/:id/usage`, `/workspaces/:id/ai-settings/*`
 - Billing: `GET /plans`, `/workspaces/:id/billing` (checkout, portal, downgrade, resume), `POST /billing/webhook`
 - Admin: separate admin JWT routes under `/admin/*`
+
+See [`docs/features/auth-and-identity.md`](../../docs/features/auth-and-identity.md) for identity OAuth vs GitHub repository connect, password reset, profile, and invitations.
 
 See [`docs/features/onboarding-guides.md`](../../docs/features/onboarding-guides.md) for the guide generation architecture and operations.
 
@@ -93,7 +99,7 @@ Required for production (`NODE_ENV=production` fails fast if any are missing):
 
 See [docs/features/deploy-ec2.md](../../docs/features/deploy-ec2.md) for the AWS EC2 Compose layout.
 
-GitHub has two OAuth callbacks: `/integrations/github/callback` for repository connect (`GITHUB_OAUTH_REDIRECT_URI`) and `/auth/oauth/github/callback` for sign-in (`AUTH_GITHUB_OAUTH_REDIRECT_URI`). Google sign-in uses `/auth/oauth/google/callback`. Stripe webhooks use `POST /billing/webhook`.
+GitHub has two OAuth callbacks: `/integrations/github/callback` for repository connect (`GITHUB_OAUTH_REDIRECT_URI`) and `/auth/oauth/github/callback` for sign-in (`AUTH_GITHUB_OAUTH_REDIRECT_URI`). Google sign-in uses `/auth/oauth/google/callback`. Stripe webhooks use `POST /billing/webhook`. Password reset, invitations, and the landing contact form use Resend when `RESEND_API_KEY` is set.
 
 ## Local Commands
 

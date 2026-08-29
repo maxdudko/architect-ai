@@ -33,6 +33,8 @@ Clone → Parse → Chunk → Embed
 
 The API authenticates the GitHub repo, creates/updates the `Repository` row, and enqueues work on the BullMQ queue `repository-indexing` (Redis). Indexing does **not** run in the API request path.
 
+A workspace member can pick a repository from the connected GitHub account or paste a public `owner/repo` URL. Public URLs are resolved with `GET /integrations/github/resolve` before `POST /workspaces/:id/repositories`.
+
 ---
 
 ## 2. Indexing pipeline (worker)
@@ -41,17 +43,21 @@ The API authenticates the GitHub repo, creates/updates the `Repository` row, and
 
 **Orchestrator:** `repository-indexing.worker.service.ts`
 
-Stages run as chained BullMQ jobs (3 attempts, exponential backoff):
+Stages run as chained BullMQ jobs (3 attempts, exponential backoff). The Status column is the repository status **while that job runs** (the job then advances status before enqueueing the next stage):
 
 | Job       | Status                | What happens                                                                                              |
 | --------- | --------------------- | --------------------------------------------------------------------------------------------------------- |
-| `reindex` | `PENDING`             | Create a new `IndexingRun` alongside the live index; do not wipe prior artifacts                          |
+| `reindex` | `CLONING`             | Create a new `IndexingRun` alongside the live index; set status `CLONING`; do not wipe prior artifacts    |
 | `clone`   | `CLONING`             | Shallow `git clone --depth 1` into temp storage (`INDEXING_TMP_DIR`)                                      |
 | `parse`   | `PARSING`             | Tree-sitter code intelligence → files, symbols, relations for this run                                    |
 | `chunk`   | `CHUNKING`            | One semantic chunk per meaningful symbol                                                                  |
 | `embed`   | `EMBEDDING` → `READY` | Batch embed chunks; upsert Qdrant; mark repo ready; delete the previous generation; enqueue living guides |
 
+The connect HTTP handler first persists the repository as `PENDING`, then enqueues `reindex`. The `reindex` job itself sets `CLONING` before clone starts.
+
 On first-time failure the repo is marked `FAILED` (with `indexingError`). If a previous successful index exists, a failed rebuild restores `READY` and keeps that index searchable. Temp clone directories are cleaned up after embed or failure. Guide enqueue failures are logged and do not roll the repository back from `READY`.
+
+Diagram (the `.mmd` file is canonical; the PNG is generated from it): [Repository Indexing Workflow](./Repository%20Indexing%20Workflow.mmd).
 
 ```text
 PENDING → CLONING → PARSING → CHUNKING → EMBEDDING → READY
@@ -187,4 +193,4 @@ See [Living onboarding guides](./onboarding-guides.md) for types, REST, and UI b
 | Chat UI           | `apps/web/src/features/chat/`             |
 | Onboarding guides | `apps/api/src/modules/onboarding/`        |
 
-Related docs: [Architecture](../Architecture.md), [code intelligence](./code-intelligence.md), [retrieval](./retrieval.md), [onboarding guides](./onboarding-guides.md)
+Related docs: [Architecture](../Architecture.md), [auth and identity](./auth-and-identity.md), [code intelligence](./code-intelligence.md), [retrieval](./retrieval.md), [onboarding guides](./onboarding-guides.md)

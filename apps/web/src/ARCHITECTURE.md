@@ -3,7 +3,7 @@
 ## Folders
 
 - `app/`: Next.js App Router entrypoints, route groups, layouts, boundaries, and pages.
-- `features/`: Product feature modules (`auth`, `workspace`, `repository`, `onboarding`, `chat`, `dashboard`, `landing`, `admin`, `invitation`, `settings`) with colocated components/hooks/services/types/schemas.
+- `features/`: Product feature modules (`auth`, `profile`, `workspace`, `repository`, `onboarding`, `chat`, `dashboard`, `landing`, `admin`, `invitation`, `settings`) with colocated components/hooks/services/types/schemas.
 - `shared/`: Cross-feature reusable UI and behavioral primitives.
 - `entities/`: Domain entity contracts shared by features and API layer.
 - `widgets/`: Composed UI blocks (app shell, navigation, menus) built from `shared` + `features`.

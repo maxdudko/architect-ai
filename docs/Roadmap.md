@@ -52,7 +52,7 @@ It is built around four principles:
 
 # Product Evolution
 
-Phase 1 is **shipped** as the current MVP. Later phases are product direction, not deployed capabilities. Implementation status for the original Phase 1 epic is in [Phase 1 — AI Onboarding Assistant](./phase-1-ai-onboarding-assistant.md).
+Phase 1 is **shipped** as the current MVP. Later phases are product direction, not deployed capabilities. See [Architecture](./Architecture.md) for what is implemented.
 
 ## Phase 1 — AI Onboarding Assistant (shipped)
 

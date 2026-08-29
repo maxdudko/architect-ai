@@ -81,13 +81,16 @@ The repository is a pnpm workspace orchestrated by Turborepo. The active code-in
 
 Implemented user surfaces include:
 
-- landing, sign-up, and sign-in (email/password plus Google and GitHub identity OAuth);
+- landing (including contact form), sign-up, and sign-in (email/password plus Google and GitHub identity OAuth);
+- password reset (`/forgot-password`, `/reset-password/:token`) and profile name updates (`/profile`);
 - dashboard and workspace switching;
-- repository connection, status, file, and symbol browsing;
+- repository connection (OAuth list or public GitHub URL), status, file, and symbol browsing;
 - streaming repository chat, conversation history, citations, and feedback;
 - onboarding guide library and guide detail views;
-- workspace settings, members, invitations, usage, billing, and AI provider keys;
+- workspace settings, members (including role updates), invitations (including resend), usage, billing, and AI provider keys;
 - separate platform-admin authentication, analytics, users, plans, and logs.
+
+Personal `/settings` remains a placeholder. Architecture Explorer and Decision Memory appear on the dashboard as later-phase placeholders.
 
 The browser sends access tokens as bearer tokens. Refresh tokens are rotated by the API and stored in an HTTP-only cookie. Next.js middleware uses a lightweight access-token cookie to route users; API guards remain the authorization boundary.
 
@@ -148,7 +151,7 @@ User requests connect URL
   → enqueue INITIAL_CONNECT indexing
 ```
 
-GitHub OAuth credentials belong to a user, while connected repositories belong to a workspace. OAuth tokens and workspace BYOK provider keys are encrypted with AES-256-GCM via `TOKEN_ENCRYPTION_KEY`.
+GitHub OAuth credentials belong to a user, while connected repositories belong to a workspace. Members can list remotes the connected account can see or resolve a public GitHub URL / `owner/repo` via `GET /integrations/github/resolve`. OAuth tokens and workspace BYOK provider keys are encrypted with AES-256-GCM via `TOKEN_ENCRYPTION_KEY`.
 
 Repository mutation and reindex operations can perform a live GitHub access check for the acting user. Reading already-indexed workspace content is authorized by workspace membership rather than every member having direct GitHub access.
 
@@ -180,7 +183,7 @@ A repository that already has a successful index stays searchable during rebuild
 
 The stages are chained BullMQ jobs rather than one long job:
 
-1. **Reindex** creates an `IndexingRun` and enqueues clone. It does not delete the live index.
+1. **Reindex** creates an `IndexingRun`, sets repository status to `CLONING`, and enqueues clone. It does not delete the live index.
 2. **Clone** performs a shallow clone of the selected/default branch into `INDEXING_TMP_DIR` and records branch and commit SHA.
 3. **Parse** scans supported files, persists inventory for the current run, extracts symbols and static relationships, and prunes unseen files in that run only.
 4. **Chunk** creates one source-backed semantic chunk per meaningful symbol.
@@ -407,11 +410,12 @@ The next architecture work should extend the current boundaries rather than clai
 
 Detailed implementation notes:
 
+- [Documentation index](README.md)
 - [Main app flow](features/main-app-flow.md)
+- [Auth and identity](features/auth-and-identity.md)
 - [Code intelligence](features/code-intelligence.md)
 - [Retrieval](features/retrieval.md)
 - [Living onboarding guides](features/onboarding-guides.md)
 - [Usage limits, billing, and AI providers](features/usage-and-ai-providers.md)
 - [EC2 deployment](features/deploy-ec2.md)
-- [Phase 1 implementation status](phase-1-ai-onboarding-assistant.md)
 - [Product roadmap](Roadmap.md)
