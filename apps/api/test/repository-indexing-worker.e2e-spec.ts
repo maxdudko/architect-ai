@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { RepositoryStatus } from '@prisma/client';
 import { mkdir, rm } from 'node:fs/promises';
+import { join } from 'node:path';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { RepositoryIndexingQueueService } from '../src/repositories/repository-indexing.queue.service';
 import { RepositoryChunkService } from '../src/repositories/indexing/repository-chunk.service';
@@ -145,6 +146,9 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     const storageService = app.get(IndexingStorageService);
     const internals = worker as unknown as WorkerInternals;
 
+    const run1Dir = storageService.getRunDirectory('run-1');
+    const run1RepoPath = join(run1Dir, 'repo');
+
     const enqueueCloneSpy = jest
       .spyOn(queueService, 'enqueueCloneJob')
       .mockResolvedValue(undefined);
@@ -164,11 +168,11 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
       embeddedCount: 39,
     });
     jest.spyOn(cloneService, 'cloneRepository').mockResolvedValue({
-      clonePath: '/tmp/indexing/run-1/repo',
+      clonePath: run1RepoPath,
       branch: 'develop',
       commitSha: 'abc123def',
     });
-    await mkdir('/tmp/indexing/run-1/repo', { recursive: true });
+    await mkdir(run1RepoPath, { recursive: true });
     jest.spyOn(parseService, 'parseRepository').mockResolvedValue({
       supportedFileCount: 12,
       ignoredFileCount: 4,
@@ -181,7 +185,7 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     const cleanupSpy = jest
       .spyOn(storageService, 'cleanupRunDirectory')
       .mockImplementation(async () => {
-        await rm('/tmp/indexing/run-1', { recursive: true, force: true });
+        await rm(run1Dir, { recursive: true, force: true });
       });
 
     const reindexData: ReindexJobData = {
@@ -207,7 +211,7 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
       expect.objectContaining({
         repositoryId: fixture.repositoryId,
         runId: run.id,
-        clonePath: '/tmp/indexing/run-1/repo',
+        clonePath: run1RepoPath,
         branch: 'develop',
       }),
     );
@@ -215,7 +219,7 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     await internals.processParse({
       ...reindexData,
       runId: run.id,
-      clonePath: '/tmp/indexing/run-1/repo',
+      clonePath: run1RepoPath,
     });
     expect(enqueueChunkSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -227,7 +231,7 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     await internals.processChunk({
       ...reindexData,
       runId: run.id,
-      clonePath: '/tmp/indexing/run-1/repo',
+      clonePath: run1RepoPath,
     });
     expect(enqueueEmbedSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -244,7 +248,7 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     await internals.processEmbed({
       ...reindexData,
       runId: run.id,
-      clonePath: '/tmp/indexing/run-1/repo',
+      clonePath: run1RepoPath,
     });
 
     const updatedRepository = await prisma.repository.findUniqueOrThrow({
@@ -270,6 +274,7 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     const queueService = app.get(RepositoryIndexingQueueService);
     const worker = app.get(RepositoryIndexingWorkerService);
     const embeddingService = app.get(RepositoryEmbeddingService);
+    const storageService = app.get(IndexingStorageService);
     const internals = worker as unknown as WorkerInternals;
 
     jest.spyOn(queueService, 'enqueueCloneJob').mockResolvedValue(undefined);
@@ -310,10 +315,13 @@ describeE2e('Repository indexing worker orchestration (e2e)', () => {
     expect(deleteRepoVectors).not.toHaveBeenCalled();
     expect(repositoryDuringRebuild.lastIndexedAt).not.toBeNull();
 
+    const swapRunDir = storageService.getRunDirectory('run-swap');
+    const swapRepoPath = join(swapRunDir, 'repo');
+
     await internals.processEmbed({
       ...reindexData,
       runId: newRun.id,
-      clonePath: '/tmp/indexing/run-swap/repo',
+      clonePath: swapRepoPath,
     });
 
     const swappedRepository = await prisma.repository.findUniqueOrThrow({

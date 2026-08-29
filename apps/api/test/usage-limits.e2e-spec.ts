@@ -240,23 +240,23 @@ describeE2e('Usage limits and workspace AI (e2e)', () => {
       expect.arrayContaining([
         expect.objectContaining({
           metric: 'REPOSITORY_SIZE_BYTES',
-          limit: 250 * 1024 * 1024,
+          maxValue: 250 * 1024 * 1024,
         }),
         expect.objectContaining({
           metric: 'INDEXABLE_FILES',
-          limit: 10_000,
+          maxValue: 10_000,
         }),
         expect.objectContaining({
           metric: 'INDEXED_TOKENS',
-          limit: 2_000_000,
+          maxValue: 2_000_000,
         }),
         expect.objectContaining({
           metric: 'EMBEDDING_CHUNKS',
-          limit: 15_000,
+          maxValue: 15_000,
         }),
         expect.objectContaining({
           metric: 'FILE_SIZE_BYTES',
-          limit: 1 * 1024 * 1024,
+          maxValue: 1 * 1024 * 1024,
         }),
       ]),
     );
@@ -278,7 +278,7 @@ describeE2e('Usage limits and workspace AI (e2e)', () => {
         }),
         expect.objectContaining({
           metric: UsageMetric.INDEXING_RUNS,
-          limit: 5,
+          limit: 3,
         }),
         expect.objectContaining({
           metric: UsageMetric.MEMBERS,
