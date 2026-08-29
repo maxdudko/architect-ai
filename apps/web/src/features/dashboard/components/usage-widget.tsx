@@ -66,7 +66,7 @@ export function UsageWidget({ workspaceId }: UsageWidgetProps) {
         description="Usage will appear after workspace activity."
         action={
           <Button asChild size="sm">
-            <Link href="/workspace/settings">Open settings</Link>
+            <Link href="/workspaces">Open settings</Link>
           </Button>
         }
       />
@@ -116,7 +116,7 @@ export function UsageWidget({ workspaceId }: UsageWidgetProps) {
           </div>
         ) : null}
         <Button asChild variant="ghost" size="sm" className="w-full">
-          <Link href="/workspace/settings">Manage usage and AI provider</Link>
+          <Link href="/workspaces">Manage usage and AI provider</Link>
         </Button>
       </CardContent>
     </Card>

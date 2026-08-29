@@ -190,10 +190,8 @@ describe('BillingService', () => {
         expect.objectContaining({
           customer: 'cus_123',
           line_items: [{ price: 'price_stripe_standard', quantity: 1 }],
-          success_url:
-            'https://app.example.com/workspace/settings?billing=success',
-          cancel_url:
-            'https://app.example.com/workspace/settings?billing=cancel',
+          success_url: 'https://app.example.com/workspaces?billing=success',
+          cancel_url: 'https://app.example.com/workspaces?billing=cancel',
         }),
       );
     });

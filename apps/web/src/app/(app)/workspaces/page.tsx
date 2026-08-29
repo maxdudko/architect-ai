@@ -13,8 +13,11 @@ export default function WorkspacesPage() {
         <CreateWorkspaceForm />
         <WorkspaceList />
       </div>
-      <PageHeader title="Workspace" description="Manage your active workspace operations." />
-      <WorkspaceManagementSections buttonSize="lg" />
+      <PageHeader
+        title="Current Workspace"
+        description="Manage your active workspace operations."
+      />
+      <WorkspaceManagementSections />
     </div>
   );
 }

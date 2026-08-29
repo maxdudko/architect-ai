@@ -59,7 +59,7 @@ export function WorkspaceSetupWidget({ workspaceId }: WorkspaceSetupWidgetProps)
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <Link href="/workspace/members" className="text-sm hover:underline">
+          <Link href="/workspaces" className="text-sm hover:underline">
             Members
           </Link>
           {membersQuery.isLoading ? (
@@ -72,7 +72,7 @@ export function WorkspaceSetupWidget({ workspaceId }: WorkspaceSetupWidgetProps)
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <Link href="/workspace/invitations" className="text-sm hover:underline">
+          <Link href="/workspaces" className="text-sm hover:underline">
             Pending invites
           </Link>
           {invitationsQuery.isLoading ? (

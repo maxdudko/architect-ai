@@ -181,8 +181,8 @@ export class BillingService {
       customer: customerId,
       client_reference_id: workspaceId,
       line_items: [{ price: stripePriceId, quantity: 1 }],
-      success_url: `${webUrl}/workspace/settings?billing=success`,
-      cancel_url: `${webUrl}/workspace/settings?billing=cancel`,
+      success_url: `${webUrl}/workspaces?billing=success`,
+      cancel_url: `${webUrl}/workspaces?billing=cancel`,
       subscription_data: {
         metadata: { workspaceId, planId: plan.id },
       },
@@ -211,7 +211,7 @@ export class BillingService {
 
     const session = await this.stripe.billingPortal.sessions.create({
       customer: subscription.stripeCustomerId,
-      return_url: `${this.resolveWebUrl()}/workspace/settings`,
+      return_url: `${this.resolveWebUrl()}/workspaces`,
     });
     return { url: session.url };
   }

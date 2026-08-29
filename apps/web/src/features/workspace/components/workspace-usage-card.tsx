@@ -48,7 +48,10 @@ export function WorkspaceUsageCard({ workspaceId }: { workspaceId: string }) {
             </p>
             <ul className="space-y-3">
               {usageQuery.data.metrics.map((metric) => (
-                <li key={metric.metric} className="flex items-center justify-between gap-4 text-sm">
+                <li
+                  key={metric.metric}
+                  className="flex items-center justify-between gap-4 text-sm rounded-md border px-3 py-2"
+                >
                   <span>{USAGE_METRIC_LABELS[metric.metric]}</span>
                   <span className="tabular-nums text-muted-foreground">
                     {formatUsageLimit(metric)}
@@ -63,7 +66,7 @@ export function WorkspaceUsageCard({ workspaceId }: { workspaceId: string }) {
                   {usageQuery.data.indexingLimits.map((limit) => (
                     <li
                       key={limit.metric}
-                      className="flex items-center justify-between gap-4 text-sm"
+                      className="flex items-center justify-between gap-4 text-sm rounded-md border px-3 py-2"
                     >
                       <span>{INDEXING_RESOURCE_METRIC_LABELS[limit.metric]}</span>
                       <span className="tabular-nums text-muted-foreground">

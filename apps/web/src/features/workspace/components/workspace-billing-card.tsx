@@ -383,9 +383,7 @@ function IndexingLimitRow({
 
   return (
     <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] items-baseline border-b px-2 py-1.5 last:border-b-0">
-      <span className="text-muted-foreground">
-        {INDEXING_RESOURCE_METRIC_LABELS[limit.metric]}
-      </span>
+      <span className="text-muted-foreground">{INDEXING_RESOURCE_METRIC_LABELS[limit.metric]}</span>
       <span className={hostedSelected ? 'text-foreground' : 'text-muted-foreground'}>{cap}</span>
       <span className={!hostedSelected ? 'text-foreground' : 'text-muted-foreground'}>{cap}</span>
     </div>

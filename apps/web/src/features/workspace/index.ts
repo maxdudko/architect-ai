@@ -8,6 +8,8 @@ export * from './components/workspace-usage-card';
 export * from './components/workspace-ai-settings-card';
 export * from './components/workspace-billing-card';
 export * from './components/workspace-management-sections';
+export * from './components/workspace-people-section';
+export * from './components/workspace-settings-section';
 export * from './components/workspace-switcher';
 export * from './hooks/use-create-invitation-form';
 export * from './hooks/use-create-workspace-form';
