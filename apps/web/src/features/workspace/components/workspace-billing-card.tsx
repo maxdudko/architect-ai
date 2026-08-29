@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import type {
   BillingMode,
   Plan,
+  PlanIndexingLimit,
   PlanLimit,
   SubscriptionStatus,
   WorkspaceBilling,
@@ -32,7 +33,13 @@ import {
   useWorkspaceUsageQuery,
 } from '../services/workspace.service';
 import { billingModeForAiMode, formatMonthlyPrice, isFreePlan } from '../utils/billing';
-import { USAGE_METRIC_LABELS, effectivePlanLimit, formatLimitCap } from '../utils/usage';
+import {
+  INDEXING_RESOURCE_METRIC_LABELS,
+  USAGE_METRIC_LABELS,
+  effectivePlanLimit,
+  formatIndexingResourceCap,
+  formatLimitCap,
+} from '../utils/usage';
 
 const SALES_EMAIL = 'sales@architect.ai';
 
@@ -61,7 +68,7 @@ export function WorkspaceBillingCard({ workspaceId }: { workspaceId: string }) {
   const onUpgrade = async (planId: string, planName: string) => {
     try {
       const session = await checkoutMutation.mutateAsync(planId);
-      window.location.assign(session.url);
+      window.open(session.url, '_blank', 'noopener,noreferrer');
     } catch (error) {
       toast.error(getApiErrorMessage(error, `Unable to start checkout for ${planName}.`));
     }
@@ -144,7 +151,7 @@ export function WorkspaceBillingCard({ workspaceId }: { workspaceId: string }) {
         ) : null}
 
         {plansQuery.data ? (
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div className="grid gap-6 xl:grid-cols-3">
             {plansQuery.data.map((plan) => (
               <PlanOfferCard
                 key={plan.id}
@@ -162,8 +169,8 @@ export function WorkspaceBillingCard({ workspaceId }: { workspaceId: string }) {
 
         <p className="text-xs text-muted-foreground">
           {aiMode === 'BYOK'
-            ? 'BYOK is active: AI questions and onboarding guides are unlimited. Plan price stays the same.'
-            : 'Connect your own AI provider key to uncap AI questions and onboarding guides. Plan price stays the same.'}
+            ? 'BYOK is active: AI questions and onboarding guides are unlimited. Repository indexing caps still follow this plan. Plan price stays the same.'
+            : 'Connect your own AI provider key to uncap AI questions and onboarding guides. Repository indexing caps still follow the selected plan. Plan price stays the same.'}
         </p>
       </CardContent>
     </Card>
@@ -210,6 +217,10 @@ function PlanOfferCard({
         <p className="text-sm text-muted-foreground">{plan.description}</p>
       ) : null}
 
+      <p className="my-5 text-3xl font-semibold tracking-tight">
+        {formatMonthlyPrice(plan, 'STANDARD')}
+      </p>
+
       <div className="overflow-hidden rounded-md border text-sm">
         <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] border-b bg-muted/40 px-2 py-1.5 text-xs font-medium text-muted-foreground">
           <span>Compare</span>
@@ -219,10 +230,10 @@ function PlanOfferCard({
         {(plan.limits ?? []).map((limit) => (
           <LimitRow key={limit.metric} limit={limit} hostedSelected={hostedSelected} />
         ))}
-        <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] items-baseline px-2 py-2 bg-[#29903B]/20">
-          <span className="font-bold text-muted-foreground">Price</span>
-          <span className="col-span-2 font-semibold">{formatMonthlyPrice(plan, 'STANDARD')}</span>
-        </div>
+        <div className="mb-2 border-b-2" />
+        {(plan.indexingLimits ?? []).map((limit) => (
+          <IndexingLimitRow key={limit.metric} limit={limit} hostedSelected={hostedSelected} />
+        ))}
       </div>
 
       <PlanActionButtons
@@ -357,6 +368,26 @@ function LimitRow({ limit, hostedSelected }: { limit: PlanLimit; hostedSelected:
       <span className="text-muted-foreground">{USAGE_METRIC_LABELS[limit.metric]}</span>
       <span className={hostedSelected ? 'text-foreground' : 'text-muted-foreground'}>{hosted}</span>
       <span className={!hostedSelected ? 'text-foreground' : 'text-muted-foreground'}>{byok}</span>
+    </div>
+  );
+}
+
+function IndexingLimitRow({
+  limit,
+  hostedSelected,
+}: {
+  limit: PlanIndexingLimit;
+  hostedSelected: boolean;
+}) {
+  const cap = formatIndexingResourceCap(limit.metric, limit.maxValue);
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] items-baseline border-b px-2 py-1.5 last:border-b-0">
+      <span className="text-muted-foreground">
+        {INDEXING_RESOURCE_METRIC_LABELS[limit.metric]}
+      </span>
+      <span className={hostedSelected ? 'text-foreground' : 'text-muted-foreground'}>{cap}</span>
+      <span className={!hostedSelected ? 'text-foreground' : 'text-muted-foreground'}>{cap}</span>
     </div>
   );
 }

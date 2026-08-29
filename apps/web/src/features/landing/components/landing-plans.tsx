@@ -1,10 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { CircleDot } from 'lucide-react';
+import { CheckCircle2, CircleDot } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import type { Plan, PlanIndexingLimit, PlanLimit } from '@/entities';
+import { toast } from 'sonner';
+import type { Plan, PlanIndexingLimit, PlanLimit, WorkspaceBilling } from '@/entities';
 import { listPlans } from '@/lib/api';
+import { getApiErrorMessage } from '@/lib/api/error-message';
+import {
+  useCreateCheckoutSessionMutation,
+  useScheduleDowngradeToFreeMutation,
+  useWorkspaceBillingQuery,
+} from '@/features/workspace/services/workspace.service';
 import { formatMonthlyPrice, isFreePlan } from '@/features/workspace/utils/billing';
 import {
   INDEXING_RESOURCE_METRIC_LABELS,
@@ -13,6 +20,9 @@ import {
   formatIndexingResourceCap,
   formatLimitCap,
 } from '@/features/workspace/utils/usage';
+import { canManageWorkspaceAi } from '@/features/workspace/utils/workspace-permissions';
+import { useAuth } from '@/providers/auth-provider';
+import { Button, ConfirmationDialog, Loader } from '@/shared/components';
 
 const SALES_EMAIL = 'sales@architect.ai';
 
@@ -22,13 +32,39 @@ function salesGmailComposeUrl(planName: string): string {
 }
 
 export function LandingPlansSection({ isAuthenticated }: { isAuthenticated: boolean }) {
+  const { activeWorkspace } = useAuth();
+  const workspaceId = isAuthenticated ? (activeWorkspace?.id ?? '') : '';
+  const canManageBilling = isAuthenticated && canManageWorkspaceAi(activeWorkspace?.role);
   const plansQuery = useQuery({
     queryKey: ['plans'],
     queryFn: listPlans,
   });
+  const billingQuery = useWorkspaceBillingQuery(workspaceId);
+  const checkoutMutation = useCreateCheckoutSessionMutation(workspaceId);
+  const downgradeMutation = useScheduleDowngradeToFreeMutation(workspaceId);
 
   const plans = plansQuery.data ?? [];
+  const billing = billingQuery.data;
   const highlightedPlanId = plans.find((plan) => !isFreePlan(plan) && !plan.isContactSales)?.id;
+  const actionPending = checkoutMutation.isPending || downgradeMutation.isPending;
+
+  const onUpgrade = async (planId: string, planName: string) => {
+    try {
+      const session = await checkoutMutation.mutateAsync(planId);
+      window.open(session.url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, `Unable to start checkout for ${planName}.`));
+    }
+  };
+
+  const onDowngradeToFree = async () => {
+    try {
+      await downgradeMutation.mutateAsync();
+      toast.success('Your plan will switch to Free at the end of the current billing period.');
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Unable to schedule the downgrade to Free.'));
+    }
+  };
 
   return (
     <section id="plans" className="scroll-mt-20 border-b border-border/70 py-20 md:py-28">
@@ -72,6 +108,11 @@ export function LandingPlansSection({ isAuthenticated }: { isAuthenticated: bool
                 plan={plan}
                 highlighted={plan.id === highlightedPlanId}
                 isAuthenticated={isAuthenticated}
+                canManageBilling={canManageBilling}
+                billing={billing}
+                actionPending={actionPending}
+                onUpgrade={onUpgrade}
+                onDowngradeToFree={onDowngradeToFree}
               />
             ))}
           </div>
@@ -90,12 +131,22 @@ function LandingPlanCard({
   plan,
   highlighted,
   isAuthenticated,
+  canManageBilling,
+  billing,
+  actionPending,
+  onUpgrade,
+  onDowngradeToFree,
 }: {
   plan: Plan;
   highlighted: boolean;
   isAuthenticated: boolean;
+  canManageBilling: boolean;
+  billing: WorkspaceBilling | undefined;
+  actionPending: boolean;
+  onUpgrade: (planId: string, planName: string) => Promise<void>;
+  onDowngradeToFree: () => Promise<void>;
 }) {
-  const ctaHref = isAuthenticated ? '/dashboard' : '/sign-up';
+  const isCurrentPlan = Boolean(isAuthenticated && billing && billing.plan.id === plan.id);
 
   return (
     <div
@@ -105,9 +156,13 @@ function LandingPlanCard({
           : 'border-border bg-card'
       }`}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h3 className="text-lg font-medium">{plan.name}</h3>
-        {highlighted ? (
+        {isCurrentPlan ? (
+          <span className="flex items-center gap-1 text-sm font-medium text-emerald-600">
+            <CheckCircle2 className="h-4 w-4" /> Current
+          </span>
+        ) : highlighted ? (
           <span className="rounded-full border border-[hsl(var(--landing-accent)/.45)] bg-background px-2 py-0.5 font-mono text-[10px] uppercase tracking-[.1em] text-[hsl(var(--landing-accent))]">
             Popular
           </span>
@@ -136,33 +191,123 @@ function LandingPlanCard({
       </div>
 
       <div className="mt-auto pt-6">
-        {plan.isContactSales ? (
-          <a
-            href={salesGmailComposeUrl(plan.name)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex h-10 w-full items-center justify-center rounded-md border border-border bg-background px-4 text-sm font-medium transition-colors hover:bg-accent"
-          >
-            Contact sales
-          </a>
-        ) : (
-          <Link
-            href={ctaHref}
-            className={`inline-flex h-10 w-full items-center justify-center rounded-md px-4 text-sm font-medium transition-opacity hover:opacity-90 ${
-              highlighted
-                ? 'bg-[#29903B] text-white'
-                : 'border border-border bg-background hover:bg-accent'
-            }`}
-          >
-            {isAuthenticated
-              ? 'Go to dashboard'
-              : isFreePlan(plan)
-                ? 'Get started'
-                : `Start ${plan.name}`}
-          </Link>
-        )}
+        <LandingPlanActions
+          plan={plan}
+          highlighted={highlighted}
+          isAuthenticated={isAuthenticated}
+          isCurrentPlan={isCurrentPlan}
+          canManageBilling={canManageBilling}
+          billing={billing}
+          actionPending={actionPending}
+          onUpgrade={onUpgrade}
+          onDowngradeToFree={onDowngradeToFree}
+        />
       </div>
     </div>
+  );
+}
+
+function landingCtaClass(highlighted: boolean): string {
+  return highlighted ? 'h-10 w-full bg-[#29903B] text-white hover:opacity-90' : 'h-10 w-full';
+}
+
+function LandingPlanActions({
+  plan,
+  highlighted,
+  isAuthenticated,
+  isCurrentPlan,
+  canManageBilling,
+  billing,
+  actionPending,
+  onUpgrade,
+  onDowngradeToFree,
+}: {
+  plan: Plan;
+  highlighted: boolean;
+  isAuthenticated: boolean;
+  isCurrentPlan: boolean;
+  canManageBilling: boolean;
+  billing: WorkspaceBilling | undefined;
+  actionPending: boolean;
+  onUpgrade: (planId: string, planName: string) => Promise<void>;
+  onDowngradeToFree: () => Promise<void>;
+}) {
+  if (plan.isContactSales) {
+    return (
+      <Button asChild type="button" variant="outline" className="h-10 w-full">
+        <a href={salesGmailComposeUrl(plan.name)} target="_blank" rel="noopener noreferrer">
+          Contact sales
+        </a>
+      </Button>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Button
+        asChild
+        variant={highlighted ? 'default' : 'outline'}
+        className={landingCtaClass(highlighted)}
+      >
+        <Link href="/sign-up">{isFreePlan(plan) ? 'Get started' : `Start ${plan.name}`}</Link>
+      </Button>
+    );
+  }
+
+  if (isCurrentPlan || !canManageBilling || !billing) {
+    return (
+      <Button
+        asChild
+        variant={highlighted ? 'default' : 'outline'}
+        className={landingCtaClass(highlighted)}
+      >
+        <Link href="/dashboard">Go to dashboard</Link>
+      </Button>
+    );
+  }
+
+  const currentIsPaid = !isFreePlan(billing.plan);
+  const cancelAtPeriodEnd = billing.cancelAtPeriodEnd;
+  const periodEndLabel = billing.currentPeriodEnd
+    ? new Date(billing.currentPeriodEnd).toLocaleDateString()
+    : 'the end of the current billing period';
+
+  if (isFreePlan(plan) && currentIsPaid) {
+    if (cancelAtPeriodEnd) {
+      return (
+        <Button type="button" variant="outline" className="h-10 w-full" disabled>
+          Switches {periodEndLabel}
+        </Button>
+      );
+    }
+
+    return (
+      <ConfirmationDialog
+        title="Switch to Free at period end?"
+        description={`You'll keep ${billing.plan.name} until ${periodEndLabel}. After that this workspace switches to Free and the paid subscription is canceled.`}
+        confirmText="Schedule downgrade"
+        trigger={
+          <Button type="button" variant="outline" className="h-10 w-full" disabled={actionPending}>
+            {actionPending ? <Loader className="mr-2 h-4 w-4" /> : null}
+            Downgrade
+          </Button>
+        }
+        onConfirm={onDowngradeToFree}
+      />
+    );
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="default"
+      className="h-10 w-full"
+      disabled={actionPending}
+      onClick={() => void onUpgrade(plan.id, plan.name)}
+    >
+      {actionPending ? <Loader className="mr-2 h-4 w-4" /> : null}
+      Upgrade
+    </Button>
   );
 }
 
