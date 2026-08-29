@@ -6,13 +6,13 @@ Phase 1 monetization: plan-based usage limits, workspace usage visibility, Hoste
 
 Limits are stored in `plan_limits` (usage quotas) and `plan_indexing_limits` (per-index resource caps), keyed by the workspace's current `Plan`. Business logic never hardcodes Free-plan numbers. Admins change limits from `/admin/plans` and `/admin/usage`; the next request uses the new values.
 
-| Metric              | What is counted                                  | Period               |
-| ------------------- | ------------------------------------------------ | -------------------- |
-| `REPOSITORIES`      | Non-deleted connected repositories               | Current              |
-| `INDEXING_RUNS`     | Indexing runs started                            | Calendar month (UTC) |
-| `GUIDE_GENERATIONS` | Onboarding guide generation runs created         | Calendar month (UTC) |
-| `AI_QUESTIONS`      | User chat messages on non-deleted conversations  | Calendar month (UTC) |
-| `MEMBERS`           | Active members + pending (unexpired) invitations | Current              |
+| Metric              | What is counted                                   | Period               |
+| ------------------- | ------------------------------------------------- | -------------------- |
+| `REPOSITORIES`      | Non-deleted connected repositories                | Current              |
+| `INDEXING_RUNS`     | Indexing runs started                             | Calendar month (UTC) |
+| `GUIDE_GENERATIONS` | Onboarding guide generation runs created          | Calendar month (UTC) |
+| `AI_QUESTIONS`      | User chat messages on non-deleted conversations   | Calendar month (UTC) |
+| `MEMBERS`           | Active members (pending invitations do not count) | Current              |
 
 Indexing resource caps (not usage counts; BYOK does not uncap them):
 

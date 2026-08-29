@@ -22,17 +22,22 @@ export function WorkspacePeopleSection() {
 
   return (
     <div className={canManage ? 'grid gap-6 lg:grid-cols-2' : undefined}>
-      <Section title="Workspace Members" description="View and manage team access.">
-        <MembersList workspaceId={activeWorkspace.id} />
+      <Section
+        title="Workspace Members"
+        description="View and manage team access."
+        className="flex flex-col"
+      >
+        <MembersList workspaceId={activeWorkspace.id} className="flex-1" />
       </Section>
       {canManage ? (
         <Section
           title="Workspace Invitations"
           description="Invite teammates and manage onboarding links."
+          className="flex flex-col"
         >
-          <div className="space-y-6">
+          <div className="flex flex-1 flex-col space-y-6">
             <InvitationForm workspaceId={activeWorkspace.id} />
-            <InvitationsList workspaceId={activeWorkspace.id} />
+            <InvitationsList workspaceId={activeWorkspace.id} className="flex-1" />
           </div>
         </Section>
       ) : null}

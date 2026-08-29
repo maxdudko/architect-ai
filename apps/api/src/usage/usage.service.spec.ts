@@ -1,5 +1,4 @@
 import {
-  InvitationStatus,
   MembershipStatus,
   MessageRole,
   UsageMetric,
@@ -99,7 +98,7 @@ describe('UsageService', () => {
     );
   });
 
-  it('counts pending invitations toward member seats', async () => {
+  it('counts only active members and ignores pending invitations', async () => {
     prisma.workspace.findFirst.mockResolvedValue({
       id: workspaceId,
       planId: FREE_PLAN_ID,
@@ -110,11 +109,10 @@ describe('UsageService', () => {
       maxValue: 3,
     });
     prisma.membership.count.mockResolvedValue(2);
-    prisma.invitation.count.mockResolvedValue(1);
 
     await expect(
       service.assertWithinLimit(workspaceId, UsageMetric.MEMBERS),
-    ).rejects.toBeInstanceOf(UsageLimitExceededException);
+    ).resolves.toBeUndefined();
     expect(prisma.membership.count).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -122,16 +120,10 @@ describe('UsageService', () => {
         }),
       }),
     );
-    expect(prisma.invitation.count).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          status: InvitationStatus.PENDING,
-        }),
-      }),
-    );
+    expect(prisma.invitation.count).not.toHaveBeenCalled();
   });
 
-  it('counts only active members when accepting an invitation', async () => {
+  it('throws when active members meet the workspace members limit', async () => {
     prisma.workspace.findFirst.mockResolvedValue({
       id: workspaceId,
       planId: FREE_PLAN_ID,
@@ -141,13 +133,11 @@ describe('UsageService', () => {
       period: UsagePeriod.CURRENT,
       maxValue: 3,
     });
-    prisma.membership.count.mockResolvedValue(2);
+    prisma.membership.count.mockResolvedValue(3);
 
     await expect(
-      service.assertWithinLimit(workspaceId, UsageMetric.MEMBERS, {
-        memberCountMode: 'active',
-      }),
-    ).resolves.toBeUndefined();
+      service.assertWithinLimit(workspaceId, UsageMetric.MEMBERS),
+    ).rejects.toBeInstanceOf(UsageLimitExceededException);
     expect(prisma.invitation.count).not.toHaveBeenCalled();
   });
 

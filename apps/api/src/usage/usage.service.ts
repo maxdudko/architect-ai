@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
-  InvitationStatus,
   MembershipStatus,
   MessageRole,
   UsageMetric,
@@ -53,8 +52,6 @@ export interface WorkspaceUsageSnapshot {
   indexingLimits: IndexingResourceLimitSnapshot[];
 }
 
-export type MemberCountMode = 'seats' | 'active';
-
 @Injectable()
 export class UsageService {
   constructor(private readonly prisma: PrismaService) {}
@@ -103,7 +100,6 @@ export class UsageService {
       limits.map(async (limit) => {
         const used = await this.countUsed(workspaceId, limit.metric, {
           period: limit.period,
-          memberCountMode: 'seats',
         });
         const effective = effectiveLimit(limit.maxValue, limit.metric, isByok);
         return {
@@ -139,9 +135,8 @@ export class UsageService {
   async assertWithinLimit(
     workspaceId: string,
     metric: UsageMetric,
-    options?: { memberCountMode?: MemberCountMode },
   ): Promise<void> {
-    const snapshot = await this.getMetricSnapshot(workspaceId, metric, options);
+    const snapshot = await this.getMetricSnapshot(workspaceId, metric);
     if (snapshot.limit == null) {
       return;
     }
@@ -169,7 +164,6 @@ export class UsageService {
   private async getMetricSnapshot(
     workspaceId: string,
     metric: UsageMetric,
-    options?: { memberCountMode?: MemberCountMode },
   ): Promise<UsageMetricSnapshot> {
     const workspace = await this.prisma.workspace.findFirst({
       where: { id: workspaceId, deletedAt: null },
@@ -198,7 +192,6 @@ export class UsageService {
     );
     const used = await this.countUsed(workspaceId, metric, {
       period,
-      memberCountMode: options?.memberCountMode ?? 'seats',
     });
 
     return {
@@ -213,7 +206,7 @@ export class UsageService {
   private async countUsed(
     workspaceId: string,
     metric: UsageMetric,
-    options: { period: UsagePeriod; memberCountMode: MemberCountMode },
+    options: { period: UsagePeriod },
   ): Promise<number> {
     const monthStart =
       options.period === UsagePeriod.MONTHLY
@@ -258,27 +251,14 @@ export class UsageService {
             conversation: { workspaceId, deletedAt: null },
           },
         });
-      case UsageMetric.MEMBERS: {
-        const activeMembers = await this.prisma.membership.count({
+      case UsageMetric.MEMBERS:
+        return this.prisma.membership.count({
           where: {
             workspaceId,
             status: MembershipStatus.ACTIVE,
             deletedAt: null,
           },
         });
-        if (options.memberCountMode === 'active') {
-          return activeMembers;
-        }
-        const pendingInvitations = await this.prisma.invitation.count({
-          where: {
-            workspaceId,
-            status: InvitationStatus.PENDING,
-            deletedAt: null,
-            expiresAt: { gt: new Date() },
-          },
-        });
-        return activeMembers + pendingInvitations;
-      }
       default:
         return 0;
     }

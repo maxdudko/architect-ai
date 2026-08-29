@@ -54,9 +54,11 @@ export function WorkspaceSettingsSection() {
             initialName={activeWorkspace.name}
             planLabel={usageQuery.data?.plan.name ?? 'Free'}
           />
-          <WorkspaceUsageCard workspaceId={activeWorkspace.id} />
+          <div className="grid xl:grid-cols-2 gap-4">
+            <WorkspaceUsageCard workspaceId={activeWorkspace.id} />
+            {canManageAi ? <WorkspaceAiSettingsCard workspaceId={activeWorkspace.id} /> : null}
+          </div>
           {canManageAi ? <WorkspaceBillingCard workspaceId={activeWorkspace.id} /> : null}
-          {canManageAi ? <WorkspaceAiSettingsCard workspaceId={activeWorkspace.id} /> : null}
         </div>
       ) : (
         <EmptyState

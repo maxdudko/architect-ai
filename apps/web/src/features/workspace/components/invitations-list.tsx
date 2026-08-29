@@ -1,6 +1,7 @@
 'use client';
 
 import { Mail } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   Badge,
   Button,
@@ -25,17 +26,22 @@ function isExpired(expiresAt: string): boolean {
   return new Date(expiresAt) <= new Date();
 }
 
-export function InvitationsList({ workspaceId }: { workspaceId: string }) {
+interface InvitationsListProps {
+  workspaceId: string;
+  className?: string;
+}
+
+export function InvitationsList({ workspaceId, className }: InvitationsListProps) {
   const invitationsQuery = useInvitationsQuery(workspaceId);
   const resendMutation = useResendInvitationMutation(workspaceId);
 
   if (invitationsQuery.isLoading) {
     return (
-      <Card>
+      <Card className={cn('flex flex-1 flex-col', className)}>
         <CardHeader>
           <CardTitle>Pending Invitations</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="flex-1 space-y-3">
           <Skeleton className="h-14 w-full" />
           <Skeleton className="h-14 w-full" />
         </CardContent>
@@ -46,11 +52,11 @@ export function InvitationsList({ workspaceId }: { workspaceId: string }) {
   const invitations = invitationsQuery.data ?? [];
 
   return (
-    <Card>
+    <Card className={cn('flex flex-1 flex-col', className)}>
       <CardHeader>
         <CardTitle>Pending Invitations</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="flex-1 space-y-3">
         {invitations.length === 0 ? (
           <p className="text-sm text-muted-foreground">No pending invitations.</p>
         ) : (

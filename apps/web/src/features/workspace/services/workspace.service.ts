@@ -75,9 +75,14 @@ export function useCreateInvitationMutation(workspaceId: string) {
     mutationFn: (payload: { email: string; role: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER' }) =>
       createInvitation(workspaceId, payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: WORKSPACE_QUERY_KEYS.invitations(workspaceId),
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: WORKSPACE_QUERY_KEYS.invitations(workspaceId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: WORKSPACE_QUERY_KEYS.usage(workspaceId),
+        }),
+      ]);
     },
   });
 }

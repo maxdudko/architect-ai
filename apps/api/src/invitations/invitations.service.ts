@@ -108,11 +108,6 @@ export class InvitationsService {
     const normalizedEmail = email.toLowerCase();
 
     await this.assertCanManageInvitations(workspaceId, actorUserId);
-    await this.usageService.assertWithinLimit(
-      workspaceId,
-      UsageMetric.MEMBERS,
-      { memberCountMode: 'seats' },
-    );
 
     const existing =
       await this.invitationsRepository.findPendingByWorkspaceAndEmail(
@@ -217,7 +212,6 @@ export class InvitationsService {
       await this.usageService.assertWithinLimit(
         invitation.workspaceId,
         UsageMetric.MEMBERS,
-        { memberCountMode: 'active' },
       );
     }
 

@@ -311,7 +311,7 @@ Plan limits are database rows keyed by workspace plan and metric. The MVP enforc
 - monthly indexing runs;
 - monthly guide-generation runs;
 - monthly AI questions;
-- current active members plus pending invitations.
+- current active members (pending invitations do not consume a seat until accepted);
 
 New workspaces are `FREE`. Paid plans (`PRO` and others configured by admins) have monthly Stripe prices for STANDARD and BYOK billing modes. Owners and admins upgrade through Stripe Checkout, manage payment methods in the Stripe billing portal, and can schedule a period-end downgrade to Free or resume that cancellation. Plans marked `isContactSales` (typically Enterprise) skip checkout and point to sales. Having an active BYOK provider removes question and guide limits but does not remove repository, indexing, or member limits, and does not change the Stripe plan price.
 

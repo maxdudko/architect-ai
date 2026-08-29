@@ -25,9 +25,7 @@ export function useResetPasswordForm(token: string) {
       toast.success('Password updated. Sign in with your new password.');
       await logout();
     } catch (error) {
-      toast.error(
-        getApiErrorMessage(error, 'This reset link is invalid or has expired.'),
-      );
+      toast.error(getApiErrorMessage(error, 'This reset link is invalid or has expired.'));
     }
   });
 
