@@ -21,6 +21,8 @@ Hostnames:
 - `https://app.<domain>` → Next.js
 - `https://api.<domain>` → NestJS (GitHub OAuth callback stays on this origin)
 
+Single hostname (for example a Hostinger default like `srv….hstgr.cloud`): set `APP_HOST` to that host, `NEXT_PUBLIC_API_BASE_URL=https://<host>/api`, and OAuth callbacks to `https://<host>/api/integrations/github/callback` (Caddy strips `/api` before NestJS). Caddy also forwards `/integrations/*` on the app host to the API so a callback without `/api` still works.
+
 ## Instance
 
 | Item    | Recommendation                                                      |

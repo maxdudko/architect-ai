@@ -11,6 +11,17 @@
 		}
 	}
 
+	# Single-host deploys (and GitHub/Google callbacks aimed at the app origin)
+	# must reach NestJS, not Next.js. Do not proxy /auth/oauth/complete — that is a web route.
+	@api_callbacks {
+		path /integrations/* /auth/oauth/github/callback /auth/oauth/google/callback /billing/webhook
+	}
+	handle @api_callbacks {
+		reverse_proxy api:5000 {
+			flush_interval -1
+		}
+	}
+
 	handle {
 		reverse_proxy web:3000
 	}
