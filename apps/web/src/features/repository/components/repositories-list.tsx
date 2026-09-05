@@ -249,7 +249,7 @@ export function RepositoriesList() {
                   <p className="text-sm text-muted-foreground">
                     {repoSearch.trim()
                       ? 'No repositories available for this filter.'
-                      : 'GitHub returned no repositories. This product needs a GitHub OAuth App with repo access, or a GitHub App installed on your account with repository permissions. Then reconnect GitHub.'}
+                      : 'GitHub returned no repositories for this account.'}
                   </p>
                 ) : null}
                 <div className="space-y-2">

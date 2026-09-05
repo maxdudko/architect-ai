@@ -3,12 +3,16 @@ import {
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   GithubBranchDetailResponse,
   GithubBranchResponse,
   GithubGitTreeResponse,
+  GithubInstallationRepositoriesResponse,
+  GithubInstallationResponse,
+  GithubInstallationsListResponse,
   GithubRepositoryResponse,
   GithubTokenResponse,
   GithubViewerResponse,
@@ -169,36 +173,31 @@ export class GithubHttpService {
     repositories: GithubRepositoryResponse[];
     hasNextPage: boolean;
   }> {
-    const response = await fetch(
-      `https://api.github.com/user/repos?visibility=all&affiliation=owner,collaborator,organization_member&sort=updated&page=${page}&per_page=${perPage}`,
-      {
-        headers: {
-          Accept: 'application/vnd.github+json',
-          Authorization: `Bearer ${accessToken}`,
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      },
+    const oauthRepos = await this.listOauthUserRepositories(
+      accessToken,
+      page,
+      perPage,
     );
-
-    if (response.status === 401) {
-      throw new GithubUnauthorizedError();
-    }
-    if (!response.ok) {
-      throw new BadGatewayException('Failed to fetch GitHub repositories');
+    if (oauthRepos.repositories.length > 0) {
+      return oauthRepos;
     }
 
-    const body = (await response.json()) as GithubRepositoryResponse[];
-    if (!Array.isArray(body)) {
-      throw new BadGatewayException('Unexpected GitHub repositories response');
+    const installations = await this.listUserInstallations(accessToken);
+    if (!installations) {
+      return oauthRepos;
+    }
+    if (installations.length === 0) {
+      throw new UnprocessableEntityException(
+        'The GitHub App is authorized but not installed. Open the GitHub App page, click Install, grant access to All repositories, then click Reconnect GitHub.',
+      );
     }
 
-    const linkHeader = response.headers.get('link');
-    const hasNextPage = Boolean(linkHeader?.includes('rel="next"'));
-
-    return {
-      repositories: body,
-      hasNextPage,
-    };
+    return this.listRepositoriesFromInstallations(
+      accessToken,
+      installations,
+      page,
+      perPage,
+    );
   }
 
   async getRepositoryById(
@@ -380,6 +379,152 @@ export class GithubHttpService {
       throw new BadGatewayException('Unexpected GitHub tree response');
     }
     return body;
+  }
+
+  private async listOauthUserRepositories(
+    accessToken: string,
+    page: number,
+    perPage: number,
+  ): Promise<{
+    repositories: GithubRepositoryResponse[];
+    hasNextPage: boolean;
+  }> {
+    const response = await fetch(
+      `https://api.github.com/user/repos?visibility=all&affiliation=owner,collaborator,organization_member&sort=updated&page=${page}&per_page=${perPage}`,
+      {
+        headers: this.githubHeaders(accessToken),
+      },
+    );
+
+    if (response.status === 401) {
+      throw new GithubUnauthorizedError();
+    }
+    if (!response.ok) {
+      throw new BadGatewayException('Failed to fetch GitHub repositories');
+    }
+
+    const body = (await response.json()) as GithubRepositoryResponse[];
+    if (!Array.isArray(body)) {
+      throw new BadGatewayException('Unexpected GitHub repositories response');
+    }
+
+    const linkHeader = response.headers.get('link');
+    const hasNextPage = Boolean(linkHeader?.includes('rel="next"'));
+
+    return {
+      repositories: body,
+      hasNextPage,
+    };
+  }
+
+  private async listUserInstallations(
+    accessToken: string,
+  ): Promise<GithubInstallationResponse[] | null> {
+    const response = await fetch('https://api.github.com/user/installations', {
+      headers: this.githubHeaders(accessToken),
+    });
+
+    if (response.status === 401) {
+      throw new GithubUnauthorizedError();
+    }
+    if (response.status === 403 || response.status === 404) {
+      return null;
+    }
+    if (!response.ok) {
+      throw new BadGatewayException('Failed to fetch GitHub App installations');
+    }
+
+    const body = (await response.json()) as GithubInstallationsListResponse;
+    if (!Array.isArray(body.installations)) {
+      throw new BadGatewayException('Unexpected GitHub installations response');
+    }
+    return body.installations.filter(
+      (installation) => typeof installation.id === 'number',
+    );
+  }
+
+  private async listRepositoriesFromInstallations(
+    accessToken: string,
+    installations: GithubInstallationResponse[],
+    page: number,
+    perPage: number,
+  ): Promise<{
+    repositories: GithubRepositoryResponse[];
+    hasNextPage: boolean;
+  }> {
+    const repositories: GithubRepositoryResponse[] = [];
+    const seenIds = new Set<number>();
+
+    for (const installation of installations) {
+      let installationPage = 1;
+      while (installationPage <= 10) {
+        const batch = await this.listInstallationRepositoryPage(
+          accessToken,
+          installation.id,
+          installationPage,
+          100,
+        );
+        for (const repository of batch.repositories) {
+          if (seenIds.has(repository.id)) {
+            continue;
+          }
+          seenIds.add(repository.id);
+          repositories.push(repository);
+        }
+        if (!batch.hasNextPage) {
+          break;
+        }
+        installationPage += 1;
+      }
+    }
+
+    const start = (page - 1) * perPage;
+    return {
+      repositories: repositories.slice(start, start + perPage),
+      hasNextPage: start + perPage < repositories.length,
+    };
+  }
+
+  private async listInstallationRepositoryPage(
+    accessToken: string,
+    installationId: number,
+    page: number,
+    perPage: number,
+  ): Promise<{
+    repositories: GithubRepositoryResponse[];
+    hasNextPage: boolean;
+  }> {
+    const response = await fetch(
+      `https://api.github.com/user/installations/${installationId}/repositories?page=${page}&per_page=${perPage}`,
+      {
+        headers: this.githubHeaders(accessToken),
+      },
+    );
+
+    if (response.status === 401) {
+      throw new GithubUnauthorizedError();
+    }
+    if (!response.ok) {
+      throw new BadGatewayException(
+        'Failed to fetch GitHub App installation repositories',
+      );
+    }
+
+    const body =
+      (await response.json()) as GithubInstallationRepositoriesResponse;
+    if (!Array.isArray(body.repositories)) {
+      throw new BadGatewayException(
+        'Unexpected GitHub installation repositories response',
+      );
+    }
+
+    const linkHeader = response.headers.get('link');
+    const hasNextPage = Boolean(linkHeader?.includes('rel="next"'));
+
+    return {
+      repositories: body.repositories,
+      hasNextPage,
+    };
   }
 
   private githubHeaders(accessToken: string): Record<string, string> {

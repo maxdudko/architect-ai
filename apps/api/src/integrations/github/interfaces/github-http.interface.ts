@@ -23,6 +23,21 @@ export interface GithubRepositoryResponse {
   };
 }
 
+export interface GithubInstallationResponse {
+  id: number;
+  app_slug?: string;
+}
+
+export interface GithubInstallationsListResponse {
+  total_count?: number;
+  installations?: GithubInstallationResponse[];
+}
+
+export interface GithubInstallationRepositoriesResponse {
+  total_count?: number;
+  repositories?: GithubRepositoryResponse[];
+}
+
 export interface GithubBranchResponse {
   name: string;
   protected: boolean;
