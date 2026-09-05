@@ -91,7 +91,7 @@ Required URL alignment:
 | `AUTH_GITHUB_OAUTH_REDIRECT_URI` | `https://api.example.com/auth/oauth/github/callback`   |
 | `COOKIE_DOMAIN`                  | `.example.com`                                         |
 
-`NEXT_PUBLIC_API_BASE_URL` is baked into the web image at **build** time. Changing it later requires `docker compose ... up -d --build web`.
+All `NEXT_PUBLIC_*` values (`NEXT_PUBLIC_API_BASE_URL`, OAuth button flags, Sentry) are baked into the web image at **build** time. Changing them later requires `docker compose ... up -d --build web`.
 
 Do **not** run `pnpm --filter api prisma:seed` in production. Seed passwords are for local development only.
 

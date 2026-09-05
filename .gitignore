@@ -16,6 +16,9 @@ out/
 .env.*.local
 .env.production
 
+# sensitive files
+.ssh
+
 # logs
 *.log
 
