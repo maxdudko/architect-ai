@@ -233,9 +233,23 @@ export function RepositoriesList() {
                   onChange={(event) => setRepoSearch(event.target.value)}
                 />
                 {githubReposQuery.isLoading ? <Skeleton className="h-16 w-full" /> : null}
-                {!githubReposQuery.isLoading && filteredGithubRepos.length === 0 ? (
+                {!githubReposQuery.isLoading &&
+                githubReposQuery.isError &&
+                !reconnectRequired ? (
+                  <p className="text-sm text-destructive">
+                    {getApiErrorMessage(
+                      githubReposQuery.error,
+                      'Unable to load GitHub repositories. Try reconnecting GitHub.',
+                    )}
+                  </p>
+                ) : null}
+                {!githubReposQuery.isLoading &&
+                !githubReposQuery.isError &&
+                filteredGithubRepos.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    No repositories available for this filter.
+                    {repoSearch.trim()
+                      ? 'No repositories available for this filter.'
+                      : 'GitHub returned no repositories. This product needs a GitHub OAuth App with repo access, or a GitHub App installed on your account with repository permissions. Then reconnect GitHub.'}
                   </p>
                 ) : null}
                 <div className="space-y-2">
