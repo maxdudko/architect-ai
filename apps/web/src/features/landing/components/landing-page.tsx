@@ -336,8 +336,14 @@ function ProfileLink({
     );
   }
 
+  const isHttp = href.startsWith('http://') || href.startsWith('https://');
+
   return (
-    <a href={href} target="_blank" rel="noreferrer" className={className}>
+    <a
+      href={href}
+      {...(isHttp ? { target: '_blank', rel: 'noreferrer' } : {})}
+      className={className}
+    >
       <Icon className="size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
       {label}
     </a>
