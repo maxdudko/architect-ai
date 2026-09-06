@@ -20,13 +20,13 @@ AWS-specific notes (EBS, security groups, Elastic IP) live in [EC2 deployment](.
 
 ## What you need
 
-| Item | Notes |
-| --- | --- |
-| VPS | Hostinger **KVM 2** (2 vCPU, 8 GB RAM, 100 GB disk) is the minimum. Use KVM 4 (16 GB) if you index large repositories. |
-| OS | Ubuntu 24.04 LTS (plain Ubuntu, not a control-panel / WordPress template). |
-| Domain | Optional at first. Hostinger gives `srvXXXXX.hstgr.cloud`. A real domain with `app.` and `api.` hostnames is better. |
-| GitHub repo access | Private repos need a **read-only deploy key** on the VPS. |
-| Accounts | GitHub OAuth App, Google OAuth client (or placeholders — see below), Stripe, Resend, and an OpenAI (or other) API key. |
+| Item               | Notes                                                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| VPS                | Hostinger **KVM 2** (2 vCPU, 8 GB RAM, 100 GB disk) is the minimum. Use KVM 4 (16 GB) if you index large repositories. |
+| OS                 | Ubuntu 24.04 LTS (plain Ubuntu, not a control-panel / WordPress template).                                             |
+| Domain             | Optional at first. Hostinger gives `srvXXXXX.hstgr.cloud`. A real domain with `app.` and `api.` hostnames is better.   |
+| GitHub repo access | Private repos need a **read-only deploy key** on the VPS.                                                              |
+| Accounts           | GitHub OAuth App, Google OAuth client (or placeholders — see below), Stripe, Resend, and an OpenAI (or other) API key. |
 
 Do **not** use Hostinger shared / web hosting. This stack needs Docker and a background worker.
 
@@ -48,10 +48,10 @@ Do not open 3000, 5000, 5432, 6379, or 6333.
 
 **Custom domain (recommended):**
 
-| Record | Name | Value |
-| --- | --- | --- |
-| A | `app` | VPS IPv4 |
-| A | `api` | VPS IPv4 |
+| Record | Name  | Value    |
+| ------ | ----- | -------- |
+| A      | `app` | VPS IPv4 |
+| A      | `api` | VPS IPv4 |
 
 Wait until both names resolve before starting Caddy.
 
@@ -204,16 +204,16 @@ On KVM 2 set `INDEXING_WORKER_CONCURRENCY=1`.
 
 ### Two hostnames (custom domain)
 
-| Variable | Example |
-| --- | --- |
-| `APP_HOST` / `API_HOST` | `app.example.com` / `api.example.com` (no scheme) |
-| `WEB_URL` / `CORS_ORIGINS` | `https://app.example.com` |
-| `NEXT_PUBLIC_API_BASE_URL` | `https://api.example.com` |
-| `GITHUB_OAUTH_REDIRECT_URI` | `https://api.example.com/integrations/github/callback` |
-| `GOOGLE_OAUTH_REDIRECT_URI` | `https://api.example.com/auth/oauth/google/callback` |
-| `AUTH_GITHUB_OAUTH_REDIRECT_URI` | `https://api.example.com/auth/oauth/github/callback` |
-| `COOKIE_DOMAIN` | `.example.com` |
-| `ACME_EMAIL` | a mailbox you control |
+| Variable                         | Example                                                |
+| -------------------------------- | ------------------------------------------------------ |
+| `APP_HOST` / `API_HOST`          | `app.example.com` / `api.example.com` (no scheme)      |
+| `WEB_URL` / `CORS_ORIGINS`       | `https://app.example.com`                              |
+| `NEXT_PUBLIC_API_BASE_URL`       | `https://api.example.com`                              |
+| `GITHUB_OAUTH_REDIRECT_URI`      | `https://api.example.com/integrations/github/callback` |
+| `GOOGLE_OAUTH_REDIRECT_URI`      | `https://api.example.com/auth/oauth/google/callback`   |
+| `AUTH_GITHUB_OAUTH_REDIRECT_URI` | `https://api.example.com/auth/oauth/github/callback`   |
+| `COOKIE_DOMAIN`                  | `.example.com`                                         |
+| `ACME_EMAIL`                     | a mailbox you control                                  |
 
 Stripe webhook: `https://api.example.com/billing/webhook`.
 
@@ -221,14 +221,14 @@ Stripe webhook: `https://api.example.com/billing/webhook`.
 
 Use this when the only public name is `srvXXXXX.hstgr.cloud`. Caddy serves Next.js on `/` and NestJS on `/api/*` (it strips the `/api` prefix). It also forwards `/integrations/*`, GitHub/Google OAuth callbacks, and `/billing/webhook` on the app host to the API.
 
-| Variable | Example |
-| --- | --- |
-| `APP_HOST` | `srvXXXXX.hstgr.cloud` |
-| `API_HOST` | `api.srvXXXXX.hstgr.cloud` (unused; Caddy may log ACME failures for it) |
-| `WEB_URL` / `CORS_ORIGINS` | `https://srvXXXXX.hstgr.cloud` |
-| `NEXT_PUBLIC_API_BASE_URL` | `https://srvXXXXX.hstgr.cloud/api` |
-| OAuth / Stripe URLs | same host with `/api/...` (see below) |
-| `COOKIE_DOMAIN` | leave empty |
+| Variable                   | Example                                                                 |
+| -------------------------- | ----------------------------------------------------------------------- |
+| `APP_HOST`                 | `srvXXXXX.hstgr.cloud`                                                  |
+| `API_HOST`                 | `api.srvXXXXX.hstgr.cloud` (unused; Caddy may log ACME failures for it) |
+| `WEB_URL` / `CORS_ORIGINS` | `https://srvXXXXX.hstgr.cloud`                                          |
+| `NEXT_PUBLIC_API_BASE_URL` | `https://srvXXXXX.hstgr.cloud/api`                                      |
+| OAuth / Stripe URLs        | same host with `/api/...` (see below)                                   |
+| `COOKIE_DOMAIN`            | leave empty                                                             |
 
 OAuth callbacks and Stripe:
 
@@ -368,7 +368,7 @@ On KVM 2 set `INDEXING_WORKER_CONCURRENCY=1`, keep the 4 GB swap file, and index
 
 ## Local compose vs production
 
-| File | Use |
-| --- | --- |
-| `docker-compose.yml` | Local development only (bind mounts, published DB ports) |
-| `docker-compose.prod.yml` | VPS: production images, Caddy TLS, internal data stores |
+| File                      | Use                                                      |
+| ------------------------- | -------------------------------------------------------- |
+| `docker-compose.yml`      | Local development only (bind mounts, published DB ports) |
+| `docker-compose.prod.yml` | VPS: production images, Caddy TLS, internal data stores  |
