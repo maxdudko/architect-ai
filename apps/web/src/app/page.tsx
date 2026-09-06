@@ -23,6 +23,7 @@ export default async function Home() {
       isAuthenticated={isAuthenticated}
       creatorSiteUrl={readHttpUrl(process.env.CREATOR_SITE_URL)}
       creatorLinkedinUrl={readHttpUrl(process.env.CREATOR_LINKEDIN_URL)}
+      creatorEmailUrl={readHttpUrl(process.env.CREATOR_EMAIL_URL)}
       githubRepoUrl={readHttpUrl(process.env.GITHUB_REPO_URL)}
     />
   );

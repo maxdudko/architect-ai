@@ -18,6 +18,7 @@ import {
   KeyRound,
   Linkedin,
   Lock,
+  Mail,
   MessageSquare,
   Minus,
   Network,
@@ -462,11 +463,13 @@ export function LandingPage({
   isAuthenticated = false,
   creatorSiteUrl = null,
   creatorLinkedinUrl = null,
+  creatorEmailUrl = null,
   githubRepoUrl = null,
 }: {
   isAuthenticated?: boolean;
   creatorSiteUrl?: string | null;
   creatorLinkedinUrl?: string | null;
+  creatorEmailUrl?: string | null;
   githubRepoUrl?: string | null;
 }) {
   const [activeQuestion, setActiveQuestion] = useState(questions[0]);
@@ -556,7 +559,9 @@ export function LandingPage({
             <GitHubLink
               className="hidden items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
               iconClassName="size-4"
-              href={githubRepoUrl}
+              // TODO: Temporarily disabling the GitHub link until the repo is public
+              // href={githubRepoUrl}
+              href={null}
             />
             {isAuthenticated ? (
               <Link
@@ -1166,6 +1171,7 @@ export function LandingPage({
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <ProfileLink href={creatorSiteUrl} icon={Globe} label="My Landing" />
               <ProfileLink href={creatorLinkedinUrl} icon={Linkedin} label="LinkedIn" />
+              <ProfileLink href={creatorEmailUrl} icon={Mail} label="Email" />
             </div>
           </div>
           {/* TODO: Specify email address */}
