@@ -290,7 +290,7 @@ Pull-request CI runs lint, unit tests, typecheck, API E2E tests, and build.
 
 ## Production deployment
 
-The implemented production target is a single AWS EC2 host using multi-stage images, internal PostgreSQL/Redis/Qdrant services, and Caddy TLS:
+The implemented production target is a single VM using multi-stage images, internal PostgreSQL/Redis/Qdrant services, and Caddy TLS:
 
 ```bash
 cp .env.production.example .env.production
@@ -298,7 +298,8 @@ cp .env.production.example .env.production
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 ```
 
-See [EC2 deployment](docs/features/deploy-ec2.md) for host sizing, DNS, security groups, secrets, backups, upgrades, and recovery.
+- [Hostinger / VPS](docs/features/deploy-hostinger.md) — step-by-step tutorial (KVM 2, DNS, deploy user, GitHub deploy key, single hostname or `app`/`api` hosts)
+- [EC2](docs/features/deploy-ec2.md) — AWS AMI, security groups, EBS, Elastic IP
 
 ## Feature documentation
 
@@ -311,6 +312,7 @@ Index: [docs/README.md](docs/README.md).
 - [Retrieval](docs/features/retrieval.md)
 - [Living onboarding guides](docs/features/onboarding-guides.md)
 - [Usage limits, billing, and AI providers](docs/features/usage-and-ai-providers.md)
+- [Hostinger / VPS deployment](docs/features/deploy-hostinger.md)
 - [EC2 deployment](docs/features/deploy-ec2.md)
 - [Product roadmap](docs/Roadmap.md)
 

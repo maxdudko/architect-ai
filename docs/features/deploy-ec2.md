@@ -2,6 +2,8 @@
 
 Phase 1 production layout: Docker Compose on a single VM. Kubernetes and ECS are out of scope.
 
+For Hostinger or any generic Ubuntu VPS, follow [Hostinger / VPS deployment](./deploy-hostinger.md) instead.
+
 Public traffic terminates at Caddy (TLS). Postgres, Redis, and Qdrant are not published.
 
 ```text
@@ -21,7 +23,7 @@ Hostnames:
 - `https://app.<domain>` → Next.js
 - `https://api.<domain>` → NestJS (GitHub OAuth callback stays on this origin)
 
-Single hostname (for example a Hostinger default like `srv….hstgr.cloud`): set `APP_HOST` to that host, `NEXT_PUBLIC_API_BASE_URL=https://<host>/api`, and OAuth callbacks to `https://<host>/api/integrations/github/callback` (Caddy strips `/api` before NestJS). Caddy also forwards `/integrations/*` on the app host to the API so a callback without `/api` still works.
+Single hostname (for example a provider default like `srv….hstgr.cloud`): see [Hostinger / VPS deployment](./deploy-hostinger.md#single-hostname-hostinger-default). Set `APP_HOST` to that host, `NEXT_PUBLIC_API_BASE_URL=https://<host>/api`, and OAuth callbacks to `https://<host>/api/integrations/github/callback` (Caddy strips `/api` before NestJS). Caddy also forwards `/integrations/*` on the app host to the API so a callback without `/api` still works.
 
 ## Instance
 

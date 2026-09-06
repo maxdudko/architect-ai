@@ -362,7 +362,7 @@ Development containers bind-mount the repository and run framework watch modes. 
 
 ### Production
 
-`docker-compose.prod.yml` is the implemented production target for a single AWS EC2 host:
+`docker-compose.prod.yml` is the implemented production target for a single VM (Hostinger VPS, AWS EC2, or similar):
 
 - multi-stage, non-root application images;
 - separate API and worker processes;
@@ -417,5 +417,6 @@ Detailed implementation notes:
 - [Retrieval](features/retrieval.md)
 - [Living onboarding guides](features/onboarding-guides.md)
 - [Usage limits, billing, and AI providers](features/usage-and-ai-providers.md)
+- [Hostinger / VPS deployment](features/deploy-hostinger.md)
 - [EC2 deployment](features/deploy-ec2.md)
 - [Product roadmap](Roadmap.md)
