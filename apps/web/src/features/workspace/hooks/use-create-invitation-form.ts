@@ -26,7 +26,13 @@ export function useCreateInvitationForm(workspaceId: string) {
     setSuccessMessage(null);
     try {
       const invitation = await mutation.mutateAsync(values);
-      setSuccessMessage(`Invitation sent to ${invitation.email}.`);
+      if (invitation.emailSent === false) {
+        setErrorMessage(
+          'Failed to send invitation email. Please copy the invitation link from Pending Invitations and send it manually.',
+        );
+      } else {
+        setSuccessMessage(`Invitation sent to ${invitation.email}.`);
+      }
       form.reset();
     } catch (error) {
       setErrorMessage(getApiErrorMessage(error, 'Failed to create invitation.'));

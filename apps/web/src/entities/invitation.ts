@@ -6,6 +6,8 @@ export interface Invitation {
   role: WorkspaceRole;
   expiresAt: string;
   createdAt: string;
+  inviteUrl: string;
+  emailSent?: boolean;
 }
 
 export interface InvitationPreview {

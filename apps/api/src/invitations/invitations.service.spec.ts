@@ -81,8 +81,10 @@ describe('InvitationsService', () => {
       role: WorkspaceRole.MEMBER,
       token: 'token-1',
       expiresAt,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
     });
     invitationsRepository.findPendingByTokenWithWorkspace.mockResolvedValue({
+      id: 'inv-1',
       token: 'token-1',
       email: inviteEmail,
       role: WorkspaceRole.MEMBER,
@@ -90,7 +92,7 @@ describe('InvitationsService', () => {
       workspace: { name: 'Acme' },
     });
 
-    await service.createInvitation(
+    const result = await service.createInvitation(
       workspaceId,
       actorUserId,
       inviteEmail,
@@ -99,6 +101,48 @@ describe('InvitationsService', () => {
 
     expect(usageService.assertWithinLimit).not.toHaveBeenCalled();
     expect(invitationsRepository.create).toHaveBeenCalled();
+    expect(result).toMatchObject({
+      id: 'inv-1',
+      inviteUrl: 'https://app/invite/token-1',
+      emailSent: true,
+    });
+  });
+
+  it('keeps a created invitation when invitation email delivery fails', async () => {
+    const expiresAt = new Date(Date.now() + 60_000);
+    invitationsRepository.findPendingByWorkspaceAndEmail.mockResolvedValue(
+      null,
+    );
+    invitationsRepository.create.mockResolvedValue({
+      id: 'inv-1',
+      email: inviteEmail,
+      role: WorkspaceRole.MEMBER,
+      token: 'token-1',
+      expiresAt,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    });
+    invitationsRepository.findPendingByTokenWithWorkspace.mockResolvedValue({
+      id: 'inv-1',
+      token: 'token-1',
+      email: inviteEmail,
+      role: WorkspaceRole.MEMBER,
+      expiresAt,
+      workspace: { name: 'Acme' },
+    });
+    mailService.sendWorkspaceInvitation.mockRejectedValue(
+      new Error('Failed to send invitation email'),
+    );
+
+    const result = await service.createInvitation(
+      workspaceId,
+      actorUserId,
+      inviteEmail,
+      WorkspaceRole.MEMBER,
+    );
+
+    expect(invitationsRepository.create).toHaveBeenCalled();
+    expect(result.emailSent).toBe(false);
+    expect(result.inviteUrl).toBe('https://app/invite/token-1');
   });
 
   it('enforces the members limit when a new member accepts an invitation', async () => {

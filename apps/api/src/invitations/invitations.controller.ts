@@ -21,7 +21,10 @@ import { WorkspaceParamGuard } from '../common/guards/workspace-param.guard';
 import type { RequestUser } from '../common/interfaces/request-user.interface';
 import { CreateInvitationDto } from '../memberships/dto/create-invitation.dto';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
-import { InvitationListItemDto } from './dto/invitation-list-item.dto';
+import {
+  InvitationDeliveryDto,
+  InvitationListItemDto,
+} from './dto/invitation-list-item.dto';
 import { InvitationPreviewDto } from './dto/invitation-preview.dto';
 import { InvitationsService } from './invitations.service';
 
@@ -55,7 +58,7 @@ export class InvitationsController {
     @Param('id') workspaceId: string,
     @CurrentUser() user: RequestUser,
     @Body() dto: CreateInvitationDto,
-  ) {
+  ): Promise<InvitationDeliveryDto> {
     return this.invitationsService.createInvitation(
       workspaceId,
       user.sub,
@@ -74,7 +77,7 @@ export class InvitationsController {
     @Param('id') workspaceId: string,
     @Param('invitationId') invitationId: string,
     @CurrentUser() user: RequestUser,
-  ) {
+  ): Promise<InvitationDeliveryDto> {
     return this.invitationsService.resendInvitation(
       workspaceId,
       user.sub,

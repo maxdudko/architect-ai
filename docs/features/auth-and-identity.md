@@ -59,7 +59,7 @@ Invitations:
 | `GET`  | `/invitations/:token`                              | Public preview              |
 | `POST` | `/invitations/:token/accept`                       | Accept; issues a session    |
 
-Invitation emails also use Resend. Pending invitations do not consume a seat until accepted.
+Invitation emails also use Resend. If delivery fails, the pending invitation is kept; the list includes a copyable `inviteUrl`, and create/resend return `emailSent: false` instead of rolling back. Pending invitations do not consume a seat until accepted.
 
 ## GitHub connection (user-scoped)
 

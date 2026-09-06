@@ -3,10 +3,16 @@ import {
   ForbiddenException,
   GoneException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { InvitationStatus, UsageMetric, WorkspaceRole } from '@prisma/client';
+import {
+  Invitation,
+  InvitationStatus,
+  UsageMetric,
+  WorkspaceRole,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponse } from '../auth/interfaces/auth-response.interface';
@@ -15,6 +21,10 @@ import { MembershipsService } from '../memberships/memberships.service';
 import { UsageService } from '../usage/usage.service';
 import { UsersService } from '../users/users.service';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
+import {
+  InvitationDeliveryDto,
+  InvitationListItemDto,
+} from './dto/invitation-list-item.dto';
 import { InvitationPreviewDto } from './dto/invitation-preview.dto';
 import { InvitationsRepository } from './invitations.repository';
 
@@ -22,6 +32,8 @@ const INVITATION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 
 @Injectable()
 export class InvitationsService {
+  private readonly logger = new Logger(InvitationsService.name);
+
   constructor(
     private readonly invitationsRepository: InvitationsRepository,
     private readonly membershipsService: MembershipsService,
@@ -34,39 +46,20 @@ export class InvitationsService {
   async listInvitations(
     workspaceId: string,
     actorUserId: string,
-  ): Promise<
-    Array<{
-      id: string;
-      email: string;
-      role: WorkspaceRole;
-      expiresAt: string;
-      createdAt: string;
-    }>
-  > {
+  ): Promise<InvitationListItemDto[]> {
     await this.assertCanManageInvitations(workspaceId, actorUserId);
 
     const invitations =
       await this.invitationsRepository.listPendingByWorkspace(workspaceId);
 
-    return invitations.map((invitation) => ({
-      id: invitation.id,
-      email: invitation.email,
-      role: invitation.role,
-      expiresAt: invitation.expiresAt.toISOString(),
-      createdAt: invitation.createdAt.toISOString(),
-    }));
+    return invitations.map((invitation) => this.toListItem(invitation));
   }
 
   async resendInvitation(
     workspaceId: string,
     actorUserId: string,
     invitationId: string,
-  ): Promise<{
-    id: string;
-    email: string;
-    role: WorkspaceRole;
-    expiresAt: Date;
-  }> {
+  ): Promise<InvitationDeliveryDto> {
     await this.assertCanManageInvitations(workspaceId, actorUserId);
 
     const invitation =
@@ -84,13 +77,11 @@ export class InvitationsService {
       expiresAt,
     );
 
-    await this.deliverInvitationEmail(updatedInvitation.token);
+    const delivery = await this.deliverInvitationEmail(updatedInvitation.token);
 
     return {
-      id: updatedInvitation.id,
-      email: updatedInvitation.email,
-      role: updatedInvitation.role,
-      expiresAt: updatedInvitation.expiresAt,
+      ...this.toListItem(updatedInvitation),
+      emailSent: delivery.emailSent,
     };
   }
 
@@ -99,12 +90,7 @@ export class InvitationsService {
     actorUserId: string,
     email: string,
     role: WorkspaceRole,
-  ): Promise<{
-    id: string;
-    email: string;
-    role: WorkspaceRole;
-    expiresAt: Date;
-  }> {
+  ): Promise<InvitationDeliveryDto> {
     const normalizedEmail = email.toLowerCase();
 
     await this.assertCanManageInvitations(workspaceId, actorUserId);
@@ -135,13 +121,11 @@ export class InvitationsService {
       expiresAt,
     });
 
-    await this.deliverInvitationEmail(invitation.token);
+    const delivery = await this.deliverInvitationEmail(invitation.token);
 
     return {
-      id: invitation.id,
-      email: invitation.email,
-      role: invitation.role,
-      expiresAt: invitation.expiresAt,
+      ...this.toListItem(invitation),
+      emailSent: delivery.emailSent,
     };
   }
 
@@ -249,7 +233,20 @@ export class InvitationsService {
     }
   }
 
-  private async deliverInvitationEmail(token: string): Promise<void> {
+  private toListItem(invitation: Invitation): InvitationListItemDto {
+    return {
+      id: invitation.id,
+      email: invitation.email,
+      role: invitation.role,
+      expiresAt: invitation.expiresAt.toISOString(),
+      createdAt: invitation.createdAt.toISOString(),
+      inviteUrl: this.mailService.buildInviteUrl(invitation.token),
+    };
+  }
+
+  private async deliverInvitationEmail(
+    token: string,
+  ): Promise<{ inviteUrl: string; emailSent: boolean }> {
     const invitation =
       await this.invitationsRepository.findPendingByTokenWithWorkspace(token);
     if (!invitation) {
@@ -257,12 +254,21 @@ export class InvitationsService {
     }
 
     const inviteUrl = this.mailService.buildInviteUrl(invitation.token);
-    await this.mailService.sendWorkspaceInvitation({
-      to: invitation.email,
-      workspaceName: invitation.workspace.name,
-      role: invitation.role,
-      inviteUrl,
-      expiresAt: invitation.expiresAt,
-    });
+    try {
+      await this.mailService.sendWorkspaceInvitation({
+        to: invitation.email,
+        workspaceName: invitation.workspace.name,
+        role: invitation.role,
+        inviteUrl,
+        expiresAt: invitation.expiresAt,
+      });
+      return { inviteUrl, emailSent: true };
+    } catch (error) {
+      this.logger.error(
+        `Failed to send invitation email to ${invitation.email}; invitation ${invitation.id} was kept`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return { inviteUrl, emailSent: false };
+    }
   }
 }
