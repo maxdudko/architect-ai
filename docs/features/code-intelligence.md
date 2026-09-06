@@ -9,7 +9,7 @@ The Code Intelligence layer builds a semantic representation of source code repo
 `apps/api/src/modules/code-intelligence/`
 
 - `scanner/` — repository traversal and candidate file streaming
-- `languages/` — language detection strategy
+- `languages/` — language detection and language packs (grammars, extractors, topology hints)
 - `parser/` — language parser abstraction and Tree-sitter adapter
 - `ast/` — AST abstraction independent from Tree-sitter internals
 - `extractors/` — symbol extraction and semantic chunking
@@ -22,12 +22,12 @@ The Code Intelligence layer builds a semantic representation of source code repo
 
 ## Pipeline
 
-1. `RepositoryScannerService` recursively scans the clone path.
-2. `LanguageDetectorService` resolves language for each file.
-3. `TreeSitterLanguageParserService` parses source and returns `ParsedFileAst`.
-4. `SymbolExtractorService` extracts semantic symbols with metadata and parent hierarchy.
-5. `SymbolRelationshipExtractorService` extracts static relationships.
-6. `RepositoryInventoryService` upserts repository file inventory by `repositoryId + path`.
+1. `RepositoryScannerService` recursively scans the clone path, skipping pack ignore folders and inventorying manifests without parsing.
+2. `LanguageDetectorService` resolves language for each file from registered language packs.
+3. `TreeSitterLanguageParserService` parses source with the pack grammar and returns field-aware `ParsedFileAst`.
+4. `SymbolExtractorService` dispatches to the matching pack to extract symbols.
+5. `SymbolRelationshipExtractorService` dispatches to the matching pack to extract static relationships.
+6. `RepositoryInventoryService` upserts repository file inventory by `repositoryId + indexingRunId + path`.
 7. `ChunkBuilderService` creates one semantic chunk per meaningful symbol.
 
 ## Worker Orchestration
@@ -40,8 +40,8 @@ Business logic stays in the Code Intelligence module.
 
 ## Schema Decisions
 
-- `RepositoryFile` is unique per `(repositoryId, path)` to prevent duplication across runs.
-- After each successful parse pass, inventory rows whose `indexingRunId` is not the current run are pruned so the file index reflects only files seen in the latest scan.
+- `RepositoryFile` is unique per `(repositoryId, indexingRunId, path)` so two indexing generations can coexist during a rebuild.
+- After each successful parse pass, inventory rows for **this** `indexingRunId` whose paths were not seen in the scan are pruned. Other runs are left untouched until a successful embed swaps the live index.
 - `CodeSymbol` stores coordinates, modifiers, qualified naming, and parent linkage.
 - `SymbolRelation` stores graph edges for traversal (`from`, `to`, relation type).
 - `Chunk.metadata` stores semantic context (`symbolType`, `qualifiedName`, `language`).
@@ -49,6 +49,7 @@ Business logic stays in the Code Intelligence module.
 
 ## Extension Points
 
-- Add new languages by extending `LanguageDetectorService` and parser grammars.
+- Add a new language by creating `languages/<id>.pack.ts` (extensions, grammar, ignore folders, manifests, topology hints, symbol/relation extractors), registering it in `loadDefaultLanguagePacks()`, and adding a Tree-sitter grammar dependency.
+- Preserve Tree-sitter field names on `AstNode` so extractors can read `name` / `body` without regexes on `node.text`.
 - Add new relationship types by extending `SymbolRelationType` and extractor logic.
-- Add embedding generation as a downstream stage via the Retrieval module (`docs/retrieval.md`), independent from chunk generation.
+- Add embedding generation as a downstream stage via the Retrieval module ([retrieval.md](./retrieval.md)), independent from chunk generation.

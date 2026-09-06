@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import {
   Button,
   Card,
@@ -11,7 +12,12 @@ import {
 } from '@/shared/components';
 import { useCreateInvitationForm } from '../hooks/use-create-invitation-form';
 
-export function InvitationForm({ workspaceId }: { workspaceId: string }) {
+interface InvitationFormProps {
+  workspaceId: string;
+  className?: string;
+}
+
+export function InvitationForm({ workspaceId, className }: InvitationFormProps) {
   const { form, onSubmit, isSubmitting, errorMessage, successMessage } =
     useCreateInvitationForm(workspaceId);
   const {
@@ -20,7 +26,7 @@ export function InvitationForm({ workspaceId }: { workspaceId: string }) {
   } = form;
 
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader>
         <CardTitle>Invite Member</CardTitle>
       </CardHeader>

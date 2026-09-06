@@ -10,6 +10,12 @@ declare module 'tree-sitter' {
     startPosition: ParserPoint;
     endPosition: ParserPoint;
     namedChildren: SyntaxNode[];
+    children?: SyntaxNode[];
+    childCount?: number;
+    isNamed?: boolean;
+    child?(index: number): SyntaxNode | null;
+    fieldNameForChild?(index: number): string | null;
+    childForFieldName?(name: string): SyntaxNode | null;
   }
 
   export interface Tree {
@@ -31,4 +37,14 @@ declare module 'tree-sitter-javascript' {
 declare module 'tree-sitter-typescript' {
   export const typescript: unknown;
   export const tsx: unknown;
+}
+
+declare module 'tree-sitter-python' {
+  const pythonLanguage: unknown;
+  export = pythonLanguage;
+}
+
+declare module 'tree-sitter-php' {
+  export const php: unknown;
+  export const php_only: unknown;
 }

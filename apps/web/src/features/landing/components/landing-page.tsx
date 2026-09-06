@@ -5,6 +5,8 @@ import {
   ArrowDown,
   ArrowRight,
   BookOpen,
+  Bot,
+  Building2,
   Check,
   ChevronRight,
   CircleDot,
@@ -12,31 +14,51 @@ import {
   GitBranch,
   GitCommitHorizontal,
   Github,
+  Globe,
+  KeyRound,
+  Linkedin,
+  Lock,
+  Mail,
   MessageSquare,
+  Minus,
   Network,
+  RefreshCw,
+  Rocket,
   Search,
+  Send,
+  ServerCog,
   ShieldCheck,
   Sparkles,
   TerminalSquare,
+  ThumbsUp,
+  Users,
+  Zap,
 } from 'lucide-react';
-import { useCallback, useState, type SyntheticEvent } from 'react';
+import { useCallback, useState, type FormEvent, type SyntheticEvent } from 'react';
+import { submitContactMessage } from '@/lib/api';
+import { getApiErrorMessage } from '@/lib/api/error-message';
+import { BrandMark, Button, Input, Loader, Textarea } from '@/shared/components';
+import { LandingPlansSection } from './landing-plans';
 
 const questions = [
   {
     label: 'Authentication',
     question: 'How does authentication work?',
     answer:
-      'Requests enter through the auth guard, where the access token is verified before workspace permissions are resolved.',
-    sources: ['apps/api/src/auth/auth.guard.ts', 'apps/api/src/workspaces/workspace.service.ts'],
+      'Requests pass through the JWT auth guard, which verifies the access token before workspace and role guards resolve what the caller can actually do.',
+    sources: [
+      'apps/api/src/common/guards/jwt-auth.guard.ts',
+      'apps/api/src/workspaces/workspaces.service.ts',
+    ],
   },
   {
-    label: 'Payments',
-    question: 'Where is payment processing implemented?',
+    label: 'Onboarding guides',
+    question: 'How are onboarding guides generated?',
     answer:
-      'Payment events are normalized at the billing boundary, then handed to the payment service for provider-specific processing.',
+      'After indexing, the orchestrator discovers guide targets from the repository topology, retrieves focused evidence for each, and asks the configured LLM for evidence-constrained Markdown.',
     sources: [
-      'apps/api/src/billing/payment.service.ts',
-      'apps/api/src/billing/payment.controller.ts',
+      'apps/api/src/modules/onboarding/onboarding-guide.orchestrator.ts',
+      'apps/api/src/modules/onboarding/generators/guide-generator.registry.ts',
     ],
   },
   {
@@ -55,7 +77,43 @@ const pipeline = [
   { label: 'Connect', detail: 'Choose a GitHub repository.', icon: Github },
   { label: 'Understand', detail: 'Parse files, symbols, and relations.', icon: Code2 },
   { label: 'Ground', detail: 'Build searchable repository context.', icon: Search },
-  { label: 'Answer', detail: 'Ask questions with source references.', icon: MessageSquare },
+  { label: 'Answer', detail: 'Stream cited answers, token by token.', icon: MessageSquare },
+];
+
+const capabilities = [
+  {
+    label: 'Streaming answers',
+    detail: 'Tokens stream live over SSE as the model responds.',
+    icon: Zap,
+  },
+  {
+    label: 'Bring your own model',
+    detail: 'OpenAI, Anthropic, Grok, or Gemini—your key, your choice.',
+    icon: KeyRound,
+  },
+  {
+    label: 'Workspaces & roles',
+    detail: 'Owner, admin, member, and viewer access per workspace.',
+    icon: Users,
+  },
+  {
+    label: 'Encrypted at rest',
+    detail: 'GitHub tokens and API keys are AES-256-GCM encrypted.',
+    icon: Lock,
+  },
+  {
+    label: 'Answer feedback',
+    detail: 'Mark answers helpful or not to track quality over time.',
+    icon: ThumbsUp,
+  },
+];
+
+const modelProviders = [
+  { name: 'OpenAI', detail: 'GPT models' },
+  { name: 'Anthropic', detail: 'Claude models' },
+  { name: 'Grok', detail: 'xAI models' },
+  { name: 'Gemini', detail: 'Google models' },
+  { name: 'Hosted AI', detail: 'No key required' },
 ];
 
 const roadmap = [
@@ -91,6 +149,108 @@ const roadmap = [
   },
 ];
 
+const trustBadges = [
+  { label: 'Open source', icon: Github },
+  { label: 'Self-hostable', icon: ServerCog },
+  { label: 'Model-agnostic', icon: KeyRound },
+  { label: 'AES-256 encrypted secrets', icon: Lock },
+];
+
+const comparisonRows: Array<{
+  capability: string;
+  copilot: boolean | 'partial';
+  cursor: boolean | 'partial';
+  docs: boolean | 'partial';
+  architect: boolean | 'partial';
+}> = [
+  { capability: 'Writes code', copilot: true, cursor: true, docs: false, architect: 'partial' },
+  {
+    capability: 'Understands architecture',
+    copilot: 'partial',
+    cursor: 'partial',
+    docs: 'partial',
+    architect: true,
+  },
+  {
+    capability: 'Preserves decisions',
+    copilot: false,
+    cursor: false,
+    docs: 'partial',
+    architect: true,
+  },
+  {
+    capability: 'Predicts change impact',
+    copilot: false,
+    cursor: false,
+    docs: false,
+    architect: true,
+  },
+  {
+    capability: 'Source-cited answers',
+    copilot: false,
+    cursor: 'partial',
+    docs: 'partial',
+    architect: true,
+  },
+];
+
+const targetCustomers = [
+  {
+    icon: Rocket,
+    title: 'Early adopters',
+    detail: '5–30 engineers, multiple repositories, growing technical complexity.',
+  },
+  {
+    icon: Building2,
+    title: 'Expansion market',
+    detail: '50–500 engineers, multiple teams, significant onboarding costs.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Enterprise',
+    detail: 'Self-hosted deployment, compliance controls, and advanced governance.',
+  },
+];
+
+const faqs = [
+  {
+    question: 'Is Architect AI open source?',
+    answer:
+      'Yes. The full stack is open source and available on GitHub, including the API, worker, indexing pipeline, and web application.',
+    requiresGithub: true,
+  },
+  {
+    question: 'Can we self-host it?',
+    answer:
+      'Yes. A Docker Compose stack runs the web app, API, worker, PostgreSQL, Redis, and Qdrant on your own infrastructure, with a documented single-host production deployment for AWS EC2.',
+  },
+  {
+    question: 'Which AI providers are supported?',
+    answer:
+      'Hosted AI works out of the box. Workspaces can also bring their own key for OpenAI, Anthropic, Grok, or Gemini and switch the active provider instantly—no redeploy required.',
+  },
+  {
+    question: 'How do plans and pricing work?',
+    answer:
+      'Free includes hosted AI with plan-based usage limits. PRO raises those limits for a monthly price. Enterprise is custom and starts with a conversation with sales. Connecting your own model key uncaps AI questions and onboarding guides without changing the plan price.',
+  },
+  {
+    question: 'What happens to our source code and API keys?',
+    answer:
+      'Repository content is parsed and embedded to power retrieval; GitHub tokens and BYOK provider keys are encrypted at rest with AES-256-GCM and are never returned in plaintext by the API.',
+  },
+  {
+    question: 'Which languages are supported today?',
+    answer:
+      'TypeScript and JavaScript are parsed today via Tree-sitter, including TSX/JSX. Additional language parsers are on the roadmap.',
+  },
+  {
+    question: 'What is the long-term vision?',
+    answer:
+      'Architect AI grows from repository chat into architecture exploration, decision memory, and change-impact analysis—an engineering memory layer, not just another coding assistant.',
+  },
+];
+
 function SectionEyebrow({ children }: { children: React.ReactNode }) {
   return (
     <p className="mb-4 flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--landing-accent))]">
@@ -120,11 +280,207 @@ function SourceReference({ source }: { source: string }) {
   );
 }
 
+function GitHubLink({
+  className,
+  iconClassName,
+  href,
+}: {
+  className: string;
+  iconClassName: string;
+  href: string | null;
+}) {
+  const isDisabled = href == null;
+
+  return (
+    <a
+      href={isDisabled ? undefined : href}
+      target={isDisabled ? undefined : '_blank'}
+      rel={isDisabled ? undefined : 'noreferrer'}
+      aria-disabled={isDisabled}
+      tabIndex={isDisabled ? -1 : undefined}
+      title={isDisabled ? 'Repository is not public yet' : undefined}
+      className={
+        isDisabled
+          ? `${className} cursor-not-allowed opacity-50 hover:text-muted-foreground`
+          : className
+      }
+    >
+      <Github className={iconClassName} aria-hidden="true" />
+      GitHub
+    </a>
+  );
+}
+
+function ProfileLink({
+  href,
+  icon: Icon,
+  label,
+}: {
+  href: string | null;
+  icon: typeof Globe;
+  label: string;
+}) {
+  const isDisabled = href == null;
+  const className =
+    'inline-flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm font-medium transition-colors hover:border-[hsl(var(--landing-accent)/.55)] hover:bg-accent';
+
+  if (isDisabled) {
+    return (
+      <span
+        className={`${className} cursor-not-allowed opacity-50 hover:border-border hover:bg-card`}
+        title="Link coming soon"
+      >
+        <Icon className="size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+        {label}
+      </span>
+    );
+  }
+
+  const isHttp = href.startsWith('http://') || href.startsWith('https://');
+
+  return (
+    <a
+      href={href}
+      {...(isHttp ? { target: '_blank', rel: 'noreferrer' } : {})}
+      className={className}
+    >
+      <Icon className="size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+      {label}
+    </a>
+  );
+}
+
+function ContactForm() {
+  const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const name = String(formData.get('name') ?? '').trim();
+    const email = String(formData.get('email') ?? '').trim();
+    const message = String(formData.get('message') ?? '').trim();
+
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await submitContactMessage({ name, email, message });
+      setSubmitted(true);
+    } catch (submitError) {
+      setError(getApiErrorMessage(submitError, 'Unable to send your message. Please try again.'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, []);
+
+  if (submitted) {
+    return (
+      <div className="flex min-h-[22rem] flex-col items-start justify-center rounded-xl border border-border bg-card p-6 md:p-8">
+        <span className="flex size-10 items-center justify-center rounded-md border border-[hsl(var(--landing-accent)/.45)] bg-[hsl(var(--landing-accent)/.08)]">
+          <Check className="size-5 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+        </span>
+        <h3 className="mt-5 text-xl font-medium">Message received.</h3>
+        <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
+          Thanks for reaching out. I&apos;ll get back to you soon.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col rounded-xl border border-border bg-card p-6 md:p-8"
+    >
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <label htmlFor="contact-name" className="text-sm font-medium">
+            Name
+          </label>
+          <Input
+            id="contact-name"
+            name="name"
+            autoComplete="name"
+            required
+            placeholder="Your name"
+            disabled={isSubmitting}
+          />
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="contact-email" className="text-sm font-medium">
+            Email
+          </label>
+          <Input
+            id="contact-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            placeholder="you@company.com"
+            disabled={isSubmitting}
+          />
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="contact-message" className="text-sm font-medium">
+            Message
+          </label>
+          <Textarea
+            id="contact-message"
+            name="message"
+            required
+            rows={5}
+            placeholder="How can I help?"
+            className="min-h-[8.5rem] resize-y"
+            disabled={isSubmitting}
+          />
+        </div>
+      </div>
+      {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
+      <Button
+        type="submit"
+        className="mt-6 h-11 w-full gap-2 self-end sm:w-auto"
+        disabled={isSubmitting}
+      >
+        {isSubmitting ? <Loader className="size-4" /> : null}
+        Send message
+        <Send className="size-4" aria-hidden="true" />
+      </Button>
+    </form>
+  );
+}
+
+function ComparisonMark({ value }: { value: boolean | 'partial' }) {
+  if (value === true) {
+    return (
+      <Check className="mx-auto size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+    );
+  }
+  if (value === 'partial') {
+    return <Minus className="mx-auto size-4 text-muted-foreground" aria-hidden="true" />;
+  }
+  return <span className="block text-center text-muted-foreground/50">—</span>;
+}
+
 const NAVBAR_OFFSET = 80;
 
-export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
+export function LandingPage({
+  isAuthenticated = false,
+  creatorSiteUrl = null,
+  creatorLinkedinUrl = null,
+  creatorEmailUrl = null,
+  githubRepoUrl = null,
+}: {
+  isAuthenticated?: boolean;
+  creatorSiteUrl?: string | null;
+  creatorLinkedinUrl?: string | null;
+  creatorEmailUrl?: string | null;
+  githubRepoUrl?: string | null;
+}) {
   const [activeQuestion, setActiveQuestion] = useState(questions[0]);
   const [activeRoadmap, setActiveRoadmap] = useState(0);
+  const isGithubPublic = githubRepoUrl != null;
 
   const handleNavClick = useCallback((event: SyntheticEvent, link: string) => {
     event.preventDefault();
@@ -155,15 +511,8 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
       <div id="top" className="h-0 w-0 overflow-hidden" aria-hidden="true" />
       <header className="sticky top-0 z-20 border-b border-border/70 bg-background/90 backdrop-blur">
         <div className="container flex h-16 items-center justify-between">
-          <a
-            href="#top"
-            onClick={(event) => handleNavClick(event, 'top')}
-            className="flex items-center gap-2 font-semibold tracking-tight"
-          >
-            <span className="flex size-7 items-center justify-center rounded-md bg-[hsl(var(--landing-accent))] text-white">
-              <Network className="size-4" aria-hidden="true" />
-            </span>
-            Architect AI
+          <a href="#top" onClick={(event) => handleNavClick(event, 'top')}>
+            <BrandMark />
           </a>
           <nav
             className="hidden items-center gap-6 text-sm text-muted-foreground md:flex"
@@ -190,8 +539,36 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
             >
               Vision
             </a>
+            <a
+              href="#plans"
+              onClick={(event) => handleNavClick(event, 'plans')}
+              className="transition-colors hover:text-foreground"
+            >
+              Plans
+            </a>
+            <a
+              href="#faq"
+              onClick={(event) => handleNavClick(event, 'faq')}
+              className="transition-colors hover:text-foreground"
+            >
+              FAQ
+            </a>
+            <a
+              href="#contact"
+              onClick={(event) => handleNavClick(event, 'contact')}
+              className="transition-colors hover:text-foreground"
+            >
+              Contact
+            </a>
           </nav>
           <div className="flex items-center gap-2">
+            <GitHubLink
+              className="hidden items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
+              iconClassName="size-4"
+              // TODO: Temporarily disabling the GitHub link until the repo is public
+              // href={githubRepoUrl}
+              href={null}
+            />
             {isAuthenticated ? (
               <Link
                 href="/dashboard"
@@ -255,6 +632,20 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
               />
               Repository-scoped answers with source references.
             </p>
+            <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2">
+              {(isGithubPublic
+                ? trustBadges
+                : trustBadges.filter((badge) => badge.label !== 'Open source')
+              ).map(({ label, icon: Icon }) => (
+                <span
+                  key={label}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                >
+                  <Icon className="size-3.5 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+                  {label}
+                </span>
+              ))}
+            </div>
           </div>
 
           <div className="relative rounded-xl border border-border bg-card p-3 md:p-5">
@@ -392,6 +783,67 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
               </span>
             ))}
           </div>
+
+          <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
+            {capabilities.map(({ label, detail, icon: Icon }) => (
+              <div key={label} className="flex items-start gap-3">
+                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-card">
+                  <Icon className="size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium">{label}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-border/70 bg-accent/30 py-20 md:py-28">
+        <div className="container">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="mb-4 flex items-center justify-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--landing-accent))]">
+              <CircleDot className="size-3" aria-hidden="true" />
+              Model-agnostic by design
+            </p>
+            <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+              Use the model you trust.
+            </h2>
+            <p className="mt-3 text-lg font-medium text-muted-foreground">
+              We don&apos;t care who wins the AI wars.
+            </p>
+            <p className="mt-5 text-base leading-7 text-muted-foreground">
+              Architect AI is model-agnostic. Bring your own provider, use hosted AI, or switch
+              models whenever you want—your workspace, your call.
+            </p>
+          </div>
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            {modelProviders.map(({ name, detail }) => (
+              <div
+                key={name}
+                className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-background">
+                  {name === 'Hosted AI' ? (
+                    <RefreshCw
+                      className="size-4 text-[hsl(var(--landing-accent))]"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Bot className="size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+                  )}
+                </span>
+                <div className="text-left">
+                  <p className="text-sm font-medium leading-tight">{name}</p>
+                  <p className="text-xs leading-tight text-muted-foreground">{detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-8 text-center text-xs text-muted-foreground">
+            Switch your active provider anytime from workspace settings—no redeploy, no lock-in.
+          </p>
         </div>
       </section>
 
@@ -403,9 +855,10 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
               A guide for every unfamiliar system.
             </h2>
             <p className="mt-5 text-lg leading-8 text-muted-foreground">
-              Give new engineers a useful starting point: modules, services, technology stack,
-              reading order, glossary, and pitfalls—grounded in the repository and ready to ask
-              questions from.
+              Every ready repository gets nine guide types—executive summary, project overview,
+              folders, modules, services, technology stack, reading order, glossary, and
+              pitfalls—generated automatically and regenerated on demand, all grounded in the
+              repository and ready to ask questions from.
             </p>
             <Link
               href="/sign-up"
@@ -420,17 +873,18 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
                 <BookOpen className="size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />{' '}
                 Guide library
               </div>
-              <span className="font-mono text-[10px] text-muted-foreground">v1.4 · READY</span>
+              <span className="font-mono text-[10px] text-muted-foreground">v3 · READY</span>
             </div>
             <div className="grid md:grid-cols-[.72fr_1.28fr]">
               <div className="border-b border-border p-4 md:border-b-0 md:border-r">
                 {[
-                  'Start here',
-                  'System map',
-                  'Services',
+                  'Executive summary',
+                  'Project overview',
+                  'Modules & services',
+                  'Technology stack',
                   'Reading order',
                   'Glossary',
-                  'Pitfalls',
+                  'Common pitfalls',
                 ].map((item, index) => (
                   <div
                     key={item}
@@ -443,12 +897,12 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
               </div>
               <div className="p-5">
                 <p className="font-mono text-[10px] uppercase tracking-[.16em] text-[hsl(var(--landing-accent))]">
-                  Start here
+                  Executive summary
                 </p>
                 <h3 className="mt-3 text-xl font-medium">How Architect AI fits together</h3>
                 <p className="mt-4 text-sm leading-6 text-muted-foreground">
-                  A repository-aware overview of the app, from GitHub connection to source-grounded
-                  chat.
+                  A decision-oriented overview of purpose, boundaries, core flows, and open risks—
+                  grounded in the repository and ready for source-cited follow-up questions.
                 </p>
                 <div className="mt-6 space-y-3">
                   {[
@@ -526,6 +980,84 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
         </div>
       </section>
 
+      <section className="border-b border-border/70 py-20 md:py-28">
+        <div className="container">
+          <div className="max-w-2xl">
+            <SectionEyebrow>Not another coding assistant</SectionEyebrow>
+            <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+              Coding assistants write code. Architect AI explains the system.
+            </h2>
+            <p className="mt-5 text-lg leading-8 text-muted-foreground">
+              Copilot and Cursor answer &ldquo;how do I write this faster?&rdquo; Architect AI
+              answers &ldquo;how does this system work, and what happens if we change it?&rdquo;
+            </p>
+          </div>
+          <div className="mt-10 overflow-x-auto rounded-xl border border-border">
+            <table className="w-full min-w-[640px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border bg-accent/40">
+                  <th className="p-4 text-left font-medium text-muted-foreground">Capability</th>
+                  <th className="p-4 text-center font-medium text-muted-foreground">
+                    GitHub Copilot
+                  </th>
+                  <th className="p-4 text-center font-medium text-muted-foreground">Cursor</th>
+                  <th className="p-4 text-center font-medium text-muted-foreground">Docs tools</th>
+                  <th className="p-4 text-center font-medium text-foreground">Architect AI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comparisonRows.map((row, index) => (
+                  <tr
+                    key={row.capability}
+                    className={index !== comparisonRows.length - 1 ? 'border-b border-border' : ''}
+                  >
+                    <td className="p-4 text-foreground">{row.capability}</td>
+                    <td className="p-4">
+                      <ComparisonMark value={row.copilot} />
+                    </td>
+                    <td className="p-4">
+                      <ComparisonMark value={row.cursor} />
+                    </td>
+                    <td className="p-4">
+                      <ComparisonMark value={row.docs} />
+                    </td>
+                    <td className="p-4 bg-[hsl(var(--landing-accent)/.06)]">
+                      <ComparisonMark value={row.architect} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-4 text-xs text-muted-foreground">
+            Based on our own product research; other tools evolve quickly and may close these gaps
+            over time.
+          </p>
+        </div>
+      </section>
+
+      <section className="border-b border-border/70 bg-accent/30 py-20 md:py-28">
+        <div className="container">
+          <div className="max-w-2xl">
+            <SectionEyebrow>Who it&apos;s for</SectionEyebrow>
+            <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+              Built for teams that outgrow tribal knowledge.
+            </h2>
+          </div>
+          <div className="mt-10 grid gap-6 sm:grid-cols-3">
+            {targetCustomers.map(({ icon: Icon, title, detail }) => (
+              <div key={title} className="rounded-xl border border-border bg-card p-6">
+                <span className="flex size-9 items-center justify-center rounded-md border border-border bg-background">
+                  <Icon className="size-4 text-[hsl(var(--landing-accent))]" aria-hidden="true" />
+                </span>
+                <h3 className="mt-5 font-medium">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section id="vision" className="scroll-mt-20 border-b border-border/70 py-20 md:py-28">
         <div className="container">
           <div className="max-w-2xl">
@@ -577,7 +1109,33 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
         </div>
       </section>
 
-      <section className="py-20 md:py-28">
+      <LandingPlansSection isAuthenticated={isAuthenticated} />
+
+      <section
+        id="faq"
+        className="scroll-mt-20 border-b border-border/70 bg-accent/30 py-20 md:py-28"
+      >
+        <div className="container">
+          <div className="max-w-2xl">
+            <SectionEyebrow>Frequently asked</SectionEyebrow>
+            <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+              Questions teams ask before connecting a repository.
+            </h2>
+          </div>
+          <div className="mt-10 grid gap-6 sm:grid-cols-2">
+            {faqs
+              .filter((faq) => isGithubPublic || !faq.requiresGithub)
+              .map(({ question, answer }) => (
+                <div key={question} className="rounded-xl border border-border bg-card p-6">
+                  <h3 className="font-medium">{question}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{answer}</p>
+                </div>
+              ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-border/70 py-20 md:py-28">
         <div className="container">
           <div className="rounded-2xl border border-border bg-card p-8 md:p-12">
             <div className="grid gap-10 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -599,21 +1157,46 @@ export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boo
               </Link>
             </div>
           </div>
-          <div className="mt-8 flex flex-col gap-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-            <p className="font-mono">
-              Architect AI · The collective engineering memory for software teams.
-            </p>
-            <div className="flex gap-4">
-              <Link href="/sign-in" className="hover:text-foreground">
-                Sign in
-              </Link>
-              <Link href="/sign-up" className="hover:text-foreground">
-                Create account
-              </Link>
-            </div>
-          </div>
         </div>
       </section>
+
+      <section
+        id="contact"
+        className="scroll-mt-20 border-b border-border/70 bg-accent/30 py-20 md:py-28"
+      >
+        <div className="container grid items-start gap-12 lg:grid-cols-[.85fr_1.15fr]">
+          <div>
+            <SectionEyebrow>Get in touch</SectionEyebrow>
+            <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+              Let&apos;s talk.
+            </h2>
+            <p className="mt-5 max-w-xl text-lg leading-8 text-muted-foreground">
+              Questions about Architect AI, partnerships, or just saying hello—send a message or
+              find me on the web.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <ProfileLink href={creatorSiteUrl} icon={Globe} label="My Landing" />
+              <ProfileLink href={creatorLinkedinUrl} icon={Linkedin} label="LinkedIn" />
+              <ProfileLink href={creatorEmailUrl} icon={Mail} label="Email" />
+            </div>
+          </div>
+          {/* TODO: Specify email address */}
+          {/* CONTACT_TO_EMAIL=you@your-resend-account.com
+              MAIL_FROM='Architect AI <onboarding@resend.dev>' */}
+          {/* Testing domain restriction: The resend.dev domain
+              is for testing and can only send to your own email address.
+              To send to other recipients, verify a domain and update the from address to use it. */}
+
+          <ContactForm />
+        </div>
+      </section>
+
+      <footer className="py-8">
+        <div className="container flex flex-col gap-2 text-center text-xs text-muted-foreground">
+          <p className="font-mono">Architect AI · From chat with code to engineering memory</p>
+          <p>© {new Date().getFullYear()} Architect AI. All rights reserved.</p>
+        </div>
+      </footer>
     </main>
   );
 }

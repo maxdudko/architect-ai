@@ -32,7 +32,7 @@ Question
   → SearchRankingService
   → ContextAssemblerService
   → RetrievedContext
-  → LLM / Chat / Architecture Explorer
+  → LLM / Chat / onboarding guides
 ```
 
 Indexing path (worker orchestration only):
@@ -66,18 +66,20 @@ Future adapters can add Voyage, Jina, BGE, Ollama without changing callers.
 - `upsert(points)`
 - `delete(ids)`
 - `deleteByRepository(repositoryId)`
+- `deleteByIndexingRun(indexingRunId)`
+- `setPayload(pointIds, payload)`
 - `search(vector, filter, options)`
 
 Qdrant types stay inside `QdrantVectorStore`.
 
 Collection: `architect_chunks` (single shared collection). Isolation is payload-based
-(`workspaceId`, `repositoryId`, optional `language` / `symbolType` / `branch`).
+(`workspaceId`, `repositoryId`, `indexingRunId`, optional `language` / `symbolType` / `branch`). Chat and browse pin to the latest `SUCCEEDED` indexing run per repository.
 
 ### Payload Metadata
 
 Every vector stores:
 
-- `workspaceId`, `repositoryId`, `chunkId`
+- `workspaceId`, `repositoryId`, `indexingRunId`, `chunkId`
 - `symbolId`, `fileId`, `filePath`
 - `symbolName`, `qualifiedName`, `symbolType`
 - `language`, `branch`, `createdAt`
@@ -118,9 +120,9 @@ Grouped by repository → file → symbol, with duplicate span removal.
 
 ## Schema Decisions
 
-No Prisma migration was required.
+Retrieval does not own a separate Prisma model. It reads `Chunk` rows (content, symbol/file linkage, `vectorId`, `embeddingModel`) scoped to an `IndexingRun`.
 
-- `Chunk` already stores content, symbol/file linkage, `vectorId`, and `embeddingModel`.
+- Qdrant payloads include `workspaceId`, `repositoryId`, and `indexingRunId` so search can pin to the latest successful generation.
 - `workspaceId` and `branch` are resolved at index time from `Repository` / `IndexingRun`.
 - Optional future denormalization: persist `workspaceId` on `Chunk` if query patterns need it without joins.
 

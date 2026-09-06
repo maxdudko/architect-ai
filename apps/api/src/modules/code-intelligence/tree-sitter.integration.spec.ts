@@ -1,4 +1,5 @@
 import { CodeSymbolType } from '@prisma/client';
+import { createDefaultLanguagePackRegistry } from './languages/default-language-packs';
 import { TreeSitterLanguageParserService } from './parser/tree-sitter-language-parser.service';
 import { SymbolExtractorService } from './extractors/symbol-extractor.service';
 
@@ -7,8 +8,9 @@ import { SymbolExtractorService } from './extractors/symbol-extractor.service';
  * usage stays within one Jest module graph (avoids cross-file flakiness).
  */
 describe('Tree-sitter code intelligence (integration)', () => {
-  const parser = new TreeSitterLanguageParserService();
-  const extractor = new SymbolExtractorService();
+  const registry = createDefaultLanguagePackRegistry();
+  const parser = new TreeSitterLanguageParserService(registry);
+  const extractor = new SymbolExtractorService(registry);
 
   it('parses TypeScript source into AST abstraction', () => {
     const ast = parser.parse(
@@ -113,5 +115,111 @@ export const MAX_RETRIES = 3;
       ),
     ).toBe(true);
     expect(symbols.every((symbol) => symbol.filePath === filePath)).toBe(true);
+  });
+
+  it('extracts Python class, method, function, and import relations', () => {
+    const source = `
+from django.db import models
+
+class UserViewSet:
+    def list(self):
+        return []
+
+async def handle_task():
+    return True
+
+MAX_RETRIES = 3
+`;
+    const filePath = 'app/views.py';
+    const ast = parser.parse(
+      {
+        absolutePath: `/repo/${filePath}`,
+        relativePath: filePath,
+        language: 'python',
+        extension: '.py',
+        size: source.length,
+        checksum: 'py',
+      },
+      source,
+    );
+
+    const symbols = extractor.extract(filePath, ast);
+    const relations = registry
+      .getByLanguage('python')!
+      .extractRelations({ filePath, ast, symbols });
+
+    expect(ast.tree.root.type).toBe('module');
+    expect(
+      symbols.some(
+        (symbol) =>
+          symbol.name === 'UserViewSet' && symbol.type === CodeSymbolType.CLASS,
+      ),
+    ).toBe(true);
+    expect(
+      symbols.some(
+        (symbol) =>
+          symbol.name === 'list' && symbol.type === CodeSymbolType.METHOD,
+      ),
+    ).toBe(true);
+    expect(
+      symbols.some(
+        (symbol) =>
+          symbol.name === 'handle_task' &&
+          symbol.type === CodeSymbolType.FUNCTION &&
+          symbol.isAsync,
+      ),
+    ).toBe(true);
+    expect(
+      relations.some((relation) => relation.toSymbolQualifiedName === 'models'),
+    ).toBe(true);
+  });
+
+  it('extracts PHP class, method, and use relations', () => {
+    const source = `<?php
+namespace App\\Http\\Controllers;
+use App\\Models\\User;
+
+class UserController {
+    public function index() {
+        return User::all();
+    }
+}
+`;
+    const filePath = 'app/Http/Controllers/UserController.php';
+    const ast = parser.parse(
+      {
+        absolutePath: `/repo/${filePath}`,
+        relativePath: filePath,
+        language: 'php',
+        extension: '.php',
+        size: source.length,
+        checksum: 'php',
+      },
+      source,
+    );
+
+    const symbols = extractor.extract(filePath, ast);
+    const relations = registry
+      .getByLanguage('php')!
+      .extractRelations({ filePath, ast, symbols });
+
+    expect(
+      symbols.some(
+        (symbol) =>
+          symbol.name === 'UserController' &&
+          symbol.type === CodeSymbolType.CLASS,
+      ),
+    ).toBe(true);
+    expect(
+      symbols.some(
+        (symbol) =>
+          symbol.name === 'index' && symbol.type === CodeSymbolType.METHOD,
+      ),
+    ).toBe(true);
+    expect(
+      relations.some((relation) =>
+        relation.toSymbolQualifiedName.includes('User'),
+      ),
+    ).toBe(true);
   });
 });

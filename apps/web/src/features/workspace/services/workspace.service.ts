@@ -1,20 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Membership } from '@/entities';
+import type { AiProvider, Membership } from '@/entities';
 import {
+  createBillingPortalSession,
+  createCheckoutSession,
   createInvitation,
   createWorkspace,
-  deleteWorkspaceAiSettings,
+  deleteWorkspaceAiCredential,
   getWorkspaceAiSettings,
+  getWorkspaceBilling,
   getWorkspaceUsage,
+  resumePaidSubscription,
+  scheduleDowngradeToFree,
   listInvitations,
   listMembers,
+  listPlans,
   listWorkspaces,
   removeMember,
   resendInvitation,
-  testWorkspaceAiKey,
+  setActiveAiProvider,
+  testWorkspaceAiCredential,
   updateMemberRole,
   updateWorkspace,
-  upsertWorkspaceAiSettings,
+  upsertWorkspaceAiCredential,
 } from '@/lib/api';
 
 export const WORKSPACE_QUERY_KEYS = {
@@ -23,6 +30,8 @@ export const WORKSPACE_QUERY_KEYS = {
   invitations: (workspaceId: string) => ['workspaces', workspaceId, 'invitations'] as const,
   usage: (workspaceId: string) => ['workspaces', workspaceId, 'usage'] as const,
   aiSettings: (workspaceId: string) => ['workspaces', workspaceId, 'ai-settings'] as const,
+  plans: ['plans'] as const,
+  billing: (workspaceId: string) => ['workspaces', workspaceId, 'billing'] as const,
 };
 
 export function useWorkspacesQuery() {
@@ -66,9 +75,14 @@ export function useCreateInvitationMutation(workspaceId: string) {
     mutationFn: (payload: { email: string; role: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER' }) =>
       createInvitation(workspaceId, payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: WORKSPACE_QUERY_KEYS.invitations(workspaceId),
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: WORKSPACE_QUERY_KEYS.invitations(workspaceId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: WORKSPACE_QUERY_KEYS.usage(workspaceId),
+        }),
+      ]);
     },
   });
 }
@@ -131,10 +145,11 @@ export function useWorkspaceAiSettingsQuery(workspaceId: string, enabled = true)
   });
 }
 
-export function useUpsertWorkspaceAiSettingsMutation(workspaceId: string) {
+export function useUpsertWorkspaceAiCredentialMutation(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (openaiApiKey: string) => upsertWorkspaceAiSettings(workspaceId, openaiApiKey),
+    mutationFn: ({ provider, apiKey }: { provider: AiProvider; apiKey: string }) =>
+      upsertWorkspaceAiCredential(workspaceId, provider, apiKey),
     onSuccess: async (settings) => {
       queryClient.setQueryData(WORKSPACE_QUERY_KEYS.aiSettings(workspaceId), settings);
       await Promise.all([
@@ -149,10 +164,10 @@ export function useUpsertWorkspaceAiSettingsMutation(workspaceId: string) {
   });
 }
 
-export function useDeleteWorkspaceAiSettingsMutation(workspaceId: string) {
+export function useDeleteWorkspaceAiCredentialMutation(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => deleteWorkspaceAiSettings(workspaceId),
+    mutationFn: (provider: AiProvider) => deleteWorkspaceAiCredential(workspaceId, provider),
     onSuccess: async (settings) => {
       queryClient.setQueryData(WORKSPACE_QUERY_KEYS.aiSettings(workspaceId), settings);
       await Promise.all([
@@ -167,8 +182,74 @@ export function useDeleteWorkspaceAiSettingsMutation(workspaceId: string) {
   });
 }
 
-export function useTestWorkspaceAiKeyMutation(workspaceId: string) {
+export function useSetActiveAiProviderMutation(workspaceId: string) {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (openaiApiKey?: string) => testWorkspaceAiKey(workspaceId, openaiApiKey),
+    mutationFn: (provider: AiProvider | null) => setActiveAiProvider(workspaceId, provider),
+    onSuccess: async (settings) => {
+      queryClient.setQueryData(WORKSPACE_QUERY_KEYS.aiSettings(workspaceId), settings);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: WORKSPACE_QUERY_KEYS.aiSettings(workspaceId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: WORKSPACE_QUERY_KEYS.usage(workspaceId),
+        }),
+      ]);
+    },
+  });
+}
+
+export function useTestWorkspaceAiCredentialMutation(workspaceId: string) {
+  return useMutation({
+    mutationFn: ({ provider, apiKey }: { provider: AiProvider; apiKey?: string }) =>
+      testWorkspaceAiCredential(workspaceId, provider, apiKey),
+  });
+}
+
+export function usePlansQuery() {
+  return useQuery({
+    queryKey: WORKSPACE_QUERY_KEYS.plans,
+    queryFn: listPlans,
+  });
+}
+
+export function useWorkspaceBillingQuery(workspaceId: string) {
+  return useQuery({
+    queryKey: WORKSPACE_QUERY_KEYS.billing(workspaceId),
+    queryFn: () => getWorkspaceBilling(workspaceId),
+    enabled: Boolean(workspaceId),
+  });
+}
+
+export function useCreateCheckoutSessionMutation(workspaceId: string) {
+  return useMutation({
+    mutationFn: (planId: string) => createCheckoutSession(workspaceId, planId),
+  });
+}
+
+export function useCreateBillingPortalSessionMutation(workspaceId: string) {
+  return useMutation({
+    mutationFn: () => createBillingPortalSession(workspaceId),
+  });
+}
+
+export function useScheduleDowngradeToFreeMutation(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => scheduleDowngradeToFree(workspaceId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: WORKSPACE_QUERY_KEYS.billing(workspaceId) });
+    },
+  });
+}
+
+export function useResumePaidSubscriptionMutation(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => resumePaidSubscription(workspaceId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: WORKSPACE_QUERY_KEYS.billing(workspaceId) });
+    },
   });
 }

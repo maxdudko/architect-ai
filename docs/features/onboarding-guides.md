@@ -112,7 +112,7 @@ This hybrid strategy uses topology for stable target discovery and vector retrie
 
 ## Provider Neutrality
 
-Onboarding code depends on the shared `LlmProvider` port and `RetrievalService`, not a provider SDK. The existing LLM module selects `mock`, `openai`, or `anthropic` through `LLM_PROVIDER` (default `mock`). Shared output configuration uses `LLM_MAX_TOKENS`; provider settings use `LLM_MOCK_MODEL`, `OPENAI_API_KEY`, `OPENAI_CHAT_MODEL`, `OPENAI_API_BASE_URL`, `ANTHROPIC_API_KEY`, and `ANTHROPIC_MODEL`. Embedding and vector-store selection remain owned by Retrieval.
+Onboarding code depends on the shared `LlmProvider` port and `RetrievalService`, not a provider SDK. Hosted generation is selected with `LLM_PROVIDER`: `mock` (default), `openai`, `anthropic`, `grok`, or `gemini`. A workspace Owner or Admin can instead activate BYOK so chat and guides use a workspace-owned OpenAI, Anthropic, Grok, or Gemini key. Shared output configuration uses `LLM_MAX_TOKENS`. Embedding and vector-store selection remain owned by Retrieval and always use the platform `EMBEDDING_PROVIDER`, including when BYOK is active.
 
 Provider and model are recorded in each guide's metadata for operational traceability. Adding another LLM provider should require an LLM adapter and module binding, not changes to guide generators.
 

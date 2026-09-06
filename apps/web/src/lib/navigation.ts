@@ -2,8 +2,7 @@ import { LayoutDashboard, MessageSquare, FolderGit2, Settings, Network } from 'l
 
 export const appNavigation = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/chat', label: 'Chat', icon: MessageSquare },
-  { href: '/repositories', label: 'Repositories', icon: FolderGit2 },
   { href: '/workspaces', label: 'Workspaces', icon: Network },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/repositories', label: 'Repositories', icon: FolderGit2 },
+  { href: '/chat', label: 'Chat', icon: MessageSquare },
 ];

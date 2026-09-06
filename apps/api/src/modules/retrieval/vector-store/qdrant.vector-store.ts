@@ -80,6 +80,48 @@ export class QdrantVectorStore implements VectorStore {
   }
 
   async deleteByRepository(repositoryId: string): Promise<void> {
+    await this.deleteByPayloadField('repositoryId', repositoryId);
+  }
+
+  async deleteByIndexingRun(indexingRunId: string): Promise<void> {
+    await this.deleteByPayloadField('indexingRunId', indexingRunId);
+  }
+
+  async setPayload(
+    pointIds: string[],
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    if (pointIds.length === 0) {
+      return;
+    }
+
+    try {
+      for (const batch of chunkArray(pointIds, this.upsertBatchSize)) {
+        await this.request('/points/payload?wait=true', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            payload,
+            points: batch,
+          }),
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (this.isMissingCollectionError(message)) {
+        this.logger.debug(
+          `Skipping setPayload; collection ${this.collectionName} does not exist`,
+        );
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private async deleteByPayloadField(
+    key: string,
+    value: string,
+  ): Promise<void> {
     try {
       await this.request('/points/delete?wait=true', {
         method: 'POST',
@@ -88,8 +130,8 @@ export class QdrantVectorStore implements VectorStore {
           filter: {
             must: [
               {
-                key: 'repositoryId',
-                match: { value: repositoryId },
+                key,
+                match: { value },
               },
             ],
           },
@@ -99,7 +141,7 @@ export class QdrantVectorStore implements VectorStore {
       const message = error instanceof Error ? error.message : String(error);
       if (this.isMissingCollectionError(message)) {
         this.logger.debug(
-          `Skipping deleteByRepository; collection ${this.collectionName} does not exist`,
+          `Skipping delete by ${key}; collection ${this.collectionName} does not exist`,
         );
         return;
       }

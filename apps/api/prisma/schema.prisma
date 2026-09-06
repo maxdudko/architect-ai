@@ -8,10 +8,23 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum WorkspacePlan {
-  FREE
-  PRO
-  ENTERPRISE
+enum BillingMode {
+  STANDARD
+  BYOK
+}
+
+enum BillingInterval {
+  MONTHLY
+}
+
+enum SubscriptionStatus {
+  INCOMPLETE
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+  PAUSED
 }
 
 enum WorkspaceRole {
@@ -120,6 +133,11 @@ enum OAuthProvider {
   GITHUB
 }
 
+enum IdentityProvider {
+  GOOGLE
+  GITHUB
+}
+
 enum AnalyticsEventType {
   REPOSITORY_CONNECTED
   REPOSITORY_INDEXING_SUCCEEDED
@@ -155,10 +173,18 @@ enum UsagePeriod {
   MONTHLY
 }
 
+enum IndexingResourceMetric {
+  REPOSITORY_SIZE_BYTES
+  INDEXABLE_FILES
+  INDEXED_TOKENS
+  EMBEDDING_CHUNKS
+  FILE_SIZE_BYTES
+}
+
 model User {
   id            String           @id @default(uuid()) @db.Uuid
   email         String           @unique
-  passwordHash  String           @map("password_hash")
+  passwordHash  String?          @map("password_hash")
   firstName     String           @map("first_name")
   lastName      String           @map("last_name")
   avatarUrl     String?          @map("avatar_url")
@@ -172,6 +198,8 @@ model User {
   deletedAt     DateTime?        @map("deleted_at")
   lastLoginAt   DateTime?        @map("last_login_at")
   oauthAccounts OAuthAccount[]
+  identityAccounts IdentityAccount[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([createdAt], map: "users_created_at_idx")
   @@map("users")
@@ -210,47 +238,163 @@ model OAuthAccount {
   @@map("oauth_accounts")
 }
 
+model IdentityAccount {
+  id             String           @id @default(uuid()) @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  provider       IdentityProvider
+  providerUserId String           @map("provider_user_id")
+  email          String?
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider], map: "identity_accounts_user_id_provider_key")
+  @@unique([provider, providerUserId], map: "identity_accounts_provider_provider_user_id_key")
+  @@index([userId], map: "identity_accounts_user_id_idx")
+  @@map("identity_accounts")
+}
+
 model Workspace {
-  id                  String               @id @default(uuid()) @db.Uuid
+  id                  String                 @id @default(uuid()) @db.Uuid
   name                String
-  slug                String               @unique
-  plan                WorkspacePlan        @default(FREE)
+  slug                String                 @unique
+  planId              String                 @map("plan_id") @db.Uuid
+  plan                Plan                   @relation(fields: [planId], references: [id])
+  subscription        WorkspaceSubscription?
   memberships         Membership[]
   invitations         Invitation[]
   repositories        Repository[]
-  createdAt           DateTime             @default(now()) @map("created_at")
-  updatedAt           DateTime             @updatedAt @map("updated_at")
-  deletedAt           DateTime?            @map("deleted_at")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+  deletedAt           DateTime?              @map("deleted_at")
   conversations       Conversation[]
   guides              Guide[]
   guideGenerationRuns GuideGenerationRun[]
   aiSettings          WorkspaceAiSettings?
+  aiCredentials       WorkspaceAiCredential[]
 
   @@index([createdAt], map: "workspaces_created_at_idx")
+  @@index([planId], map: "workspaces_plan_id_idx")
   @@map("workspaces")
 }
 
+model Plan {
+  id              String                   @id @default(uuid()) @db.Uuid
+  key             String                   @unique
+  name            String
+  description     String?
+  isContactSales  Boolean                  @default(false) @map("is_contact_sales")
+  isActive        Boolean                  @default(true) @map("is_active")
+  sortOrder       Int                      @default(0) @map("sort_order")
+  stripeProductId String?                  @map("stripe_product_id")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+  prices          PlanPrice[]
+  limits          PlanLimit[]
+  indexingLimits  PlanIndexingLimit[]
+  workspaces      Workspace[]
+  subscriptions   WorkspaceSubscription[]
+
+  @@map("plans")
+}
+
+model PlanPrice {
+  id            String          @id @default(uuid()) @db.Uuid
+  planId        String          @map("plan_id") @db.Uuid
+  billingMode   BillingMode     @map("billing_mode")
+  interval      BillingInterval @default(MONTHLY)
+  amount        Int
+  currency      String          @default("usd")
+  stripePriceId String?         @map("stripe_price_id")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  plan          Plan            @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, billingMode, interval], map: "plan_prices_plan_mode_interval_key")
+  @@map("plan_prices")
+}
+
+model WorkspaceSubscription {
+  workspaceId              String             @id @map("workspace_id") @db.Uuid
+  planId                   String             @map("plan_id") @db.Uuid
+  billingMode              BillingMode        @default(STANDARD) @map("billing_mode")
+  status                   SubscriptionStatus @default(ACTIVE)
+  stripeCustomerId         String?            @map("stripe_customer_id")
+  stripeSubscriptionId     String?            @unique @map("stripe_subscription_id")
+  stripeSubscriptionItemId String?            @map("stripe_subscription_item_id")
+  currentPeriodEnd         DateTime?          @map("current_period_end")
+  cancelAtPeriodEnd        Boolean            @default(false) @map("cancel_at_period_end")
+  createdAt                DateTime           @default(now()) @map("created_at")
+  updatedAt                DateTime           @updatedAt @map("updated_at")
+  workspace                Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan                     Plan               @relation(fields: [planId], references: [id])
+
+  @@index([planId], map: "workspace_subscriptions_plan_id_idx")
+  @@map("workspace_subscriptions")
+}
+
+model StripeWebhookEvent {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@map("stripe_webhook_events")
+}
+
 model PlanLimit {
-  id        String        @id @default(uuid()) @db.Uuid
-  plan      WorkspacePlan
+  id        String      @id @default(uuid()) @db.Uuid
+  planId    String      @map("plan_id") @db.Uuid
+  plan      Plan        @relation(fields: [planId], references: [id], onDelete: Cascade)
   metric    UsageMetric
   period    UsagePeriod
-  maxValue  Int?          @map("max_value")
-  updatedAt DateTime      @updatedAt @map("updated_at")
+  maxValue  Int?        @map("max_value")
+  updatedAt DateTime    @updatedAt @map("updated_at")
 
-  @@unique([plan, metric], map: "plan_limits_plan_metric_key")
+  @@unique([planId, metric], map: "plan_limits_plan_id_metric_key")
   @@map("plan_limits")
 }
 
+model PlanIndexingLimit {
+  id        String                  @id @default(uuid()) @db.Uuid
+  planId    String                  @map("plan_id") @db.Uuid
+  plan      Plan                    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  metric    IndexingResourceMetric
+  maxValue  BigInt?                 @map("max_value")
+  updatedAt DateTime                @updatedAt @map("updated_at")
+
+  @@unique([planId, metric], map: "plan_indexing_limits_plan_id_metric_key")
+  @@map("plan_indexing_limits")
+}
+
+enum AiProvider {
+  OPENAI
+  ANTHROPIC
+  GROK
+  GEMINI
+}
+
 model WorkspaceAiSettings {
-  workspaceId           String    @id @map("workspace_id") @db.Uuid
-  openaiApiKeyEncrypted String?   @map("openai_api_key_encrypted") @db.Text
-  openaiKeyLast4        String?   @map("openai_key_last4") @db.VarChar(4)
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
-  workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId    String      @id @map("workspace_id") @db.Uuid
+  activeProvider AiProvider? @map("active_provider")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  workspace      Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("workspace_ai_settings")
+}
+
+model WorkspaceAiCredential {
+  id                String     @id @default(uuid()) @db.Uuid
+  workspaceId       String     @map("workspace_id") @db.Uuid
+  provider          AiProvider
+  apiKeyEncrypted   String     @map("api_key_encrypted") @db.Text
+  keyLast4          String     @map("key_last4") @db.VarChar(4)
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+  workspace         Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider], map: "workspace_ai_credentials_workspace_id_provider_key")
+  @@map("workspace_ai_credentials")
 }
 
 model Membership {
@@ -271,6 +415,19 @@ model Membership {
   @@index([userId], map: "memberships_user_id_idx")
   @@index([workspaceId, status], map: "memberships_workspace_id_status_idx")
   @@map("memberships")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "password_reset_tokens_user_id_idx")
+  @@map("password_reset_tokens")
 }
 
 model Invitation {
@@ -421,7 +578,7 @@ model RepositoryFile {
   symbols       CodeSymbol[]
   chunks        Chunk[]
 
-  @@unique([repositoryId, path], map: "repository_files_repository_id_path_key")
+  @@unique([repositoryId, indexingRunId, path], map: "repository_files_repository_run_path_key")
   @@index([repositoryId])
   @@index([indexingRunId])
   @@map("repository_files")

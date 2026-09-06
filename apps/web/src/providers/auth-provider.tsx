@@ -12,6 +12,7 @@ import {
   switchWorkspace as switchWorkspaceRequest,
   acceptInvitation as acceptInvitationRequest,
   registerApiRefreshHandler,
+  updateProfile as updateProfileRequest,
 } from '@/lib/api';
 import type { AcceptInvitationPayload } from '@/lib/api';
 import {
@@ -36,6 +37,8 @@ interface AuthContextValue {
     password: string;
   }) => Promise<void>;
   acceptInvitation: (token: string, payload?: AcceptInvitationPayload) => Promise<void>;
+  completeOAuthSession: () => Promise<void>;
+  updateProfile: (payload: { firstName: string; lastName: string }) => Promise<void>;
   logout: () => Promise<void>;
   switchWorkspace: (workspaceId: string) => Promise<void>;
 }
@@ -221,6 +224,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [persistState, router],
   );
 
+  const completeOAuthSession = useCallback(async () => {
+    const tokens = await refreshTokens();
+    const session = await fetchCurrentSession(tokens.accessToken);
+    persistState({
+      nextAccessToken: tokens.accessToken,
+      nextUser: session.user,
+      nextWorkspaces: session.workspaces,
+      nextActiveWorkspace: session.activeWorkspace,
+    });
+  }, [persistState]);
+
+  const updateProfile = useCallback(
+    async (payload: { firstName: string; lastName: string }) => {
+      if (!accessToken || !activeWorkspace) {
+        return;
+      }
+      const session = await updateProfileRequest(payload);
+      persistState({
+        nextAccessToken: accessToken,
+        nextUser: session.user,
+        nextWorkspaces: session.workspaces,
+        nextActiveWorkspace: session.activeWorkspace,
+      });
+    },
+    [accessToken, activeWorkspace, persistState],
+  );
+
   const logout = useCallback(async () => {
     await logoutRequest().catch(() => undefined);
     resetState();
@@ -256,6 +286,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signIn,
       signUp,
       acceptInvitation,
+      completeOAuthSession,
+      updateProfile,
       logout,
       switchWorkspace,
     }),
@@ -264,9 +296,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       acceptInvitation,
       activeWorkspace,
       isReady,
+      completeOAuthSession,
       logout,
       signIn,
       signUp,
+      updateProfile,
       user,
       workspaces,
       switchWorkspace,

@@ -1,4 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { createDefaultLanguagePackRegistry } from '../../code-intelligence/languages/default-language-packs';
+import { LanguagePackRegistry } from '../../code-intelligence/languages/language-pack.registry';
+import { PROGRAMMING_LANGUAGES } from '../../code-intelligence/types/programming-language.type';
 import type { IndexedTopologyDataSource } from '../interfaces/indexed-topology-data-source.interface';
 import { INDEXED_TOPOLOGY_DATA_SOURCE } from '../interfaces/tokens';
 import type {
@@ -10,10 +13,15 @@ import type {
 
 @Injectable()
 export class IndexedTopologyAnalyzer {
+  private readonly languagePacks: LanguagePackRegistry;
+
   constructor(
     @Inject(INDEXED_TOPOLOGY_DATA_SOURCE)
     private readonly dataSource: IndexedTopologyDataSource,
-  ) {}
+    @Optional() languagePacks?: LanguagePackRegistry,
+  ) {
+    this.languagePacks = languagePacks ?? createDefaultLanguagePackRegistry();
+  }
 
   async analyze(
     workspaceId: string,
@@ -149,13 +157,14 @@ export class IndexedTopologyAnalyzer {
   private serviceCandidates(
     snapshot: IndexedTopologySnapshot,
   ): TopologyCandidate[] {
+    const suffixes = this.languagePacks.topologyHints().serviceSuffixes;
+    const suffixPattern =
+      suffixes.length > 0
+        ? new RegExp(`(${suffixes.map(escapeRegExp).join('|')})$`, 'i')
+        : /$^/;
     const candidates = new Map<string, TopologyCandidate>();
     for (const symbol of snapshot.symbols) {
-      if (
-        !/(Service|Controller|Repository|Provider|Client|Worker|Processor|Handler|Gateway)$/i.test(
-          symbol.name,
-        )
-      ) {
+      if (!suffixPattern.test(symbol.name)) {
         continue;
       }
       const relationCount = snapshot.relations.filter(
@@ -184,15 +193,14 @@ export class IndexedTopologyAnalyzer {
   }
 
   private entryPoints(snapshot: IndexedTopologySnapshot) {
-    const pattern =
-      /(^|\/)(main|index|server|app|bootstrap|worker|cli|application)\.[^.]+$/i;
+    const hints = this.languagePacks.topologyHints();
     return snapshot.files
-      .filter((file) => pattern.test(file.path))
+      .filter((file) => this.isEntryPoint(file.path, hints))
       .map((file) => {
         const basename = file.path.split('/').at(-1) ?? file.path;
         return {
           path: file.path,
-          confidence: /^(main|server|bootstrap)\./i.test(basename)
+          confidence: this.isHighConfidenceEntry(file.path, basename, hints)
             ? ('high' as const)
             : ('medium' as const),
           evidence: `Indexed filename "${basename}" is a conventional entry point`,
@@ -207,6 +215,9 @@ export class IndexedTopologyAnalyzer {
     const evidence: TopologyTechnologyEvidence[] = [];
     const byLanguage = new Map<string, string[]>();
     for (const file of snapshot.files) {
+      if (file.language === PROGRAMMING_LANGUAGES.config) {
+        continue;
+      }
       const paths = byLanguage.get(file.language) ?? [];
       paths.push(file.path);
       byLanguage.set(file.language, paths);
@@ -221,35 +232,15 @@ export class IndexedTopologyAnalyzer {
       });
     }
 
-    const markers: Array<
-      [RegExp, string, TopologyTechnologyEvidence['category']]
-    > = [
-      [/(^|\/)package\.json$/, 'Node.js package ecosystem', 'runtime'],
-      [
-        /(^|\/)(pnpm-lock\.yaml|yarn\.lock|package-lock\.json)$/,
-        'JavaScript package manager',
-        'tooling',
-      ],
-      [/(^|\/)nest-cli\.json$/, 'NestJS', 'framework'],
-      [/(^|\/)next\.config\./, 'Next.js', 'framework'],
-      [/(^|\/)prisma\/schema\.prisma$/, 'Prisma', 'data'],
-      [/(^|\/)dockerfile$/i, 'Docker', 'tooling'],
-      [
-        /(^|\/)(pyproject\.toml|requirements\.txt)$/,
-        'Python package ecosystem',
-        'runtime',
-      ],
-      [/(^|\/)(go\.mod)$/, 'Go modules', 'runtime'],
-      [/(^|\/)(cargo\.toml)$/, 'Rust Cargo', 'runtime'],
-    ];
-    for (const [pattern, name, category] of markers) {
+    const markers = this.languagePacks.topologyHints().techMarkers;
+    for (const marker of markers) {
       const paths = snapshot.files
-        .filter((file) => pattern.test(file.path))
+        .filter((file) => marker.pattern.test(file.path))
         .map((file) => file.path);
       if (paths.length) {
         evidence.push({
-          name,
-          category,
+          name: marker.name,
+          category: marker.category,
           confidence: 'high',
           evidencePaths: paths,
           evidence: 'Detected from indexed manifest or configuration path',
@@ -257,6 +248,41 @@ export class IndexedTopologyAnalyzer {
       }
     }
     return evidence.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private isEntryPoint(
+    filePath: string,
+    hints: ReturnType<LanguagePackRegistry['topologyHints']>,
+  ): boolean {
+    const basename = filePath.split('/').at(-1) ?? filePath;
+    const stem = basename.includes('.')
+      ? basename.slice(0, basename.lastIndexOf('.'))
+      : basename;
+    if (hints.entryBasenames.includes(basename)) {
+      return true;
+    }
+    if (hints.entryPathPatterns.some((pattern) => pattern.test(filePath))) {
+      return true;
+    }
+    return hints.entryFileStems.some(
+      (entryStem) => entryStem.toLowerCase() === stem.toLowerCase(),
+    );
+  }
+
+  private isHighConfidenceEntry(
+    _filePath: string,
+    basename: string,
+    hints: ReturnType<LanguagePackRegistry['topologyHints']>,
+  ): boolean {
+    const stem = basename.includes('.')
+      ? basename.slice(0, basename.lastIndexOf('.'))
+      : basename;
+    if (hints.highConfidenceEntryBasenames.includes(basename)) {
+      return true;
+    }
+    return hints.highConfidenceEntryStems.some(
+      (entryStem) => entryStem.toLowerCase() === stem.toLowerCase(),
+    );
   }
 
   private complexity(files: number, lines: number, symbols: number) {
@@ -283,4 +309,8 @@ export class IndexedTopologyAnalyzer {
   private round(value: number): number {
     return Math.round(value * 100) / 100;
   }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

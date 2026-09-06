@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { WorkspaceSwitcher } from '@/features/workspace';
+import { BrandMark } from '@/shared/components';
 import { MobileDrawer } from './mobile-drawer';
 import { Breadcrumbs } from './breadcrumbs';
 import { ThemeToggle } from './theme-toggle';
@@ -10,8 +11,8 @@ export function TopNav() {
     <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
       <div className="flex h-14 items-center gap-3 px-4 lg:px-6">
         <MobileDrawer />
-        <Link href="/dashboard" className="text-sm font-semibold tracking-tight">
-          Architect AI
+        <Link href="/dashboard" className="text-sm">
+          <BrandMark />
         </Link>
         <div className="max-w-xs flex-1">
           <WorkspaceSwitcher />

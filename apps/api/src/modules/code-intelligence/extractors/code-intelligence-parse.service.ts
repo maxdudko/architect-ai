@@ -6,10 +6,12 @@ import {
   UnparseableFileError,
 } from '../errors/unparseable-file.error';
 import { RepositoryInventoryService } from '../inventory/repository-inventory.service';
+import { LanguagePackRegistry } from '../languages/language-pack.registry';
 import { TreeSitterLanguageParserService } from '../parser/tree-sitter-language-parser.service';
 import { SymbolRelationshipExtractorService } from '../relationships/symbol-relationship-extractor.service';
 import { RepositoryScannerService } from '../scanner/repository-scanner.service';
 import { CodeIntelligenceStorageService } from '../storage/code-intelligence-storage.service';
+import { PROGRAMMING_LANGUAGES } from '../types/programming-language.type';
 import { SymbolExtractorService } from './symbol-extractor.service';
 
 @Injectable()
@@ -21,26 +23,32 @@ export class CodeIntelligenceParseService {
     private readonly symbolExtractorService: SymbolExtractorService,
     private readonly relationshipExtractorService: SymbolRelationshipExtractorService,
     private readonly storageService: CodeIntelligenceStorageService,
+    private readonly languagePacks: LanguagePackRegistry,
   ) {}
 
   async parseRepository(params: {
     repositoryId: string;
     indexingRunId: string;
     clonePath: string;
+    maxFileSizeBytes?: number | null;
+    maxIndexableFiles?: number | null;
   }): Promise<{
     supportedFileCount: number;
     ignoredFileCount: number;
     symbolCount: number;
   }> {
+    await this.storageService.resetIndexingRunGeneratedCode(
+      params.indexingRunId,
+    );
+
     let symbolCount = 0;
+    const seenPaths: string[] = [];
 
     const scanMetrics = await this.scannerService.scanRepository(
       params.clonePath,
       async (candidate) => {
         try {
           const source = await readFile(candidate.absolutePath, 'utf8');
-          const ast = this.parserService.parse(candidate, source);
-
           const inventoryEntry =
             await this.inventoryService.upsertInventoryEntry({
               repositoryId: params.repositoryId,
@@ -48,6 +56,17 @@ export class CodeIntelligenceParseService {
               candidate,
               source,
             });
+          seenPaths.push(candidate.relativePath);
+
+          if (
+            candidate.language === PROGRAMMING_LANGUAGES.config ||
+            this.languagePacks.isManifest(candidate.relativePath) ||
+            !this.parserService.supports(candidate.language)
+          ) {
+            return;
+          }
+
+          const ast = this.parserService.parse(candidate, source);
 
           const extractedSymbols = this.symbolExtractorService.extract(
             candidate.relativePath,
@@ -112,11 +131,16 @@ export class CodeIntelligenceParseService {
           throw new UnparseableFileError(candidate.relativePath, error);
         }
       },
+      {
+        maxFileSizeBytes: params.maxFileSizeBytes,
+        maxIndexableFiles: params.maxIndexableFiles,
+      },
     );
 
     await this.storageService.pruneStaleRepositoryFiles(
       params.repositoryId,
       params.indexingRunId,
+      seenPaths,
     );
 
     return {

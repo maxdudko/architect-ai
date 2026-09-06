@@ -29,6 +29,27 @@ export class UsersRepository {
     });
   }
 
+  update(id: string, data: Prisma.UserUpdateInput): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data,
+    });
+  }
+
+  softDelete(id: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+  }
+
+  restore(id: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data: { deletedAt: null },
+    });
+  }
+
   async findManyPaginated(params: {
     page: number;
     pageSize: number;

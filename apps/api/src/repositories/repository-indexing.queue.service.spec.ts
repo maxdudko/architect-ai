@@ -18,6 +18,7 @@ describe('RepositoryIndexingQueueService', () => {
     } as unknown as ConfigService;
     const repositoriesRepository = {
       updateStatus: jest.fn().mockResolvedValue({}),
+      hasSucceededIndexingRun: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<RepositoriesRepository>;
     const service = new RepositoryIndexingQueueService(
       configService,
@@ -55,6 +56,7 @@ describe('RepositoryIndexingQueueService', () => {
     } as unknown as ConfigService;
     const repositoriesRepository = {
       updateStatus: jest.fn().mockResolvedValue({}),
+      hasSucceededIndexingRun: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<RepositoriesRepository>;
     const service = new RepositoryIndexingQueueService(
       configService,
@@ -69,5 +71,43 @@ describe('RepositoryIndexingQueueService', () => {
     });
 
     expect(repositoriesRepository.updateStatus).toHaveBeenCalledTimes(1);
+    expect(repositoriesRepository.updateStatus).toHaveBeenCalledWith(
+      'workspace-1',
+      'repo-1',
+      expect.objectContaining({
+        status: 'FAILED',
+        indexingError: 'Parse failed',
+      }),
+    );
+  });
+
+  it('restores READY when a previous indexing run succeeded', async () => {
+    const configService = {
+      get: jest.fn(() => 'redis://localhost:6379'),
+    } as unknown as ConfigService;
+    const repositoriesRepository = {
+      updateStatus: jest.fn().mockResolvedValue({}),
+      hasSucceededIndexingRun: jest.fn().mockResolvedValue({ id: 'run-old' }),
+    } as unknown as jest.Mocked<RepositoriesRepository>;
+    const service = new RepositoryIndexingQueueService(
+      configService,
+      repositoriesRepository,
+    );
+
+    service.onModuleInit();
+    await service.markAsFailed({
+      workspaceId: 'workspace-1',
+      repositoryId: 'repo-1',
+      errorMessage: 'Embed failed',
+    });
+
+    expect(repositoriesRepository.updateStatus).toHaveBeenCalledWith(
+      'workspace-1',
+      'repo-1',
+      expect.objectContaining({
+        status: 'READY',
+        indexingError: 'Embed failed',
+      }),
+    );
   });
 });

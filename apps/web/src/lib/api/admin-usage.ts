@@ -1,8 +1,8 @@
 import type {
   AdminPaginated,
+  AdminPlanIndexingLimit,
   AdminPlanLimit,
   AdminWorkspaceUsageRow,
-  WorkspacePlan,
 } from '@/entities';
 import { adminApiClient } from './admin-axios';
 
@@ -22,17 +22,37 @@ export async function listAdminWorkspaceUsage(
   return data;
 }
 
-export async function getAdminPlanLimits(plan: WorkspacePlan): Promise<AdminPlanLimit[]> {
-  const { data } = await adminApiClient.get<AdminPlanLimit[]>(`/admin/plans/${plan}/limits`);
+export async function getAdminPlanLimits(planId: string): Promise<AdminPlanLimit[]> {
+  const { data } = await adminApiClient.get<AdminPlanLimit[]>(`/admin/plans/${planId}/limits`);
   return data;
 }
 
 export async function updateAdminPlanLimits(
-  plan: WorkspacePlan,
+  planId: string,
   limits: Array<{ metric: AdminPlanLimit['metric']; maxValue: number | null }>,
 ): Promise<AdminPlanLimit[]> {
-  const { data } = await adminApiClient.patch<AdminPlanLimit[]>(`/admin/plans/${plan}/limits`, {
+  const { data } = await adminApiClient.patch<AdminPlanLimit[]>(`/admin/plans/${planId}/limits`, {
     limits,
   });
+  return data;
+}
+
+export async function getAdminPlanIndexingLimits(
+  planId: string,
+): Promise<AdminPlanIndexingLimit[]> {
+  const { data } = await adminApiClient.get<AdminPlanIndexingLimit[]>(
+    `/admin/plans/${planId}/indexing-limits`,
+  );
+  return data;
+}
+
+export async function updateAdminPlanIndexingLimits(
+  planId: string,
+  limits: Array<{ metric: AdminPlanIndexingLimit['metric']; maxValue: number | null }>,
+): Promise<AdminPlanIndexingLimit[]> {
+  const { data } = await adminApiClient.patch<AdminPlanIndexingLimit[]>(
+    `/admin/plans/${planId}/indexing-limits`,
+    { limits },
+  );
   return data;
 }

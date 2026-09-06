@@ -1,9 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { ChunkDataSource } from '../interfaces/chunk-data-source.interface';
 import type { EmbeddingProvider } from '../interfaces/embedding-provider.interface';
 import type { RetrievalCache } from '../interfaces/retrieval-cache.interface';
 import type { VectorStore } from '../interfaces/vector-store.interface';
 import {
+  CHUNK_DATA_SOURCE,
   EMBEDDING_PROVIDER,
   RETRIEVAL_CACHE,
   VECTOR_STORE,
@@ -21,6 +23,7 @@ export interface SemanticSearchParams {
   query: string;
   workspaceId: string;
   repositoryIds?: string[];
+  indexingRunIds?: string[];
   language?: string;
   symbolType?: string;
   branch?: string;
@@ -41,6 +44,8 @@ export class SemanticSearchService {
     private readonly cache: RetrievalCache,
     private readonly metrics: RetrievalMetricsService,
     private readonly configService: ConfigService,
+    @Inject(CHUNK_DATA_SOURCE)
+    private readonly chunkDataSource: ChunkDataSource,
   ) {
     this.queryEmbeddingCacheTtlSeconds = Number(
       this.configService.get<string>(
@@ -50,12 +55,22 @@ export class SemanticSearchService {
   }
 
   async search(params: SemanticSearchParams): Promise<ScoredChunkCandidate[]> {
+    const indexingRunIds =
+      params.indexingRunIds ??
+      (await this.chunkDataSource.listLiveIndexingRunIds(
+        params.workspaceId,
+        params.repositoryIds,
+      ));
+    if (indexingRunIds.length === 0) {
+      return [];
+    }
+
     const topK = params.topK ?? 12;
     const queryVector = await this.getQueryEmbedding(params.query);
 
-    const filterBuilder = new SearchFilterBuilder().workspace(
-      params.workspaceId,
-    );
+    const filterBuilder = new SearchFilterBuilder()
+      .workspace(params.workspaceId)
+      .indexingRun(indexingRunIds);
     if (params.repositoryIds && params.repositoryIds.length > 0) {
       filterBuilder.repository(params.repositoryIds);
     }

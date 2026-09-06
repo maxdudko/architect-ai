@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
-  InvitationStatus,
   MembershipStatus,
   MessageRole,
   UsageMetric,
   UsagePeriod,
-  WorkspacePlan,
 } from '@prisma/client';
+import { INDEXING_RESOURCE_LIMIT_EXCEEDED_CODE } from './indexing-resource-limit.error';
+import {
+  toNumberLimit,
+  type IndexingResourceLimitSnapshot,
+} from './indexing-resource-limit.service';
+import { INDEXING_RESOURCE_METRICS } from './plan-indexing-limit.defaults';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsageLimitExceededException } from './usage-limit.exception';
 
@@ -32,20 +36,27 @@ export interface UsageMetricSnapshot {
   remaining: number | null;
 }
 
-export interface WorkspaceUsageSnapshot {
-  workspaceId: string;
-  plan: WorkspacePlan;
-  aiMode: 'HOSTED' | 'BYOK';
-  metrics: UsageMetricSnapshot[];
+export interface PlanSummary {
+  id: string;
+  key: string;
+  name: string;
 }
 
-export type MemberCountMode = 'seats' | 'active';
+export { type IndexingResourceLimitSnapshot } from './indexing-resource-limit.service';
+
+export interface WorkspaceUsageSnapshot {
+  workspaceId: string;
+  plan: PlanSummary;
+  aiMode: 'HOSTED' | 'BYOK';
+  metrics: UsageMetricSnapshot[];
+  indexingLimits: IndexingResourceLimitSnapshot[];
+}
 
 @Injectable()
 export class UsageService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getLimitsForPlan(plan: WorkspacePlan): Promise<
+  async getLimitsForPlan(planId: string): Promise<
     Array<{
       metric: UsageMetric;
       period: UsagePeriod;
@@ -53,7 +64,7 @@ export class UsageService {
     }>
   > {
     const rows = await this.prisma.planLimit.findMany({
-      where: { plan },
+      where: { planId },
       orderBy: { metric: 'asc' },
     });
 
@@ -75,8 +86,8 @@ export class UsageService {
       where: { id: workspaceId, deletedAt: null },
       select: {
         id: true,
-        plan: true,
-        aiSettings: { select: { openaiApiKeyEncrypted: true } },
+        plan: { select: { id: true, key: true, name: true } },
+        aiSettings: { select: { activeProvider: true } },
       },
     });
     if (!workspace) {
@@ -84,12 +95,11 @@ export class UsageService {
     }
 
     const isByok = hasByokKey(workspace.aiSettings);
-    const limits = await this.getLimitsForPlan(workspace.plan);
+    const limits = await this.getLimitsForPlan(workspace.plan.id);
     const metrics = await Promise.all(
       limits.map(async (limit) => {
         const used = await this.countUsed(workspaceId, limit.metric, {
           period: limit.period,
-          memberCountMode: 'seats',
         });
         const effective = effectiveLimit(limit.maxValue, limit.metric, isByok);
         return {
@@ -102,20 +112,31 @@ export class UsageService {
       }),
     );
 
+    const indexingRows = await this.prisma.planIndexingLimit.findMany({
+      where: { planId: workspace.plan.id },
+    });
+    const indexingByMetric = new Map(
+      indexingRows.map((row) => [row.metric, row.maxValue]),
+    );
+    const indexingLimits = INDEXING_RESOURCE_METRICS.map((metric) => ({
+      metric,
+      maxValue: toNumberLimit(indexingByMetric.get(metric) ?? null),
+    }));
+
     return {
       workspaceId: workspace.id,
       plan: workspace.plan,
       aiMode: isByok ? 'BYOK' : 'HOSTED',
       metrics,
+      indexingLimits,
     };
   }
 
   async assertWithinLimit(
     workspaceId: string,
     metric: UsageMetric,
-    options?: { memberCountMode?: MemberCountMode },
   ): Promise<void> {
-    const snapshot = await this.getMetricSnapshot(workspaceId, metric, options);
+    const snapshot = await this.getMetricSnapshot(workspaceId, metric);
     if (snapshot.limit == null) {
       return;
     }
@@ -143,13 +164,12 @@ export class UsageService {
   private async getMetricSnapshot(
     workspaceId: string,
     metric: UsageMetric,
-    options?: { memberCountMode?: MemberCountMode },
   ): Promise<UsageMetricSnapshot> {
     const workspace = await this.prisma.workspace.findFirst({
       where: { id: workspaceId, deletedAt: null },
       select: {
-        plan: true,
-        aiSettings: { select: { openaiApiKeyEncrypted: true } },
+        planId: true,
+        aiSettings: { select: { activeProvider: true } },
       },
     });
     if (!workspace) {
@@ -158,8 +178,8 @@ export class UsageService {
 
     const row = await this.prisma.planLimit.findUnique({
       where: {
-        plan_metric: {
-          plan: workspace.plan,
+        planId_metric: {
+          planId: workspace.planId,
           metric,
         },
       },
@@ -172,7 +192,6 @@ export class UsageService {
     );
     const used = await this.countUsed(workspaceId, metric, {
       period,
-      memberCountMode: options?.memberCountMode ?? 'seats',
     });
 
     return {
@@ -187,7 +206,7 @@ export class UsageService {
   private async countUsed(
     workspaceId: string,
     metric: UsageMetric,
-    options: { period: UsagePeriod; memberCountMode: MemberCountMode },
+    options: { period: UsagePeriod },
   ): Promise<number> {
     const monthStart =
       options.period === UsagePeriod.MONTHLY
@@ -204,6 +223,17 @@ export class UsageService {
           where: {
             repository: { workspaceId, deletedAt: null },
             ...(monthStart ? { startedAt: { gte: monthStart } } : {}),
+            NOT: {
+              AND: [
+                { status: 'FAILED' },
+                {
+                  errors: {
+                    path: ['code'],
+                    equals: INDEXING_RESOURCE_LIMIT_EXCEEDED_CODE,
+                  },
+                },
+              ],
+            },
           },
         });
       case UsageMetric.GUIDE_GENERATIONS:
@@ -221,27 +251,14 @@ export class UsageService {
             conversation: { workspaceId, deletedAt: null },
           },
         });
-      case UsageMetric.MEMBERS: {
-        const activeMembers = await this.prisma.membership.count({
+      case UsageMetric.MEMBERS:
+        return this.prisma.membership.count({
           where: {
             workspaceId,
             status: MembershipStatus.ACTIVE,
             deletedAt: null,
           },
         });
-        if (options.memberCountMode === 'active') {
-          return activeMembers;
-        }
-        const pendingInvitations = await this.prisma.invitation.count({
-          where: {
-            workspaceId,
-            status: InvitationStatus.PENDING,
-            deletedAt: null,
-            expiresAt: { gt: new Date() },
-          },
-        });
-        return activeMembers + pendingInvitations;
-      }
       default:
         return 0;
     }
@@ -249,9 +266,9 @@ export class UsageService {
 }
 
 function hasByokKey(
-  aiSettings: { openaiApiKeyEncrypted: string | null } | null | undefined,
+  aiSettings: { activeProvider: unknown } | null | undefined,
 ): boolean {
-  return Boolean(aiSettings?.openaiApiKeyEncrypted);
+  return Boolean(aiSettings?.activeProvider);
 }
 
 function effectiveLimit(

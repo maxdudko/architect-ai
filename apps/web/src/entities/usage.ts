@@ -1,4 +1,4 @@
-import type { WorkspacePlan } from './workspace';
+import type { PlanSummary } from './workspace';
 
 export type UsageMetric =
   | 'REPOSITORIES'
@@ -7,9 +7,18 @@ export type UsageMetric =
   | 'AI_QUESTIONS'
   | 'MEMBERS';
 
+export type IndexingResourceMetric =
+  | 'REPOSITORY_SIZE_BYTES'
+  | 'INDEXABLE_FILES'
+  | 'INDEXED_TOKENS'
+  | 'EMBEDDING_CHUNKS'
+  | 'FILE_SIZE_BYTES';
+
 export type UsagePeriod = 'CURRENT' | 'MONTHLY';
 
 export type WorkspaceAiMode = 'HOSTED' | 'BYOK';
+
+export type AiProvider = 'OPENAI' | 'ANTHROPIC' | 'GROK' | 'GEMINI';
 
 export interface UsageMetricSnapshot {
   metric: UsageMetric;
@@ -19,17 +28,29 @@ export interface UsageMetricSnapshot {
   remaining: number | null;
 }
 
+export interface IndexingResourceLimit {
+  metric: IndexingResourceMetric;
+  maxValue: number | null;
+}
+
 export interface WorkspaceUsage {
   workspaceId: string;
-  plan: WorkspacePlan;
+  plan: PlanSummary;
   aiMode: WorkspaceAiMode;
   metrics: UsageMetricSnapshot[];
+  indexingLimits: IndexingResourceLimit[];
+}
+
+export interface WorkspaceAiCredentialSummary {
+  provider: AiProvider;
+  keyLast4: string;
+  updatedAt: string;
 }
 
 export interface WorkspaceAiSettings {
   mode: WorkspaceAiMode;
-  openaiKeyLast4: string | null;
-  updatedAt: string | null;
+  activeProvider: AiProvider | null;
+  credentials: WorkspaceAiCredentialSummary[];
 }
 
 export interface WorkspaceAiKeyTestResult {
@@ -41,10 +62,17 @@ export interface AdminWorkspaceUsageRow {
   workspaceId: string;
   name: string;
   slug: string;
-  plan: WorkspacePlan;
+  plan: PlanSummary;
   createdAt: string;
   aiMode: WorkspaceAiMode;
   metrics: UsageMetricSnapshot[];
+  indexingLimits: IndexingResourceLimit[];
+  owner: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+  } | null;
 }
 
 export interface AdminPlanLimit {

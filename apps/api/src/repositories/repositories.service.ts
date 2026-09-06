@@ -18,6 +18,8 @@ import {
 import { AnalyticsService } from '../analytics/analytics.service';
 import { GithubAccessTokenService } from '../integrations/github/github-access-token.service';
 import { GithubHttpService } from '../integrations/github/github-http.service';
+import { isIndexingResourceLimitError } from '../usage/indexing-resource-limit.error';
+import { IndexingResourceLimitExceededException } from '../usage/indexing-resource-limit.exception';
 import { UsageLimitExceededException } from '../usage/usage-limit.exception';
 import { UsageService } from '../usage/usage.service';
 import { CodeSymbolResponseDto } from './dto/code-symbol-response.dto';
@@ -26,6 +28,7 @@ import { RepositoryFileResponseDto } from './dto/repository-file-response.dto';
 import { RepositoryResponseDto } from './dto/repository-response.dto';
 import { RetryIndexingDto } from './dto/retry-indexing.dto';
 import { UpdateRepositoryDto } from './dto/update-repository.dto';
+import { GithubIndexingEstimateService } from './indexing/github-indexing-estimate.service';
 import { RepositoryEmbeddingService } from './indexing/repository-embedding.service';
 import { RepositoryIndexingQueueService } from './repository-indexing.queue.service';
 import { RepositoryAccessValidationService } from './repository-access-validation.service';
@@ -44,6 +47,7 @@ export class RepositoriesService {
     private readonly repositoryAccessValidationService: RepositoryAccessValidationService,
     private readonly analyticsService: AnalyticsService,
     private readonly usageService: UsageService,
+    private readonly githubIndexingEstimateService: GithubIndexingEstimateService,
   ) {}
 
   async listRepositories(
@@ -121,6 +125,15 @@ export class RepositoriesService {
     }
 
     const metadata = await this.resolveRepositoryMetadata(userId, dto);
+    if (dto.provider === RepositoryProvider.GITHUB) {
+      await this.assertIndexingResourceLimits({
+        workspaceId,
+        userId,
+        owner: metadata.owner,
+        name: metadata.name,
+        branch: dto.indexBranch ?? metadata.defaultBranch,
+      });
+    }
     const existing =
       await this.repositoriesRepository.findAnyByProviderAndExternalId(
         dto.provider,
@@ -297,20 +310,30 @@ export class RepositoriesService {
       repositoryId,
       userId,
     });
-    this.assertNotIndexingInProgress(repository);
-    if (
-      repository.status !== RepositoryStatus.FAILED &&
-      repository.status !== RepositoryStatus.PENDING
-    ) {
-      throw new BadRequestException(
-        'Retry is only available for failed or stuck pending repositories',
-      );
+    await this.assertNotIndexingInProgress(repository);
+    if (repository.status === RepositoryStatus.FAILED) {
+      return this.startIndexing(workspaceId, repository, userId, {
+        branch: dto.branch ?? repository.defaultBranch,
+        operation: 'retry',
+      });
+    }
+    if (repository.status === RepositoryStatus.PENDING) {
+      const previousSuccess =
+        await this.repositoriesRepository.hasSucceededIndexingRun(repositoryId);
+      if (previousSuccess) {
+        throw new ConflictException(
+          'Repository indexing is already in progress for this repository',
+        );
+      }
+      return this.startIndexing(workspaceId, repository, userId, {
+        branch: dto.branch ?? repository.defaultBranch,
+        operation: 'retry',
+      });
     }
 
-    return this.startIndexing(workspaceId, repository, userId, {
-      branch: dto.branch ?? repository.defaultBranch,
-      operation: 'retry',
-    });
+    throw new BadRequestException(
+      'Retry is only available for failed or stuck pending repositories',
+    );
   }
 
   async reindexRepository(
@@ -328,7 +351,7 @@ export class RepositoriesService {
       repositoryId,
       userId,
     });
-    this.assertNotIndexingInProgress(repository);
+    await this.assertNotIndexingInProgress(repository);
     if (repository.status !== RepositoryStatus.READY) {
       throw new BadRequestException(
         'Reindex is only available for repositories that are ready',
@@ -350,6 +373,15 @@ export class RepositoriesService {
       operation: 'retry' | 'reindex';
     },
   ): Promise<RepositoryResponseDto> {
+    if (repository.provider === RepositoryProvider.GITHUB) {
+      await this.assertIndexingResourceLimits({
+        workspaceId,
+        userId,
+        owner: repository.owner,
+        name: repository.name,
+        branch: params.branch,
+      });
+    }
     await this.usageService.assertWithinLimit(
       workspaceId,
       UsageMetric.INDEXING_RUNS,
@@ -403,15 +435,9 @@ export class RepositoriesService {
       this.logger.warn(
         `Repository indexing queue unavailable; marking ${params.repositoryId} as failed (${params.operation})`,
       );
-      return this.repositoriesRepository.updateStatus(
+      return this.markIndexingUnavailable(
         params.workspaceId,
         params.repositoryId,
-        {
-          status: RepositoryStatus.FAILED,
-          indexingError:
-            'Indexing queue is currently unavailable. Please retry in a moment.',
-          lastIndexedAt: null,
-        },
       );
     }
 
@@ -445,17 +471,36 @@ export class RepositoriesService {
       this.logger.error(
         `Failed to enqueue repository indexing (${params.operation}) for ${params.repositoryId}: ${message}`,
       );
-      return this.repositoriesRepository.updateStatus(
+      return this.markIndexingUnavailable(
         params.workspaceId,
         params.repositoryId,
-        {
-          status: RepositoryStatus.FAILED,
-          indexingError:
-            'Indexing queue is currently unavailable. Please retry in a moment.',
-          lastIndexedAt: null,
-        },
       );
     }
+  }
+
+  private async markIndexingUnavailable(
+    workspaceId: string,
+    repositoryId: string,
+  ): Promise<Repository | null> {
+    const previousSuccess =
+      await this.repositoriesRepository.hasSucceededIndexingRun(repositoryId);
+    const indexingError =
+      'Indexing queue is currently unavailable. Please retry in a moment.';
+
+    return this.repositoriesRepository.updateStatus(
+      workspaceId,
+      repositoryId,
+      previousSuccess
+        ? {
+            status: RepositoryStatus.READY,
+            indexingError,
+          }
+        : {
+            status: RepositoryStatus.FAILED,
+            indexingError,
+            lastIndexedAt: null,
+          },
+    );
   }
 
   private restoreAfterIndexingLimit(
@@ -477,6 +522,23 @@ export class RepositoriesService {
     );
   }
 
+  private async assertIndexingResourceLimits(params: {
+    workspaceId: string;
+    userId: string;
+    owner: string;
+    name: string;
+    branch: string;
+  }): Promise<void> {
+    try {
+      await this.githubIndexingEstimateService.assertWithinLimits(params);
+    } catch (error) {
+      if (isIndexingResourceLimitError(error)) {
+        throw new IndexingResourceLimitExceededException(error);
+      }
+      throw error;
+    }
+  }
+
   private async findRepositoryInWorkspace(
     workspaceId: string,
     repositoryId: string,
@@ -493,13 +555,24 @@ export class RepositoriesService {
     return repository;
   }
 
-  private assertNotIndexingInProgress(repository: Repository): void {
+  private async assertNotIndexingInProgress(
+    repository: Repository,
+  ): Promise<void> {
     if (
       repository.status === RepositoryStatus.CLONING ||
       repository.status === RepositoryStatus.PARSING ||
       repository.status === RepositoryStatus.CHUNKING ||
       repository.status === RepositoryStatus.EMBEDDING
     ) {
+      throw new ConflictException(
+        'Repository indexing is already in progress for this repository',
+      );
+    }
+
+    const runningRun = await this.repositoriesRepository.hasRunningIndexingRun(
+      repository.id,
+    );
+    if (runningRun) {
       throw new ConflictException(
         'Repository indexing is already in progress for this repository',
       );

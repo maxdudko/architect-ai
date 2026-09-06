@@ -52,7 +52,9 @@ It is built around four principles:
 
 # Product Evolution
 
-## Phase 1 — AI Onboarding Assistant
+Phase 1 is **shipped** as the current MVP. Later phases are product direction, not deployed capabilities. See [Architecture](./Architecture.md) for what is implemented.
+
+## Phase 1 — AI Onboarding Assistant (shipped)
 
 ### Goal
 
@@ -69,7 +71,13 @@ New team members struggle to understand unfamiliar codebases.
 
 ### Features
 
-#### Repository Chat
+#### Repository connect and index
+
+Connect a GitHub repository and branch, then parse TypeScript, JavaScript, Python, and PHP asynchronously. Files, symbols, relations, chunks, and vectors stay searchable while a rebuild runs.
+
+#### Repository and workspace chat
+
+Ask questions with source citations and optional answer feedback. A conversation can target one repository or all ready repositories in the workspace.
 
 Example questions:
 
@@ -77,19 +85,23 @@ Example questions:
 - Where is payment processing implemented?
 - Which services use Redis?
 
-#### Documentation Generation
+#### Living onboarding guides
 
-Generate:
+Generate evidence-backed Markdown guides from indexed topology and retrieval:
 
-- README files
-- Module summaries
-- Service descriptions
+- executive summary and project overview
+- folder, module, and service summaries
+- technology stack, reading order, glossary, and common pitfalls
 
-#### Developer FAQ
+Guides are stored in Architect AI. The product does not write README files back into the repository and does not have a dedicated FAQ type.
 
-Automatically create onboarding guides.
+#### Usage, BYOK, and billing
+
+Plan-based usage limits, hosted or workspace-owned LLM keys (OpenAI, Anthropic, Grok, Gemini), Stripe self-serve plan changes, and a platform admin panel for analytics and limits.
 
 ### Success Metrics
+
+These remain product goals, not engineering checkboxes:
 
 - 50% reduction in onboarding time
 - Weekly active usage by engineering teams
@@ -131,9 +143,7 @@ Generate architecture summaries automatically.
 
 ### Technical Additions
 
-- Tree-sitter parsing
-- Dependency graph generation
-- Architecture indexing
+Phase 1 already parses code with Tree-sitter and stores `CodeSymbol` and `SymbolRelation`. This phase adds visualization and architecture search on that existing graph, plus richer dependency mapping.
 
 ### Success Metrics
 
@@ -344,48 +354,56 @@ Become the Engineering Memory Layer
 
 # Competitive Positioning
 
+The table describes the **intended** product, not the Phase 1 MVP. Today Architect AI explains indexed code with citations and generated guides. Decision Memory and Impact Analysis are later phases.
+
 | Tool                            | Writes Code | Understands Architecture | Preserves Decisions | Predicts Impact |
 | ------------------------------- | ----------- | ------------------------ | ------------------- | --------------- |
 | GitHub Copilot                  | ✓           | Limited                  | ✗                   | ✗               |
 | Cursor                          | ✓           | Partial                  | ✗                   | ✗               |
 | Traditional Documentation Tools | ✗           | Partial                  | Partial             | ✗               |
-| Architect AI                    | Partial     | ✓                        | ✓                   | ✓               |
+| Architect AI (Phase 1 shipped)  | ✗           | Partial                  | ✗                   | ✗               |
+| Architect AI (roadmap)          | Partial     | ✓                        | ✓                   | ✓               |
 
 ---
 
-# Initial Technical Stack
+# Technical Stack
 
-## Frontend
+## Shipped (Phase 1)
+
+### Frontend
 
 - Next.js
 - TypeScript
 
-## Backend
+### Backend
 
 - NestJS
 - Node.js
+- PostgreSQL, Redis, BullMQ
 
-## AI Layer
+### AI Layer
 
-- OpenAI / Anthropic
-- Agent framework
+- OpenAI, Anthropic, Grok, and Gemini adapters
+- Workspace BYOK for generation
+- Mock providers for local development
 
-## Retrieval
+### Retrieval
 
-- Qdrant
-- Hybrid search
+- Qdrant semantic search
+- PostgreSQL as source of truth for chunks and citations
 
-## Code Intelligence
+### Code Intelligence
 
-- Tree-sitter
-- Dependency analysis
-- Call graph generation
+- Tree-sitter for TypeScript, JavaScript, Python, and PHP
+- Static symbol and relation extraction
 
-## Knowledge Layer
+## Later phases
 
-- Knowledge Graph
-- Decision Graph
-- Architectural metadata store
+- Hybrid / lexical search and reranking
+- Architecture visualization and richer dependency graphs
+- Call graph generation beyond static syntax relations
+- Knowledge graph, decision graph, and ADR ingestion
+- Agent framework for design-review workflows
 
 ---
 

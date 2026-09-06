@@ -1,5 +1,12 @@
 import Link from 'next/link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components';
+import {
+  BrandMark,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/shared/components';
 
 interface AuthShellProps {
   title: string;
@@ -23,6 +30,11 @@ export function AuthShell({
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
+        <div className="border-b border-border/70 bg-background/90 backdrop-blur pb-2 mb-4">
+          <Link href="/" className="mb-2">
+            <BrandMark />
+          </Link>
+        </div>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>

@@ -1,5 +1,10 @@
 export type WorkspaceRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
-export type WorkspacePlan = 'FREE' | 'PRO' | 'ENTERPRISE';
+
+export interface PlanSummary {
+  id: string;
+  key: string;
+  name: string;
+}
 
 export interface Workspace {
   id: string;
@@ -12,5 +17,5 @@ export interface WorkspaceDetails {
   id: string;
   name: string;
   slug: string;
-  plan: WorkspacePlan;
+  plan: PlanSummary;
 }

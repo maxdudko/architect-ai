@@ -16,7 +16,9 @@ export class ChunkBuilderService {
     repositoryId: string;
     indexingRunId: string;
     clonePath: string;
-  }): Promise<{ chunkCount: number }> {
+  }): Promise<{ chunkCount: number; tokenCount: number }> {
+    await this.storageService.deleteChunksForIndexingRun(params.indexingRunId);
+
     const files = await this.storageService.listRepositoryFiles(
       params.repositoryId,
       params.indexingRunId,
@@ -27,8 +29,12 @@ export class ChunkBuilderService {
     );
 
     let chunkCount = 0;
+    let tokenCount = 0;
 
     for (const file of files) {
+      if (file.generated) {
+        continue;
+      }
       const source = await readFile(
         path.join(params.clonePath, file.path),
         'utf8',
@@ -55,6 +61,7 @@ export class ChunkBuilderService {
           language: symbol.language,
         };
 
+        const chunkTokenCount = this.textMetricsService.tokenCount(content);
         await this.storageService.createChunk({
           repositoryId: params.repositoryId,
           indexingRunId: params.indexingRunId,
@@ -65,13 +72,14 @@ export class ChunkBuilderService {
           startLine: symbol.startLine,
           endLine: symbol.endLine,
           content,
-          tokenCount: this.textMetricsService.tokenCount(content),
+          tokenCount: chunkTokenCount,
           metadata,
         });
         chunkCount += 1;
+        tokenCount += chunkTokenCount;
       }
     }
 
-    return { chunkCount };
+    return { chunkCount, tokenCount };
   }
 }

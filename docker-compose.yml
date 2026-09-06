@@ -73,6 +73,14 @@ services:
       OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-gpt-4o-mini}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-2048}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      WEB_URL: ${WEB_URL:-http://localhost:3000}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-Architect AI <onboarding@resend.dev>}
+      CONTACT_TO_EMAIL: ${CONTACT_TO_EMAIL:-sales@architect.ai}
+      CHOKIDAR_USEPOLLING: 'true'
+      TSC_WATCHFILE: UsePollingInterval
     ports:
       - '${API_PORT:-5000}:5000'
     volumes:
@@ -87,11 +95,18 @@ services:
       qdrant:
         condition: service_started
     healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://localhost:5000/health >/dev/null 2>&1 || exit 1']
+      # node:20-alpine has no wget; match production and probe with Node fetch.
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:5000/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 15s
       timeout: 5s
       retries: 10
-      start_period: 120s
+      start_period: 180s
 
   indexing-worker:
     build:
@@ -150,6 +165,10 @@ services:
       NODE_ENV: development
       WEB_PORT: ${WEB_PORT:-3000}
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:5000}
+      CREATOR_SITE_URL: ${CREATOR_SITE_URL:-}
+      CREATOR_LINKEDIN_URL: ${CREATOR_LINKEDIN_URL:-}
+      CREATOR_EMAIL_URL: ${CREATOR_EMAIL_URL:-}
+      GITHUB_REPO_URL: ${GITHUB_REPO_URL:-}
     ports:
       - '${WEB_PORT:-3000}:3000'
     volumes:
@@ -160,11 +179,17 @@ services:
       api:
         condition: service_healthy
     healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000 >/dev/null 2>&1 || exit 1']
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 15s
       timeout: 5s
       retries: 10
-      start_period: 120s
+      start_period: 180s
 
 volumes:
   postgres-data:

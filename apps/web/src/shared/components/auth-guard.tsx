@@ -25,7 +25,7 @@ export function AuthGuard({ children, requireAuth }: AuthGuardProps) {
       return;
     }
 
-    if (!requireAuth && isAuthenticated) {
+    if (!requireAuth && isAuthenticated && !pathname.startsWith('/reset-password')) {
       router.replace('/dashboard');
     }
   }, [isAuthenticated, isReady, pathname, requireAuth, router]);
@@ -42,7 +42,7 @@ export function AuthGuard({ children, requireAuth }: AuthGuardProps) {
     return null;
   }
 
-  if (!requireAuth && isAuthenticated) {
+  if (!requireAuth && isAuthenticated && !pathname.startsWith('/reset-password')) {
     return null;
   }
 

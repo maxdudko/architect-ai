@@ -5,6 +5,7 @@ export interface ChunkForIndexing {
   content: string;
   workspaceId: string;
   repositoryId: string;
+  indexingRunId: string;
   fileId: string | null;
   symbolId: string | null;
   filePath: string;
@@ -22,6 +23,7 @@ export function toChunkVectorPayload(
   return {
     workspaceId: chunk.workspaceId,
     repositoryId: chunk.repositoryId,
+    indexingRunId: chunk.indexingRunId,
     chunkId: chunk.id,
     symbolId: chunk.symbolId,
     fileId: chunk.fileId,

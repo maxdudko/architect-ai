@@ -21,11 +21,12 @@ export async function signUp(payload: SignUpPayload): Promise<AuthResponse> {
   return data;
 }
 
-export async function fetchCurrentSession(): Promise<
-  Pick<AuthResponse, 'user' | 'workspaces' | 'activeWorkspace'>
-> {
-  const { data } =
-    await apiClient.get<Pick<AuthResponse, 'user' | 'workspaces' | 'activeWorkspace'>>('/auth/me');
+export async function fetchCurrentSession(
+  accessToken?: string,
+): Promise<Pick<AuthResponse, 'user' | 'workspaces' | 'activeWorkspace'>> {
+  const { data } = await apiClient.get<
+    Pick<AuthResponse, 'user' | 'workspaces' | 'activeWorkspace'>
+  >('/auth/me', accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : undefined);
   return data;
 }
 
@@ -44,5 +45,28 @@ export async function refreshTokens(
     ...(legacyRefreshToken ? { refreshToken: legacyRefreshToken } : {}),
     activeWorkspaceId,
   });
+  return data;
+}
+
+export async function requestPasswordReset(email: string): Promise<{ success: boolean }> {
+  const { data } = await apiClient.post<{ success: boolean }>('/auth/forgot-password', { email });
+  return data;
+}
+
+export async function resetPassword(payload: {
+  token: string;
+  password: string;
+}): Promise<{ success: boolean }> {
+  const { data } = await apiClient.post<{ success: boolean }>('/auth/reset-password', payload);
+  return data;
+}
+
+export async function updateProfile(payload: {
+  firstName: string;
+  lastName: string;
+}): Promise<Pick<AuthResponse, 'user' | 'workspaces' | 'activeWorkspace'>> {
+  const { data } = await apiClient.patch<
+    Pick<AuthResponse, 'user' | 'workspaces' | 'activeWorkspace'>
+  >('/auth/me', payload);
   return data;
 }

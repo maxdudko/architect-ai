@@ -7,11 +7,12 @@ const PROTECTED_PREFIXES = [
   '/repositories',
   '/chat',
   '/settings',
+  '/profile',
   '/workspace',
   '/workspaces',
 ];
 
-const AUTH_PREFIXES = ['/sign-in', '/sign-up'];
+const AUTH_PREFIXES = ['/sign-in', '/sign-up', '/forgot-password'];
 
 const ADMIN_SIGN_IN_PATH = '/admin/sign-in';
 

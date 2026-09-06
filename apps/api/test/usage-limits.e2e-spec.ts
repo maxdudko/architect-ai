@@ -85,9 +85,12 @@ describeE2e('Usage limits and workspace AI (e2e)', () => {
     const auth = await signUp(app);
     const workspaceId = auth.activeWorkspace.id;
     const admin = await adminSignIn(app);
+    const freePlan = await prisma.plan.findUniqueOrThrow({
+      where: { key: 'free' },
+    });
 
     await request(app.getHttpServer())
-      .patch('/admin/plans/FREE/limits')
+      .patch(`/admin/plans/${freePlan.id}/limits`)
       .set(authHeader(admin.accessToken))
       .send({
         limits: [{ metric: UsageMetric.AI_QUESTIONS, maxValue: 0 }],
@@ -128,15 +131,18 @@ describeE2e('Usage limits and workspace AI (e2e)', () => {
     const apiKey = 'sk-test-secret-key-1234';
 
     const { body: saved } = await request(app.getHttpServer())
-      .put(`/workspaces/${workspaceId}/ai-settings`)
+      .put(`/workspaces/${workspaceId}/ai-settings/credentials`)
       .set(authHeader(auth.accessToken))
-      .send({ openaiApiKey: apiKey })
+      .send({ provider: 'OPENAI', apiKey })
       .expect(200);
 
     expect(saved).toEqual(
       expect.objectContaining({
         mode: 'BYOK',
-        openaiKeyLast4: '1234',
+        activeProvider: 'OPENAI',
+        credentials: [
+          expect.objectContaining({ provider: 'OPENAI', keyLast4: '1234' }),
+        ],
       }),
     );
     expect(JSON.stringify(saved)).not.toContain(apiKey);
@@ -147,14 +153,16 @@ describeE2e('Usage limits and workspace AI (e2e)', () => {
       .expect(200);
 
     expect(fetched.mode).toBe('BYOK');
-    expect(fetched.openaiKeyLast4).toBe('1234');
+    expect(fetched.credentials).toEqual([
+      expect.objectContaining({ provider: 'OPENAI', keyLast4: '1234' }),
+    ]);
     expect(JSON.stringify(fetched)).not.toContain(apiKey);
 
-    const stored = await prisma.workspaceAiSettings.findUnique({
-      where: { workspaceId },
+    const stored = await prisma.workspaceAiCredential.findUnique({
+      where: { workspaceId_provider: { workspaceId, provider: 'OPENAI' } },
     });
-    expect(stored?.openaiApiKeyEncrypted).toBeTruthy();
-    expect(stored?.openaiApiKeyEncrypted).not.toBe(apiKey);
+    expect(stored?.apiKeyEncrypted).toBeTruthy();
+    expect(stored?.apiKeyEncrypted).not.toBe(apiKey);
   });
 
   it('tests a pasted OpenAI key without saving it', async () => {
@@ -169,7 +177,7 @@ describeE2e('Usage limits and workspace AI (e2e)', () => {
       const { body } = await request(app.getHttpServer())
         .post(`/workspaces/${workspaceId}/ai-settings/test`)
         .set(authHeader(auth.accessToken))
-        .send({ openaiApiKey: 'sk-pasted-test-key-1234' })
+        .send({ provider: 'OPENAI', apiKey: 'sk-pasted-test-key-1234' })
         .expect(200);
 
       expect(body).toEqual({
@@ -186,10 +194,10 @@ describeE2e('Usage limits and workspace AI (e2e)', () => {
         }),
       );
 
-      const stored = await prisma.workspaceAiSettings.findUnique({
+      const stored = await prisma.workspaceAiCredential.findMany({
         where: { workspaceId },
       });
-      expect(stored).toBeNull();
+      expect(stored).toEqual([]);
     } finally {
       fetchSpy.mockRestore();
     }
@@ -202,12 +210,12 @@ describeE2e('Usage limits and workspace AI (e2e)', () => {
     const { body } = await request(app.getHttpServer())
       .post(`/workspaces/${workspaceId}/ai-settings/test`)
       .set(authHeader(auth.accessToken))
-      .send({})
+      .send({ provider: 'OPENAI' })
       .expect(400);
 
     expect(body.error).toEqual(
       expect.objectContaining({
-        message: 'Paste an OpenAI API key to test, or save one first.',
+        message: 'Paste an API key for OpenAI to test, or save one first.',
       }),
     );
   });
@@ -217,9 +225,9 @@ describeE2e('Usage limits and workspace AI (e2e)', () => {
     const workspaceId = auth.activeWorkspace.id;
 
     await request(app.getHttpServer())
-      .put(`/workspaces/${workspaceId}/ai-settings`)
+      .put(`/workspaces/${workspaceId}/ai-settings/credentials`)
       .set(authHeader(auth.accessToken))
-      .send({ openaiApiKey: 'sk-test-secret-key-1234' })
+      .send({ provider: 'OPENAI', apiKey: 'sk-test-secret-key-1234' })
       .expect(200);
 
     const { body } = await request(app.getHttpServer())
@@ -228,6 +236,30 @@ describeE2e('Usage limits and workspace AI (e2e)', () => {
       .expect(200);
 
     expect(body.aiMode).toBe('BYOK');
+    expect(body.indexingLimits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          metric: 'REPOSITORY_SIZE_BYTES',
+          maxValue: 250 * 1024 * 1024,
+        }),
+        expect.objectContaining({
+          metric: 'INDEXABLE_FILES',
+          maxValue: 10_000,
+        }),
+        expect.objectContaining({
+          metric: 'INDEXED_TOKENS',
+          maxValue: 2_000_000,
+        }),
+        expect.objectContaining({
+          metric: 'EMBEDDING_CHUNKS',
+          maxValue: 15_000,
+        }),
+        expect.objectContaining({
+          metric: 'FILE_SIZE_BYTES',
+          maxValue: 1 * 1024 * 1024,
+        }),
+      ]),
+    );
     expect(body.metrics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -246,7 +278,7 @@ describeE2e('Usage limits and workspace AI (e2e)', () => {
         }),
         expect.objectContaining({
           metric: UsageMetric.INDEXING_RUNS,
-          limit: 5,
+          limit: 3,
         }),
         expect.objectContaining({
           metric: UsageMetric.MEMBERS,

@@ -47,6 +47,7 @@ export class AdminLogsController {
       level: query.level,
       from: query.from,
       to: query.to,
+      excludeOptions: query.excludeOptions,
     });
 
     return {

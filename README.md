@@ -8,31 +8,34 @@ This repository currently implements the **AI Onboarding Assistant** phase. Arch
 
 ## What works today
 
-- Email/password authentication with rotating refresh sessions
-- Multi-workspace membership, roles, invitations, and workspace switching
-- GitHub OAuth, repository discovery, branch selection, and encrypted tokens
+- Email/password authentication with rotating refresh sessions, plus Google and GitHub identity sign-in
+- Password reset by email, and a `/profile` page to update first and last name
+- Multi-workspace membership, roles (including role updates), invitations with resend, and workspace switching
+- GitHub OAuth, repository discovery, public URL/`owner/repo` resolve, branch selection, and encrypted tokens
+- Landing-page contact form (Resend)
 - Asynchronous repository indexing with BullMQ and a dedicated worker
-- Tree-sitter parsing for TypeScript and JavaScript
+- Tree-sitter parsing for TypeScript, JavaScript, Python, and PHP
 - File, symbol, static-relation, and semantic-chunk persistence
 - OpenAI or deterministic local embeddings with Qdrant vector search
 - Repository-scoped and workspace-scoped chat with SSE streaming
 - Persisted conversations, source citations, and answer feedback
 - Generated onboarding guides for overviews, folders, modules, services, stack, reading order, glossary, and pitfalls
-- Mock, OpenAI, and Anthropic LLM adapters
-- Workspace OpenAI BYOK for chat and guide generation
+- Mock, OpenAI, Anthropic, Grok, and Gemini LLM adapters
+- Model-agnostic workspace BYOK (OpenAI, Anthropic, Grok, or Gemini) for chat and guide generation, with instant provider switching
 - Plan-based usage limits plus admin analytics and system logs
+- Stripe self-serve plan checkout, billing portal, and period-end downgrade to Free (Enterprise can be contact-sales)
 - Development and single-host production Docker Compose stacks
 
 Not implemented yet:
 
 - GitLab and Bitbucket ingestion
 - GitHub webhooks or incremental indexing
-- Languages other than TypeScript/JavaScript
+- Languages other than TypeScript, JavaScript, Python, and PHP
 - Hybrid/lexical search, model reranking, or knowledge-graph retrieval
 - Architecture diagrams/explorer
 - ADR and decision-memory ingestion
 - Change-impact analysis
-- Billing, SSO, or multi-node production orchestration
+- SSO, SCIM, or multi-node production orchestration
 
 See [MVP Architecture](docs/Architecture.md) for the current system and its trade-offs, and [Roadmap](docs/Roadmap.md) for the longer-term product direction.
 
@@ -52,7 +55,7 @@ NestJS API ──enqueue──► Redis / BullMQ ──consume──► Indexing
    │
    ├────────► PostgreSQL (identity, tenancy, code metadata, chat, guides)
    ├────────► Qdrant (chunk vectors)
-   └────────► OpenAI / Anthropic / mock providers
+   └────────► OpenAI / Anthropic / Grok / Gemini / mock providers
    ▲
    │ REST + SSE
 Next.js web app
@@ -83,9 +86,9 @@ Core technology:
 - Next.js 16, React 19, TypeScript, Tailwind CSS
 - NestJS 11, Prisma, PostgreSQL 16
 - BullMQ and Redis 7
-- Tree-sitter for TypeScript/JavaScript analysis
+- Tree-sitter for TypeScript, JavaScript, Python, and PHP analysis
 - Qdrant for vector search
-- OpenAI and Anthropic provider adapters
+- OpenAI, Anthropic, Grok, and Gemini provider adapters
 
 ## Quick start with Docker
 
@@ -117,7 +120,16 @@ GITHUB_OAUTH_STATE_SECRET=replace-with-a-strong-random-secret
 Create the GitHub OAuth App with:
 
 - Homepage URL: `http://localhost:3000`
-- Authorization callback URL: `http://localhost:5000/integrations/github/callback`
+- Authorization callback URLs:
+  - `http://localhost:5000/integrations/github/callback` (repository connect)
+  - `http://localhost:5000/auth/oauth/github/callback` (sign-in / sign-up)
+
+Create a Google Cloud OAuth client (Web application) with:
+
+- Authorized JavaScript origin: `http://localhost:3000`
+- Authorized redirect URI: `http://localhost:5000/auth/oauth/google/callback`
+
+Then set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. `AUTH_GITHUB_CLIENT_ID` / `AUTH_GITHUB_CLIENT_SECRET` are optional and fall back to the repo-connect GitHub app credentials.
 
 The default `mock` LLM and embedding providers let the full flow run without AI credentials. They are for development and smoke testing, not useful semantic answers.
 
@@ -131,16 +143,18 @@ OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 OPENAI_CHAT_MODEL=gpt-4o-mini
 ```
 
-Anthropic can be used for generation while OpenAI supplies embeddings:
+Anthropic, Grok, or Gemini can be used for generation while OpenAI supplies embeddings:
 
 ```bash
 EMBEDDING_PROVIDER=openai
 OPENAI_API_KEY=your-openai-key
 LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=your-anthropic-key
+# or LLM_PROVIDER=grok / GROK_API_KEY=...
+# or LLM_PROVIDER=gemini / GEMINI_API_KEY=...
 ```
 
-Workspace BYOK replaces only the generation provider with a workspace OpenAI key; embeddings still use the server's `EMBEDDING_PROVIDER`.
+Architect AI is model-agnostic: a workspace owner or admin can save a key for OpenAI, Anthropic, Grok, or Gemini under workspace AI settings and switch the active provider at any time. BYOK replaces only the generation provider for that workspace; embeddings still use the server's `EMBEDDING_PROVIDER`.
 
 ### 2. Start the stack
 
@@ -231,12 +245,14 @@ Important configuration groups:
 - data: `DATABASE_URL`, `REDIS_URL`, `QDRANT_URL`, `QDRANT_COLLECTION`;
 - authentication: `JWT_*`, `TOKEN_ENCRYPTION_KEY`, cookie and CORS values;
 - GitHub: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_OAUTH_REDIRECT_URI`, `GITHUB_OAUTH_STATE_SECRET`;
+- identity OAuth: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, `AUTH_GITHUB_OAUTH_REDIRECT_URI` (optional `AUTH_GITHUB_CLIENT_*` fall back to the GitHub integration app);
 - indexing: `INDEXING_WORKER_*`, `INDEXING_TMP_*`, clone size/time limits;
 - retrieval: `EMBEDDING_PROVIDER`, embedding model/dimensions/batch size, retrieval cache variables;
-- generation: `LLM_PROVIDER`, OpenAI/Anthropic keys and models, `LLM_MAX_TOKENS`;
+- generation: `LLM_PROVIDER`, OpenAI/Anthropic/Grok/Gemini keys and models, `LLM_MAX_TOKENS`;
+- billing: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (required in production);
 - operations: rate-limit values, Sentry, Resend, and repository access validation.
 
-Production startup rejects missing database, GitHub, encryption, and user/admin JWT secrets.
+Production startup rejects missing database, GitHub, Google OAuth, encryption, Stripe, and user/admin JWT secrets.
 
 ## Development commands
 
@@ -274,7 +290,7 @@ Pull-request CI runs lint, unit tests, typecheck, API E2E tests, and build.
 
 ## Production deployment
 
-The implemented production target is a single AWS EC2 host using multi-stage images, internal PostgreSQL/Redis/Qdrant services, and Caddy TLS:
+The implemented production target is a single VM using multi-stage images, internal PostgreSQL/Redis/Qdrant services, and Caddy TLS:
 
 ```bash
 cp .env.production.example .env.production
@@ -282,27 +298,32 @@ cp .env.production.example .env.production
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 ```
 
-See [EC2 deployment](docs/features/deploy-ec2.md) for host sizing, DNS, security groups, secrets, backups, upgrades, and recovery.
+- [Hostinger / VPS](docs/features/deploy-hostinger.md) — step-by-step tutorial (KVM 2, DNS, deploy user, GitHub deploy key, single hostname or `app`/`api` hosts)
+- [EC2](docs/features/deploy-ec2.md) — AWS AMI, security groups, EBS, Elastic IP
 
 ## Feature documentation
 
+Index: [docs/README.md](docs/README.md).
+
 - [Current architecture](docs/Architecture.md)
 - [End-to-end application flow](docs/features/main-app-flow.md)
+- [Auth and identity](docs/features/auth-and-identity.md)
 - [Code intelligence](docs/features/code-intelligence.md)
 - [Retrieval](docs/features/retrieval.md)
 - [Living onboarding guides](docs/features/onboarding-guides.md)
-- [Usage limits and AI providers](docs/features/usage-and-ai-providers.md)
+- [Usage limits, billing, and AI providers](docs/features/usage-and-ai-providers.md)
+- [Hostinger / VPS deployment](docs/features/deploy-hostinger.md)
+- [EC2 deployment](docs/features/deploy-ec2.md)
 - [Product roadmap](docs/Roadmap.md)
 
 ## Current architectural constraints
 
-- Only TypeScript and JavaScript are parsed.
-- Reindexing removes the old searchable index before the new one succeeds.
+- Only TypeScript, JavaScript, Python, and PHP are parsed. Go, Java, and Rust remain unused language-pack slots.
 - A provider repository is globally unique and cannot currently be connected to multiple workspaces.
 - Rate limiting is in-process and is not coordinated across API replicas.
 - The production Compose topology is single-host.
 - Mock AI providers validate integration behavior but not answer quality.
-- Billing and self-service plan upgrades are not present.
+- Personal `/settings`, Architecture Explorer, and Decision Memory remain placeholders (`/profile` name updates are shipped).
 
 These constraints are documented in more detail in [MVP Architecture](docs/Architecture.md).
 

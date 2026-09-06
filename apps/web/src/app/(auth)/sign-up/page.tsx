@@ -1,4 +1,4 @@
-import { AuthShell, SignUpForm } from '@/features/auth';
+import { AuthShell, OAuthButtons, SignUpForm } from '@/features/auth';
 
 export default function SignUpPage() {
   return (
@@ -10,6 +10,7 @@ export default function SignUpPage() {
       footerAction="Sign in"
     >
       <SignUpForm />
+      <OAuthButtons />
     </AuthShell>
   );
 }

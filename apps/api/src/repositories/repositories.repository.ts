@@ -204,8 +204,12 @@ export class RepositoriesRepository {
       },
       data: {
         status: params.status,
-        indexingError: params.indexingError,
-        lastIndexedAt: params.lastIndexedAt,
+        ...(params.indexingError !== undefined
+          ? { indexingError: params.indexingError }
+          : {}),
+        ...(params.lastIndexedAt !== undefined
+          ? { lastIndexedAt: params.lastIndexedAt }
+          : {}),
       },
     });
 
@@ -238,6 +242,52 @@ export class RepositoriesRepository {
     });
   }
 
+  hasRunningIndexingRun(repositoryId: string): Promise<IndexingRun | null> {
+    return this.prisma.indexingRun.findFirst({
+      where: {
+        repositoryId,
+        status: IndexingRunStatus.RUNNING,
+      },
+      orderBy: { startedAt: 'desc' },
+    });
+  }
+
+  hasSucceededIndexingRun(
+    repositoryId: string,
+    excludeRunId?: string,
+  ): Promise<IndexingRun | null> {
+    return this.prisma.indexingRun.findFirst({
+      where: {
+        repositoryId,
+        status: IndexingRunStatus.SUCCEEDED,
+        ...(excludeRunId ? { id: { not: excludeRunId } } : {}),
+      },
+      orderBy: [{ completedAt: 'desc' }, { startedAt: 'desc' }],
+    });
+  }
+
+  async getLatestSucceededIndexingRunId(
+    repositoryId: string,
+  ): Promise<string | null> {
+    const run = await this.hasSucceededIndexingRun(repositoryId);
+    return run?.id ?? null;
+  }
+
+  async listIndexingRunIds(
+    repositoryId: string,
+    options?: { excludeId?: string; status?: IndexingRunStatus },
+  ): Promise<string[]> {
+    const runs = await this.prisma.indexingRun.findMany({
+      where: {
+        repositoryId,
+        ...(options?.status ? { status: options.status } : {}),
+        ...(options?.excludeId ? { id: { not: options.excludeId } } : {}),
+      },
+      select: { id: true },
+    });
+    return runs.map((run) => run.id);
+  }
+
   updateIndexingRun(
     runId: string,
     data: {
@@ -262,18 +312,43 @@ export class RepositoriesRepository {
     });
   }
 
-  async deleteArtifactsForRepository(repositoryId: string): Promise<void> {
+  async deleteArtifactsForIndexingRun(indexingRunId: string): Promise<void> {
     await this.prisma.$transaction([
       this.prisma.chunk.deleteMany({
-        where: { repositoryId },
+        where: { indexingRunId },
       }),
       this.prisma.symbolRelation.deleteMany({
-        where: { repositoryId },
+        where: { indexingRunId },
       }),
       this.prisma.codeSymbol.deleteMany({
-        where: { repositoryId },
+        where: { indexingRunId },
+      }),
+      this.prisma.repositoryFile.deleteMany({
+        where: { indexingRunId },
       }),
     ]);
+  }
+
+  async resetIndexingRunGeneratedCode(indexingRunId: string): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.chunk.deleteMany({
+        where: { indexingRunId },
+      }),
+      this.prisma.symbolRelation.deleteMany({
+        where: { indexingRunId },
+      }),
+      this.prisma.codeSymbol.deleteMany({
+        where: { indexingRunId },
+      }),
+    ]);
+  }
+
+  deleteChunksForIndexingRun(
+    indexingRunId: string,
+  ): Promise<{ count: number }> {
+    return this.prisma.chunk.deleteMany({
+      where: { indexingRunId },
+    });
   }
 
   upsertRepositoryFile(params: {
@@ -291,8 +366,9 @@ export class RepositoriesRepository {
   }): Promise<RepositoryFile> {
     return this.prisma.repositoryFile.upsert({
       where: {
-        repositoryId_path: {
+        repositoryId_indexingRunId_path: {
           repositoryId: params.repositoryId,
+          indexingRunId: params.indexingRunId,
           path: params.path,
         },
       },
@@ -310,7 +386,6 @@ export class RepositoriesRepository {
         binary: params.binary,
       },
       update: {
-        indexingRunId: params.indexingRunId,
         language: params.language,
         contentHash: params.contentHash,
         size: params.size,
@@ -326,11 +401,22 @@ export class RepositoriesRepository {
   pruneStaleRepositoryFiles(
     repositoryId: string,
     indexingRunId: string,
+    seenPaths: string[],
   ): Promise<{ count: number }> {
+    if (seenPaths.length === 0) {
+      return this.prisma.repositoryFile.deleteMany({
+        where: {
+          repositoryId,
+          indexingRunId,
+        },
+      });
+    }
+
     return this.prisma.repositoryFile.deleteMany({
       where: {
         repositoryId,
-        NOT: { indexingRunId },
+        indexingRunId,
+        path: { notIn: seenPaths },
       },
     });
   }
@@ -403,13 +489,20 @@ export class RepositoriesRepository {
     });
   }
 
-  listCurrentRepositoryFiles(
+  async listCurrentRepositoryFiles(
     repositoryId: string,
     options?: { pathPrefix?: string },
   ): Promise<Array<RepositoryFile>> {
+    const indexingRunId =
+      await this.getLatestSucceededIndexingRunId(repositoryId);
+    if (!indexingRunId) {
+      return [];
+    }
+
     return this.prisma.repositoryFile.findMany({
       where: {
         repositoryId,
+        indexingRunId,
         ...(options?.pathPrefix
           ? { path: { startsWith: options.pathPrefix } }
           : {}),
@@ -431,13 +524,20 @@ export class RepositoriesRepository {
     });
   }
 
-  listCurrentCodeSymbols(
+  async listCurrentCodeSymbols(
     repositoryId: string,
     options?: { filePath?: string; type?: CodeSymbolType },
   ): Promise<Array<CodeSymbol>> {
+    const indexingRunId =
+      await this.getLatestSucceededIndexingRunId(repositoryId);
+    if (!indexingRunId) {
+      return [];
+    }
+
     return this.prisma.codeSymbol.findMany({
       where: {
         repositoryId,
+        indexingRunId,
         ...(options?.filePath ? { filePath: options.filePath } : {}),
         ...(options?.type ? { type: options.type } : {}),
       },

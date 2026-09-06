@@ -119,6 +119,47 @@ describe('QdrantVectorStore', () => {
     });
   });
 
+  it('deletes by indexing run using payload filters', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(''),
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    const store = createStore();
+    await store.deleteByIndexingRun('run-1');
+
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0]?.[1] as RequestInit).body as string,
+    );
+    expect(body.filter.must[0]).toEqual({
+      key: 'indexingRunId',
+      match: { value: 'run-1' },
+    });
+  });
+
+  it('sets payload on point batches', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(''),
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    const store = createStore();
+    await store.setPayload(['1', '2', '3'], { indexingRunId: 'run-1' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const firstBody = JSON.parse(
+      (fetchMock.mock.calls[0]?.[1] as RequestInit).body as string,
+    );
+    expect(firstBody).toEqual({
+      payload: { indexingRunId: 'run-1' },
+      points: ['1', '2'],
+    });
+  });
+
   it('returns empty search hits when the collection is missing', async () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: false,

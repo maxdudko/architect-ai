@@ -2,6 +2,7 @@
 
 import { Trash2 } from 'lucide-react';
 import type { Membership, WorkspaceRole } from '@/entities';
+import { cn } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { ConfirmationDialog } from '@/shared/components';
 import {
@@ -56,7 +57,12 @@ function canEditMemberRole(
   return true;
 }
 
-export function MembersList({ workspaceId }: { workspaceId: string }) {
+interface MembersListProps {
+  workspaceId: string;
+  className?: string;
+}
+
+export function MembersList({ workspaceId, className }: MembersListProps) {
   const { user, activeWorkspace } = useAuth();
   const membersQuery = useMembersQuery(workspaceId);
   const removeMemberMutation = useRemoveMemberMutation(workspaceId);
@@ -67,11 +73,11 @@ export function MembersList({ workspaceId }: { workspaceId: string }) {
 
   if (membersQuery.isLoading) {
     return (
-      <Card>
+      <Card className={cn('flex flex-1 flex-col', className)}>
         <CardHeader>
           <CardTitle>Members</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="flex-1 space-y-3">
           <Skeleton className="h-14 w-full" />
           <Skeleton className="h-14 w-full" />
           <Skeleton className="h-14 w-full" />
@@ -81,11 +87,11 @@ export function MembersList({ workspaceId }: { workspaceId: string }) {
   }
 
   return (
-    <Card>
+    <Card className={cn('flex flex-1 flex-col', className)}>
       <CardHeader>
         <CardTitle>Members</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="flex-1 space-y-3">
         {(membersQuery.data ?? []).map((member) => {
           const editable = canEditMemberRole(member, activeWorkspace?.role, user?.id);
           const isUpdating =

@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { AdminPlanLimit, AdminWorkspaceUsageRow, UsageMetric } from '@/entities';
+import Link from 'next/link';
+import { toast } from 'sonner';
+import type { AdminWorkspaceUsageRow, UsageMetric } from '@/entities';
+import { getApiErrorMessage } from '@/lib/api/error-message';
 import {
   Badge,
   Button,
@@ -11,17 +14,15 @@ import {
   CardTitle,
   EmptyState,
   ErrorState,
-  Input,
   Loader,
   SearchInput,
   Skeleton,
 } from '@/shared/components';
-import { getApiErrorMessage } from '@/lib/api/error-message';
 import {
-  useAdminPlanLimitsQuery,
-  useAdminWorkspaceUsageQuery,
-  useUpdateAdminPlanLimitsMutation,
-} from '../services/admin-usage.service';
+  useAdminPlansQuery,
+  useAssignWorkspacePlanMutation,
+} from '../services/admin-plans.service';
+import { useAdminWorkspaceUsageQuery } from '../services/admin-usage.service';
 
 const METRIC_LABELS: Record<UsageMetric, string> = {
   REPOSITORIES: 'Repositories',
@@ -39,111 +40,50 @@ function formatUsage(used: number, limit: number | null): string {
   return `${used} / ${formatLimit(limit)}`;
 }
 
-const EMPTY_LIMIT_VALUES: Record<UsageMetric, string> = {
-  REPOSITORIES: '',
-  INDEXING_RUNS: '',
-  GUIDE_GENERATIONS: '',
-  AI_QUESTIONS: '',
-  MEMBERS: '',
-};
+function AssignPlanControl({ workspace }: { workspace: AdminWorkspaceUsageRow }) {
+  const plansQuery = useAdminPlansQuery();
+  const assignMutation = useAssignWorkspacePlanMutation();
+  const [planId, setPlanId] = useState(workspace.plan.id);
 
-function limitsToValues(rows: AdminPlanLimit[]): Record<UsageMetric, string> {
-  const next = { ...EMPTY_LIMIT_VALUES };
-  for (const row of rows) {
-    next[row.metric] = row.maxValue == null ? '' : String(row.maxValue);
-  }
-  return next;
-}
-
-function PlanLimitsForm() {
-  const limitsQuery = useAdminPlanLimitsQuery('FREE');
-  const updateMutation = useUpdateAdminPlanLimitsMutation('FREE');
-  const [edits, setEdits] = useState<Record<UsageMetric, string> | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const values =
-    edits ?? (limitsQuery.data ? limitsToValues(limitsQuery.data) : EMPTY_LIMIT_VALUES);
-
-  const onSave = async () => {
-    if (!limitsQuery.data) {
-      return;
-    }
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    const limits = limitsQuery.data.map((row: AdminPlanLimit) => {
-      const raw = values[row.metric]?.trim();
-      return {
-        metric: row.metric,
-        maxValue: raw === '' ? null : Number(raw),
-      };
-    });
-    if (limits.some((item) => item.maxValue != null && !Number.isInteger(item.maxValue))) {
-      setErrorMessage('Limits must be whole numbers, or blank for unlimited.');
+  const onAssign = async () => {
+    if (planId === workspace.plan.id) {
       return;
     }
     try {
-      const saved = await updateMutation.mutateAsync(limits);
-      setEdits(limitsToValues(saved));
-      setSuccessMessage('Free plan limits updated.');
+      await assignMutation.mutateAsync({ workspaceId: workspace.workspaceId, planId });
+      toast.success(`${workspace.name} moved to a new plan.`);
     } catch (error) {
-      setErrorMessage(getApiErrorMessage(error, 'Unable to update plan limits.'));
+      toast.error(getApiErrorMessage(error, 'Unable to assign plan.'));
     }
   };
 
+  const plans = plansQuery.data ?? [];
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Free plan limits</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {limitsQuery.isLoading ? <Skeleton className="h-32 w-full" /> : null}
-        {limitsQuery.isError ? (
-          <ErrorState
-            title="Unable to load plan limits"
-            description="Something went wrong while fetching Free plan limits."
-          />
-        ) : null}
-        {limitsQuery.data ? (
-          <>
-            <p className="text-sm text-muted-foreground">
-              Leave a field blank for unlimited. Monthly metrics reset at the start of each UTC
-              month. BYOK workspaces ignore AI question and onboarding guide caps; repository,
-              indexing, and member limits still apply.
-            </p>
-            <div className="grid gap-3 md:grid-cols-2">
-              {limitsQuery.data.map((row) => (
-                <div key={row.metric} className="space-y-1">
-                  <label htmlFor={`limit-${row.metric}`} className="text-sm font-medium">
-                    {METRIC_LABELS[row.metric]}
-                    <span className="ml-1 text-xs font-normal text-muted-foreground">
-                      ({row.period === 'MONTHLY' ? 'monthly' : 'current'})
-                    </span>
-                  </label>
-                  <Input
-                    id={`limit-${row.metric}`}
-                    inputMode="numeric"
-                    placeholder="Unlimited"
-                    value={values[row.metric] ?? ''}
-                    onChange={(event) =>
-                      setEdits((current) => ({
-                        ...(current ?? values),
-                        [row.metric]: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              ))}
-            </div>
-            {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
-            {successMessage ? <p className="text-sm text-emerald-600">{successMessage}</p> : null}
-            <Button type="button" disabled={updateMutation.isPending} onClick={() => void onSave()}>
-              {updateMutation.isPending ? <Loader className="mr-2 h-4 w-4" /> : null}
-              Save limits
-            </Button>
-          </>
-        ) : null}
-      </CardContent>
-    </Card>
+    <div className="flex items-center gap-2">
+      <select
+        className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+        value={planId}
+        disabled={assignMutation.isPending || plansQuery.isLoading}
+        onChange={(event) => setPlanId(event.target.value)}
+      >
+        {plans.map((plan) => (
+          <option key={plan.id} value={plan.id}>
+            {plan.name}
+          </option>
+        ))}
+      </select>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={assignMutation.isPending || planId === workspace.plan.id}
+        onClick={() => void onAssign()}
+      >
+        {assignMutation.isPending ? <Loader className="mr-2 h-4 w-4" /> : null}
+        Assign
+      </Button>
+    </div>
   );
 }
 
@@ -180,7 +120,7 @@ function WorkspaceUsageTable() {
           <SearchInput
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Search workspaces"
+            placeholder="Search workspaces or owners"
           />
         </div>
         {usageQuery.isLoading ? (
@@ -204,9 +144,18 @@ function WorkspaceUsageTable() {
               <div>
                 <p className="font-medium">{workspace.name}</p>
                 <p className="text-sm text-muted-foreground">{workspace.slug}</p>
+                {workspace.owner ? (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {workspace.owner.firstName} {workspace.owner.lastName}
+                    <span className="mx-1.5 text-border">·</span>
+                    {workspace.owner.email}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-sm text-muted-foreground">No owner</p>
+                )}
               </div>
               <div className="flex gap-2">
-                <Badge variant="outline">{workspace.plan}</Badge>
+                <Badge variant="outline">{workspace.plan.name}</Badge>
                 <Badge variant={workspace.aiMode === 'BYOK' ? 'default' : 'secondary'}>
                   {workspace.aiMode}
                 </Badge>
@@ -220,6 +169,7 @@ function WorkspaceUsageTable() {
                 </div>
               ))}
             </div>
+            <AssignPlanControl workspace={workspace} />
           </div>
         ))}
         {items.length > 0 ? (
@@ -257,7 +207,16 @@ function WorkspaceUsageTable() {
 export function UsageDashboard() {
   return (
     <div className="space-y-6">
-      <PlanLimitsForm />
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+          <p className="text-sm text-muted-foreground">
+            Plan limits, prices, and BYOK pricing are managed on the Plans page.
+          </p>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/admin/plans">Manage plans</Link>
+          </Button>
+        </CardContent>
+      </Card>
       <WorkspaceUsageTable />
     </div>
   );

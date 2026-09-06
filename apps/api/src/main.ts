@@ -40,7 +40,7 @@ function shouldSkipSystemLog(path: string | undefined): boolean {
 async function bootstrap() {
   assertRequiredProductionEnv();
   initErrorTracker();
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   const expressApp = app.getHttpAdapter().getInstance() as Application;
   expressApp.set('trust proxy', 1);
   const requestLogger = new Logger('RequestLogger');

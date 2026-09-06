@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { User, WorkspacePlan, WorkspaceRole } from '@prisma/client';
+import { User, WorkspaceRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { SessionStoreService } from './session-store.service';
@@ -50,7 +50,7 @@ describe('AuthService', () => {
     id: workspaceId,
     name: "Test's Workspace",
     slug: 'test-workspace',
-    plan: WorkspacePlan.FREE,
+    planId: 'plan-free',
     createdAt: new Date('2026-06-24T00:00:00.000Z'),
     updatedAt: new Date('2026-06-24T00:00:00.000Z'),
     deletedAt: null,
@@ -70,6 +70,7 @@ describe('AuthService', () => {
       findByEmail: jest.fn(),
       findById: jest.fn(),
       touchLastLoginAt: jest.fn(),
+      update: jest.fn(),
     } as unknown as jest.Mocked<UsersService>;
 
     workspacesService = {
@@ -205,6 +206,18 @@ describe('AuthService', () => {
       ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
+    it('rejects OAuth-only users without a password', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...user,
+        passwordHash: null,
+      });
+
+      await expect(
+        service.signIn({ email, password: 'Password123!' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(mockedBcrypt.compare).not.toHaveBeenCalled();
+    });
+
     it('rejects users without workspace memberships', async () => {
       usersService.findByEmail.mockResolvedValue(user);
       usersService.touchLastLoginAt.mockResolvedValue(user);
@@ -256,6 +269,18 @@ describe('AuthService', () => {
     it('rejects revoked refresh tokens', async () => {
       const refreshToken = await issueRefreshToken();
       sessionStoreService.hasRefreshToken.mockResolvedValue(false);
+
+      await expect(service.refresh({ refreshToken })).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+    });
+
+    it('rejects refresh for deleted users', async () => {
+      const refreshToken = await issueRefreshToken();
+      usersService.findById.mockResolvedValue({
+        ...user,
+        deletedAt: new Date(),
+      });
 
       await expect(service.refresh({ refreshToken })).rejects.toBeInstanceOf(
         UnauthorizedException,
@@ -401,6 +426,48 @@ describe('AuthService', () => {
           email,
           activeWorkspaceId: workspaceId,
         }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+  });
+
+  describe('updateProfile', () => {
+    it('updates the user name and returns the session context', async () => {
+      usersService.findById.mockResolvedValue(user);
+      usersService.update.mockResolvedValue({
+        ...user,
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+      });
+
+      const result = await service.updateProfile(
+        {
+          sub: userId,
+          email,
+          activeWorkspaceId: workspaceId,
+        },
+        { firstName: ' Ada ', lastName: ' Lovelace ' },
+      );
+
+      expect(usersService.update).toHaveBeenCalledWith(userId, {
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+      });
+      expect(result.user.firstName).toBe('Ada');
+      expect(result.user.lastName).toBe('Lovelace');
+    });
+
+    it('throws when the user no longer exists', async () => {
+      usersService.findById.mockResolvedValue(null);
+
+      await expect(
+        service.updateProfile(
+          {
+            sub: userId,
+            email,
+            activeWorkspaceId: workspaceId,
+          },
+          { firstName: 'Ada', lastName: 'Lovelace' },
+        ),
       ).rejects.toBeInstanceOf(UnauthorizedException);
     });
   });

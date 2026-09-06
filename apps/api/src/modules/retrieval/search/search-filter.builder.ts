@@ -66,6 +66,28 @@ export class SearchFilterBuilder {
     return this;
   }
 
+  indexingRun(indexingRunId: string | string[]): this {
+    const value = Array.isArray(indexingRunId)
+      ? indexingRunId
+      : [indexingRunId];
+    const [singleIndexingRunId] = value;
+    if (value.length === 1 && singleIndexingRunId) {
+      this.conditions.push({
+        field: 'indexingRunId',
+        operator: 'eq',
+        value: singleIndexingRunId,
+      });
+      return this;
+    }
+
+    this.conditions.push({
+      field: 'indexingRunId',
+      operator: 'any',
+      value,
+    });
+    return this;
+  }
+
   build(): SearchFilter {
     return {
       must: [...this.conditions],

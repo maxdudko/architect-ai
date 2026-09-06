@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { resolve, join } from 'node:path';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppModule } from '../../src/app.module';
@@ -75,20 +76,44 @@ export function assertTestDatabase(): void {
 }
 
 export function configureTestEnvironment(): void {
-  process.env.JWT_ACCESS_SECRET ??= 'test-access-secret';
-  process.env.JWT_REFRESH_SECRET ??= 'test-refresh-secret';
-  process.env.JWT_ACCESS_TTL ??= '15m';
-  process.env.JWT_REFRESH_TTL ??= '30d';
-  process.env.JWT_ADMIN_ACCESS_SECRET ??= 'test-admin-access-secret';
-  process.env.JWT_ADMIN_REFRESH_SECRET ??= 'test-admin-refresh-secret';
-  process.env.JWT_ADMIN_ACCESS_TTL ??= '15m';
-  process.env.JWT_ADMIN_REFRESH_TTL ??= '30d';
+  process.env.JWT_ACCESS_SECRET =
+    process.env.JWT_ACCESS_SECRET || 'test-access-secret';
+  process.env.JWT_REFRESH_SECRET =
+    process.env.JWT_REFRESH_SECRET || 'test-refresh-secret';
+  process.env.JWT_ACCESS_TTL = process.env.JWT_ACCESS_TTL || '15m';
+  process.env.JWT_REFRESH_TTL = process.env.JWT_REFRESH_TTL || '30d';
+  process.env.JWT_ADMIN_ACCESS_SECRET =
+    process.env.JWT_ADMIN_ACCESS_SECRET || 'test-admin-access-secret';
+  process.env.JWT_ADMIN_REFRESH_SECRET =
+    process.env.JWT_ADMIN_REFRESH_SECRET || 'test-admin-refresh-secret';
+  process.env.JWT_ADMIN_ACCESS_TTL = process.env.JWT_ADMIN_ACCESS_TTL || '15m';
+  process.env.JWT_ADMIN_REFRESH_TTL =
+    process.env.JWT_ADMIN_REFRESH_TTL || '30d';
   process.env.RETRIEVAL_CACHE_DRIVER = 'memory';
   process.env.LLM_PROVIDER = 'mock';
   process.env.EMBEDDING_PROVIDER = 'mock';
   process.env.RATE_LIMIT_ENABLED = 'false';
   process.env.REPOSITORY_ACCESS_VALIDATION_ENABLED = 'false';
+  process.env.WEB_URL = process.env.WEB_URL || 'http://localhost:3000';
+  process.env.GOOGLE_CLIENT_ID =
+    process.env.GOOGLE_CLIENT_ID || 'test-google-client-id';
+  process.env.GOOGLE_CLIENT_SECRET =
+    process.env.GOOGLE_CLIENT_SECRET || 'test-google-client-secret';
+  process.env.GOOGLE_OAUTH_REDIRECT_URI =
+    process.env.GOOGLE_OAUTH_REDIRECT_URI ||
+    'http://localhost:5000/auth/oauth/google/callback';
+  process.env.AUTH_GITHUB_CLIENT_ID =
+    process.env.AUTH_GITHUB_CLIENT_ID || 'test-github-auth-client-id';
+  process.env.AUTH_GITHUB_CLIENT_SECRET =
+    process.env.AUTH_GITHUB_CLIENT_SECRET || 'test-github-auth-client-secret';
+  process.env.AUTH_GITHUB_OAUTH_REDIRECT_URI =
+    process.env.AUTH_GITHUB_OAUTH_REDIRECT_URI ||
+    'http://localhost:5000/auth/oauth/github/callback';
+  process.env.AUTH_OAUTH_STATE_SECRET =
+    process.env.AUTH_OAUTH_STATE_SECRET || 'test-oauth-state-secret';
+  process.env.INDEXING_TMP_DIR = join(tmpdir(), 'architect-ai-test-indexing');
   delete process.env.REDIS_URL;
+  process.env.RESEND_API_KEY = '';
 }
 
 export function runMigrations(): void {
@@ -108,7 +133,7 @@ export async function createE2eApp(): Promise<E2eContext> {
     imports: [AppModule],
   }).compile();
 
-  const app = moduleFixture.createNestApplication();
+  const app = moduleFixture.createNestApplication({ rawBody: true });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -134,14 +159,17 @@ export async function resetDatabase(prisma: PrismaService): Promise<void> {
       conversations,
       repositories,
       oauth_accounts,
+      identity_accounts,
       invitations,
+      password_reset_tokens,
       memberships,
       workspace_ai_settings,
       workspaces,
       users,
       admins,
       system_logs,
-      plan_limits
+      plan_limits,
+      stripe_webhook_events
     RESTART IDENTITY CASCADE;
   `);
   await upsertDefaultPlanLimits(prisma);

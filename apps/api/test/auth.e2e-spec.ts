@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { INestApplication } from '@nestjs/common';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { hashPasswordResetToken } from '../src/auth/password-reset.utils';
 import {
   assertAuthResponse,
   assertAuthSession,
@@ -11,6 +12,7 @@ import {
   buildSignUpPayload,
   createAuthSession,
   signUp,
+  uniqueEmail,
   TEST_PASSWORD,
 } from './helpers/factories';
 import {
@@ -113,6 +115,28 @@ describeE2e('Auth (e2e)', () => {
     await request(app.getHttpServer()).get('/auth/me').expect(401);
   });
 
+  it('updates the authenticated user profile', async () => {
+    const signUpAuth = await signUp(app);
+
+    const { body } = await request(app.getHttpServer())
+      .patch('/auth/me')
+      .set(authHeader(signUpAuth.accessToken))
+      .send({ firstName: ' Grace ', lastName: ' Hopper ' })
+      .expect(200);
+
+    assertAuthSession(body);
+    expect(body.user.firstName).toBe('Grace');
+    expect(body.user.lastName).toBe('Hopper');
+    expect(body.user.email).toBe(signUpAuth.user.email);
+  });
+
+  it('rejects profile updates without a bearer token', async () => {
+    await request(app.getHttpServer())
+      .patch('/auth/me')
+      .send({ firstName: 'Grace', lastName: 'Hopper' })
+      .expect(401);
+  });
+
   it('rotates tokens on refresh and preserves the active workspace', async () => {
     const { auth: signUpAuth, agent } = await createAuthSession(app);
 
@@ -166,5 +190,389 @@ describeE2e('Auth (e2e)', () => {
       .post('/auth/signin')
       .send({ email: payload.email, password: TEST_PASSWORD })
       .expect(401);
+  });
+
+  describe('identity OAuth', () => {
+    const originalFetch = global.fetch;
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    function requestUrl(input: RequestInfo | URL): string {
+      if (typeof input === 'string') {
+        return input;
+      }
+      if (input instanceof URL) {
+        return input.href;
+      }
+      return input.url;
+    }
+
+    function mockGoogleProfile(params: {
+      email: string;
+      verified?: boolean;
+      id?: string;
+    }): void {
+      global.fetch = jest.fn((input: RequestInfo | URL) => {
+        const url = requestUrl(input);
+        if (url === 'https://oauth2.googleapis.com/token') {
+          return Promise.resolve(
+            new Response(JSON.stringify({ access_token: 'google-token' }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+          );
+        }
+        if (url === 'https://www.googleapis.com/oauth2/v2/userinfo') {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: params.id ?? 'google-user-1',
+                email: params.email,
+                verified_email: params.verified ?? true,
+                given_name: 'Ada',
+                family_name: 'Lovelace',
+                name: 'Ada Lovelace',
+              }),
+              {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+              },
+            ),
+          );
+        }
+        return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+      }) as typeof fetch;
+    }
+
+    function mockGithubProfile(params: {
+      email?: string;
+      verified?: boolean;
+      id?: number;
+    }): void {
+      global.fetch = jest.fn((input: RequestInfo | URL) => {
+        const url = requestUrl(input);
+        if (url === 'https://github.com/login/oauth/access_token') {
+          return Promise.resolve(
+            new Response(JSON.stringify({ access_token: 'github-token' }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+          );
+        }
+        if (url === 'https://api.github.com/user') {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: params.id ?? 42,
+                login: 'ada',
+                name: 'Ada Lovelace',
+                avatar_url: 'https://example.com/ada.png',
+              }),
+              {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+              },
+            ),
+          );
+        }
+        if (url === 'https://api.github.com/user/emails') {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify(
+                params.email
+                  ? [
+                      {
+                        email: params.email,
+                        primary: true,
+                        verified: params.verified ?? true,
+                      },
+                    ]
+                  : [],
+              ),
+              {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+              },
+            ),
+          );
+        }
+        return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+      }) as typeof fetch;
+    }
+
+    async function startOauth(
+      provider: 'google' | 'github',
+    ): Promise<{ state: string; agent: ReturnType<typeof request.agent> }> {
+      const agent = request.agent(app.getHttpServer());
+      const { headers } = await agent
+        .get(`/auth/oauth/${provider}/start`)
+        .redirects(0)
+        .expect(302);
+      const location = new URL(headers.location);
+      const state = location.searchParams.get('state');
+      if (!state) {
+        throw new Error('OAuth start did not return state');
+      }
+      return { state, agent };
+    }
+
+    it('starts Google OAuth and completes sign-up through the refresh cookie', async () => {
+      const email = uniqueEmail('google');
+      mockGoogleProfile({ email });
+      const { state, agent } = await startOauth('google');
+
+      const callback = await agent
+        .get('/auth/oauth/google/callback')
+        .query({ code: 'google-code', state })
+        .redirects(0)
+        .expect(302);
+
+      expect(callback.headers.location).toBe(
+        'http://localhost:3000/auth/oauth/complete',
+      );
+
+      const { body: refreshBody } = await agent
+        .post('/auth/refresh')
+        .send({})
+        .expect(201);
+
+      assertTokenPair(refreshBody);
+
+      const { body: meBody } = await request(app.getHttpServer())
+        .get('/auth/me')
+        .set(authHeader(refreshBody.accessToken))
+        .expect(200);
+
+      assertAuthSession(meBody);
+      expect(meBody.user.email).toBe(email);
+      expect(meBody.user.emailVerified).toBe(true);
+      expect(meBody.activeWorkspace.name).toBe("Ada's Workspace");
+
+      const created = await prisma.user.findUnique({
+        where: { email },
+        include: { identityAccounts: true },
+      });
+      expect(created?.passwordHash).toBeNull();
+      expect(created?.identityAccounts).toEqual([
+        expect.objectContaining({ provider: 'GOOGLE', email }),
+      ]);
+    });
+
+    it('auto-links Google to an existing email/password user', async () => {
+      const payload = buildSignUpPayload({
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+      });
+      const existing = await signUp(app, payload);
+      mockGoogleProfile({ email: payload.email.toLowerCase() });
+      const { state, agent } = await startOauth('google');
+
+      await agent
+        .get('/auth/oauth/google/callback')
+        .query({ code: 'google-code', state })
+        .redirects(0)
+        .expect(302);
+
+      const { body: refreshBody } = await agent
+        .post('/auth/refresh')
+        .send({})
+        .expect(201);
+
+      const { body: meBody } = await request(app.getHttpServer())
+        .get('/auth/me')
+        .set(authHeader(refreshBody.accessToken))
+        .expect(200);
+
+      expect(meBody.user.id).toBe(existing.user.id);
+
+      const linked = await prisma.identityAccount.findMany({
+        where: { userId: existing.user.id },
+      });
+      expect(linked).toHaveLength(1);
+      expect(linked[0]?.provider).toBe('GOOGLE');
+    });
+
+    it('rejects password sign-in for an OAuth-only user', async () => {
+      const email = uniqueEmail('oauth-only');
+      mockGoogleProfile({ email });
+      const { state, agent } = await startOauth('google');
+
+      await agent
+        .get('/auth/oauth/google/callback')
+        .query({ code: 'google-code', state })
+        .redirects(0)
+        .expect(302);
+
+      const { body } = await request(app.getHttpServer())
+        .post('/auth/signin')
+        .send({ email, password: TEST_PASSWORD })
+        .expect(401);
+
+      assertErrorMessageContains(body, 'Google or GitHub');
+    });
+
+    it('rejects GitHub login when no verified email is available', async () => {
+      mockGithubProfile({ email: 'hidden@github.example', verified: false });
+      const { state, agent } = await startOauth('github');
+
+      const callback = await agent
+        .get('/auth/oauth/github/callback')
+        .query({ code: 'github-code', state })
+        .redirects(0)
+        .expect(302);
+
+      expect(callback.headers.location).toBe(
+        'http://localhost:3000/sign-in?oauth_error=email_unavailable',
+      );
+    });
+
+    it('starts GitHub identity OAuth with the identity callback URI', async () => {
+      const { headers } = await request(app.getHttpServer())
+        .get('/auth/oauth/github/start')
+        .redirects(0)
+        .expect(302);
+
+      const location = new URL(headers.location);
+      expect(location.origin).toBe('https://github.com');
+      expect(location.searchParams.get('scope')).toBe('read:user user:email');
+      expect(location.searchParams.get('redirect_uri')).toBe(
+        'http://localhost:5000/auth/oauth/github/callback',
+      );
+    });
+  });
+
+  describe('password reset', () => {
+    const resetToken = 'test-reset-token-value-32bytesxx';
+    const nextPassword = 'NewPassword123!';
+
+    async function insertResetToken(params: {
+      userId: string;
+      token?: string;
+      expiresAt?: Date;
+      usedAt?: Date | null;
+    }): Promise<void> {
+      await prisma.passwordResetToken.create({
+        data: {
+          userId: params.userId,
+          tokenHash: hashPasswordResetToken(params.token ?? resetToken),
+          expiresAt: params.expiresAt ?? new Date(Date.now() + 60 * 60 * 1000),
+          usedAt: params.usedAt ?? null,
+        },
+      });
+    }
+
+    it('always returns success for forgot-password and creates a token for password users', async () => {
+      const payload = buildSignUpPayload();
+      const auth = await signUp(app, payload);
+
+      const unknown = await request(app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email: uniqueEmail('missing') })
+        .expect(201);
+      expect(unknown.body).toEqual({ success: true });
+
+      const known = await request(app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email: payload.email.toUpperCase() })
+        .expect(201);
+      expect(known.body).toEqual({ success: true });
+
+      const tokens = await prisma.passwordResetToken.findMany({
+        where: { userId: auth.user.id, usedAt: null },
+      });
+      expect(tokens).toHaveLength(1);
+    });
+
+    it('does not create a reset token for OAuth-only accounts', async () => {
+      const email = uniqueEmail('oauth-reset');
+      const oauthUser = await prisma.user.create({
+        data: {
+          email,
+          firstName: 'OAuth',
+          lastName: 'User',
+          emailVerified: true,
+        },
+      });
+
+      await request(app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email })
+        .expect(201);
+
+      const tokens = await prisma.passwordResetToken.findMany({
+        where: { userId: oauthUser.id },
+      });
+      expect(tokens).toHaveLength(0);
+    });
+
+    it('replaces unused tokens when forgot-password is requested again', async () => {
+      const payload = buildSignUpPayload();
+      const auth = await signUp(app, payload);
+
+      await request(app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email: payload.email })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email: payload.email })
+        .expect(201);
+
+      const unused = await prisma.passwordResetToken.findMany({
+        where: { userId: auth.user.id, usedAt: null },
+      });
+      expect(unused).toHaveLength(1);
+    });
+
+    it('resets the password, revokes sessions, and rejects token reuse', async () => {
+      const payload = buildSignUpPayload();
+      const { auth, agent } = await createAuthSession(app, payload);
+      await insertResetToken({ userId: auth.user.id });
+
+      await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ token: resetToken, password: nextPassword })
+        .expect(201);
+
+      await agent.post('/auth/refresh').send({}).expect(401);
+
+      await request(app.getHttpServer())
+        .post('/auth/signin')
+        .send({ email: payload.email, password: TEST_PASSWORD })
+        .expect(401);
+
+      const { body } = await request(app.getHttpServer())
+        .post('/auth/signin')
+        .send({ email: payload.email, password: nextPassword })
+        .expect(201);
+      assertAuthResponse(body);
+      expect(body.user.emailVerified).toBe(true);
+
+      await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ token: resetToken, password: 'AnotherPass123!' })
+        .expect(400);
+    });
+
+    it('rejects expired and malformed reset tokens', async () => {
+      const payload = buildSignUpPayload();
+      const auth = await signUp(app, payload);
+      await insertResetToken({
+        userId: auth.user.id,
+        expiresAt: new Date(Date.now() - 1000),
+      });
+
+      await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ token: resetToken, password: nextPassword })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ token: 'short', password: nextPassword })
+        .expect(400);
+    });
   });
 });

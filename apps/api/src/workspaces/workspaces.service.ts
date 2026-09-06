@@ -4,18 +4,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  MembershipStatus,
-  Workspace,
-  WorkspacePlan,
-  WorkspaceRole,
-} from '@prisma/client';
+import { MembershipStatus, Workspace, WorkspaceRole } from '@prisma/client';
 import { MembershipsRepository } from '../memberships/memberships.repository';
+import { PrismaService } from '../prisma/prisma.service';
 import { UsageService } from '../usage/usage.service';
 import { WorkspaceUsageResponseDto } from '../usage/dto/workspace-usage-response.dto';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import { WorkspacesRepository } from './workspaces.repository';
+
+const DEFAULT_PLAN_KEY = 'free';
 
 @Injectable()
 export class WorkspacesService {
@@ -23,6 +21,7 @@ export class WorkspacesService {
     private readonly workspacesRepository: WorkspacesRepository,
     private readonly membershipsRepository: MembershipsRepository,
     private readonly usageService: UsageService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async createPersonalWorkspace(
@@ -45,10 +44,14 @@ export class WorkspacesService {
     role: WorkspaceRole = WorkspaceRole.OWNER,
   ): Promise<Workspace> {
     const slug = await this.generateUniqueSlug(dto.name);
+    const freePlan = await this.prisma.plan.findUniqueOrThrow({
+      where: { key: DEFAULT_PLAN_KEY },
+      select: { id: true },
+    });
     const workspace = await this.workspacesRepository.create({
       name: dto.name,
       slug,
-      plan: WorkspacePlan.FREE,
+      planId: freePlan.id,
     });
 
     await this.membershipsRepository.create({

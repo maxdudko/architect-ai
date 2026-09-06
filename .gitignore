@@ -1,5 +1,6 @@
 # dependencies
 node_modules/
+node_modules.broken/
 .pnpm-store/
 
 # build artifacts
@@ -15,6 +16,9 @@ out/
 .env.local
 .env.*.local
 .env.production
+
+# sensitive files
+.ssh
 
 # logs
 *.log

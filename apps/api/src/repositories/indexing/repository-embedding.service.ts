@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { IndexingResourceMetric } from '@prisma/client';
 import { RetrievalIndexingService } from '../../modules/retrieval/indexing/retrieval-indexing.service';
+import { IndexingResourceLimitService } from '../../usage/indexing-resource-limit.service';
 import { RepositoriesRepository } from '../repositories.repository';
 
 @Injectable()
@@ -7,6 +9,7 @@ export class RepositoryEmbeddingService {
   constructor(
     private readonly retrievalIndexingService: RetrievalIndexingService,
     private readonly repositoriesRepository: RepositoriesRepository,
+    private readonly indexingResourceLimitService: IndexingResourceLimitService,
   ) {}
 
   async embedRepository(data: {
@@ -16,6 +19,22 @@ export class RepositoryEmbeddingService {
     branch: string;
     commitSha: string;
   }): Promise<{ embeddedCount: number }> {
+    const chunks = await this.repositoriesRepository.listChunks(
+      data.repositoryId,
+      data.runId,
+    );
+    const tokenCount = chunks.reduce((sum, chunk) => sum + chunk.tokenCount, 0);
+    await this.indexingResourceLimitService.assertWithin(
+      data.workspaceId,
+      IndexingResourceMetric.EMBEDDING_CHUNKS,
+      chunks.length,
+    );
+    await this.indexingResourceLimitService.assertWithin(
+      data.workspaceId,
+      IndexingResourceMetric.INDEXED_TOKENS,
+      tokenCount,
+    );
+
     const result = await this.retrievalIndexingService.indexRepositoryChunks({
       workspaceId: data.workspaceId,
       repositoryId: data.repositoryId,
@@ -26,11 +45,6 @@ export class RepositoryEmbeddingService {
     if (result.embeddedCount === 0) {
       return result;
     }
-
-    const chunks = await this.repositoriesRepository.listChunks(
-      data.repositoryId,
-      data.runId,
-    );
 
     await this.repositoriesRepository.updateChunkVectorIds(
       data.repositoryId,
@@ -47,5 +61,9 @@ export class RepositoryEmbeddingService {
 
   async deleteRepositoryVectors(repositoryId: string): Promise<void> {
     await this.retrievalIndexingService.deleteRepositoryVectors(repositoryId);
+  }
+
+  async deleteIndexingRunVectors(indexingRunId: string): Promise<void> {
+    await this.retrievalIndexingService.deleteIndexingRunVectors(indexingRunId);
   }
 }

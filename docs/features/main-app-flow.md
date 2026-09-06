@@ -1,6 +1,6 @@
 # Main App Flow
 
-End-to-end path from connecting a repository to answering a chat question.
+End-to-end path from connecting a repository to chat and living onboarding guides.
 
 ```text
 Connect / retry / reindex
@@ -13,11 +13,8 @@ Clone → Parse → Chunk → Embed
    (files, symbols,      (chunk vectors)
     relations, chunks)
         ↓
-Chat ask / stream
-        ↓
-Retrieve → Prompt → LLM
-        ↓
-Answer + source citations
+        ├─ Chat ask / stream → Retrieve → Prompt → LLM → Answer + citations
+        └─ Queue onboarding-guide generation → topology + retrieval → Markdown guides
 ```
 
 ---
@@ -36,6 +33,8 @@ Answer + source citations
 
 The API authenticates the GitHub repo, creates/updates the `Repository` row, and enqueues work on the BullMQ queue `repository-indexing` (Redis). Indexing does **not** run in the API request path.
 
+A workspace member can pick a repository from the connected GitHub account or paste a public `owner/repo` URL. Public URLs are resolved with `GET /integrations/github/resolve` before `POST /workspaces/:id/repositories`.
+
 ---
 
 ## 2. Indexing pipeline (worker)
@@ -44,17 +43,21 @@ The API authenticates the GitHub repo, creates/updates the `Repository` row, and
 
 **Orchestrator:** `repository-indexing.worker.service.ts`
 
-Stages run as chained BullMQ jobs (3 attempts, exponential backoff):
+Stages run as chained BullMQ jobs (3 attempts, exponential backoff). The Status column is the repository status **while that job runs** (the job then advances status before enqueueing the next stage):
 
-| Job       | Status                | What happens                                                                |
-| --------- | --------------------- | --------------------------------------------------------------------------- |
-| `reindex` | `PENDING`             | Create `IndexingRun`; wipe prior PG artifacts + Qdrant vectors for the repo |
-| `clone`   | `CLONING`             | Shallow `git clone --depth 1` into temp storage (`INDEXING_TMP_DIR`)        |
-| `parse`   | `PARSING`             | Tree-sitter code intelligence → files, symbols, relations                   |
-| `chunk`   | `CHUNKING`            | One semantic chunk per meaningful symbol                                    |
-| `embed`   | `EMBEDDING` → `READY` | Batch embed chunks; upsert Qdrant; mark repo ready                          |
+| Job       | Status                | What happens                                                                                              |
+| --------- | --------------------- | --------------------------------------------------------------------------------------------------------- |
+| `reindex` | `CLONING`             | Create a new `IndexingRun` alongside the live index; set status `CLONING`; do not wipe prior artifacts    |
+| `clone`   | `CLONING`             | Shallow `git clone --depth 1` into temp storage (`INDEXING_TMP_DIR`)                                      |
+| `parse`   | `PARSING`             | Tree-sitter code intelligence → files, symbols, relations for this run                                    |
+| `chunk`   | `CHUNKING`            | One semantic chunk per meaningful symbol                                                                  |
+| `embed`   | `EMBEDDING` → `READY` | Batch embed chunks; upsert Qdrant; mark repo ready; delete the previous generation; enqueue living guides |
 
-On failure the repo is marked `FAILED` (with `indexingError`). Temp clone directories are cleaned up after embed or failure.
+The connect HTTP handler first persists the repository as `PENDING`, then enqueues `reindex`. The `reindex` job itself sets `CLONING` before clone starts.
+
+On first-time failure the repo is marked `FAILED` (with `indexingError`). If a previous successful index exists, a failed rebuild restores `READY` and keeps that index searchable. Temp clone directories are cleaned up after embed or failure. Guide enqueue failures are logged and do not roll the repository back from `READY`.
+
+Diagram (the `.mmd` file is canonical; the PNG is generated from it): [Repository Indexing Workflow](./Repository%20Indexing%20Workflow.mmd).
 
 ```text
 PENDING → CLONING → PARSING → CHUNKING → EMBEDDING → READY
@@ -71,7 +74,7 @@ Invoked by the indexing worker’s `parse` and `chunk` jobs (not by chat).
 
 ```text
 Scan files
-  → Detect language (TypeScript / JavaScript today)
+  → Detect language (TypeScript / JavaScript / Python / PHP today)
   → Tree-sitter parse → AST
   → Upsert RepositoryFile inventory
   → Extract CodeSymbol (+ hierarchy, export/async/etc.)
@@ -118,7 +121,7 @@ User question
 | **PostgreSQL `Chunk`** | Source of truth for content + `vectorId`                                               |
 | **Redis** (optional)   | Query-embedding and assembled-context cache                                            |
 
-There is no public HTTP search controller; retrieval is used by indexing (embed) and chat.
+There is no public HTTP search controller; retrieval is used by indexing (embed), chat, and onboarding-guide generation.
 
 ---
 
@@ -134,6 +137,8 @@ There is no public HTTP search controller; retrieval is used by indexing (embed)
 | `POST .../conversations/:id/messages`        | Full answer                                   |
 | `POST .../conversations/:id/messages/stream` | SSE stream                                    |
 
+Omitting `repositoryId` searches ready repositories in the active workspace. Setting it scopes retrieval to that repository.
+
 ### Turn flow
 
 ```text
@@ -141,7 +146,7 @@ Load conversation + recent history (~12 messages)
   → Persist USER message
   → RetrievalService.retrieve (topK ≈ 12, scoped to conversation repo when set)
   → PromptContextBuilder (system + repo meta + chunks + history + question)
-  → LLM generate or stream (mock | openai | anthropic)
+  → LLM generate or stream (hosted mock | openai | anthropic | grok | gemini, or workspace BYOK)
   → Persist ASSISTANT message (metadata: sources, model, usage)
 ```
 
@@ -151,8 +156,18 @@ Load conversation + recent history (~12 messages)
 sources → token* → message → done
 ```
 
-**Stored in PostgreSQL:** `Conversation`, `Message`  
+**Stored in PostgreSQL:** `Conversation`, `Message`, `MessageSourceCitation`, optional `AnswerFeedback`  
 Chat does not write vectors; it reads Qdrant + PG at ask time.
+
+---
+
+## 6. Living onboarding guides
+
+**Who:** `apps/api/src/modules/onboarding/` + web `apps/web/src/features/onboarding/`
+
+After embed succeeds, the indexing worker queues `onboarding-guide-generation` (`INITIAL_INDEX` or `REINDEX`). Owners, admins, and members can also generate or regenerate from `/repositories/:repositoryId/guides`.
+
+See [Living onboarding guides](./onboarding-guides.md) for types, REST, and UI behavior.
 
 ---
 
@@ -176,5 +191,6 @@ Chat does not write vectors; it reads Qdrant + PG at ask time.
 | Retrieval         | `apps/api/src/modules/retrieval/`         |
 | Chat API          | `apps/api/src/chat/`                      |
 | Chat UI           | `apps/web/src/features/chat/`             |
+| Onboarding guides | `apps/api/src/modules/onboarding/`        |
 
-Related docs: [Architecture](../Architecture.md), [code intelligence](./code-intelligence.md), [retrieval](./retrieval.md)
+Related docs: [Architecture](../Architecture.md), [auth and identity](./auth-and-identity.md), [code intelligence](./code-intelligence.md), [retrieval](./retrieval.md), [onboarding guides](./onboarding-guides.md)

@@ -45,10 +45,6 @@ export function WorkspaceSettingsForm({
             <Input id="name" {...register('name')} />
             {errors.name ? <p className="text-xs text-destructive">{errors.name.message}</p> : null}
           </div>
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Plan</p>
-            <p className="text-sm text-muted-foreground">{planLabel}</p>
-          </div>
           {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
           {successMessage ? <p className="text-sm text-emerald-600">{successMessage}</p> : null}
           <Button type="submit" disabled={isSubmitting}>

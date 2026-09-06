@@ -11,7 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class WorkspacesRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(data: Prisma.WorkspaceCreateInput): Promise<Workspace> {
+  create(data: Prisma.WorkspaceUncheckedCreateInput): Promise<Workspace> {
     return this.prisma.workspace.create({ data });
   }
 

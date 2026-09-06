@@ -40,6 +40,8 @@ describe('ContextAssemblerService', () => {
           createdAt: new Date('2026-01-01T00:00:00.000Z'),
         },
       ]),
+      listLiveIndexingRunIds: jest.fn(),
+      listVectorizedChunksByIndexingRun: jest.fn(),
     };
 
     const service = new ContextAssemblerService(chunkDataSource);

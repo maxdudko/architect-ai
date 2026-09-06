@@ -1,10 +1,20 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import {
+  buildLlmProvider,
+  LLM_PROVIDER_DEFAULT_MODEL,
+  type LlmProviderKind,
+} from './llm-provider.factory';
 import type { LlmProvider } from './interfaces/llm-provider.interface';
 import { LLM_PROVIDER } from './interfaces/tokens';
-import { AnthropicLlmProvider } from './providers/anthropic-llm.provider';
 import { MockLlmProvider } from './providers/mock-llm.provider';
-import { OpenAiLlmProvider } from './providers/openai-llm.provider';
+
+const HOSTED_API_KEY_ENV: Record<LlmProviderKind, string> = {
+  openai: 'OPENAI_API_KEY',
+  anthropic: 'ANTHROPIC_API_KEY',
+  grok: 'GROK_API_KEY',
+  gemini: 'GEMINI_API_KEY',
+};
 
 @Module({
   imports: [ConfigModule],
@@ -13,41 +23,35 @@ import { OpenAiLlmProvider } from './providers/openai-llm.provider';
       provide: LLM_PROVIDER,
       inject: [ConfigService],
       useFactory: (configService: ConfigService): LlmProvider => {
-        const provider =
-          configService.get<string>('LLM_PROVIDER')?.toLowerCase() ?? 'mock';
+        const provider = configService
+          .get<string>('LLM_PROVIDER')
+          ?.toLowerCase();
         const maxTokens = Number(
           configService.get<string>('LLM_MAX_TOKENS') ?? 2048,
         );
 
-        if (provider === 'anthropic') {
-          const apiKey = configService.get<string>('ANTHROPIC_API_KEY');
+        if (
+          provider === 'openai' ||
+          provider === 'anthropic' ||
+          provider === 'grok' ||
+          provider === 'gemini'
+        ) {
+          const apiKeyEnv = HOSTED_API_KEY_ENV[provider];
+          const apiKey = configService.get<string>(apiKeyEnv);
           if (!apiKey) {
             throw new Error(
-              'ANTHROPIC_API_KEY is required when LLM_PROVIDER=anthropic',
+              `${apiKeyEnv} is required when LLM_PROVIDER=${provider}`,
             );
           }
-          return new AnthropicLlmProvider({
+          const { envVar, fallback } = LLM_PROVIDER_DEFAULT_MODEL[provider];
+          return buildLlmProvider(provider, {
             apiKey,
-            defaultModel:
-              configService.get<string>('ANTHROPIC_MODEL') ??
-              'claude-sonnet-4-20250514',
+            model: configService.get<string>(envVar) ?? fallback,
             maxTokens,
-          });
-        }
-
-        if (provider === 'openai') {
-          const apiKey = configService.get<string>('OPENAI_API_KEY');
-          if (!apiKey) {
-            throw new Error(
-              'OPENAI_API_KEY is required when LLM_PROVIDER=openai',
-            );
-          }
-          return new OpenAiLlmProvider({
-            apiKey,
-            defaultModel:
-              configService.get<string>('OPENAI_CHAT_MODEL') ?? 'gpt-4o-mini',
-            maxTokens,
-            baseUrl: configService.get<string>('OPENAI_API_BASE_URL'),
+            baseUrl:
+              provider === 'openai'
+                ? configService.get<string>('OPENAI_API_BASE_URL')
+                : undefined,
           });
         }
 

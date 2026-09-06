@@ -15,6 +15,8 @@ export interface AstNode {
   text: string;
   range: AstNodeRange;
   children: AstNode[];
+  /** Tree-sitter field name on the parent, when the grammar exposes one. */
+  fieldName?: string;
 }
 
 export interface AstTree {

@@ -8,6 +8,7 @@ import { CodeIntelligenceModule } from '../modules/code-intelligence/code-intell
 import { OnboardingModule } from '../modules/onboarding/onboarding.module';
 import { RetrievalModule } from '../modules/retrieval/retrieval.module';
 import { UsageModule } from '../usage/usage.module';
+import { GithubIndexingEstimateService } from './indexing/github-indexing-estimate.service';
 import { IndexingStorageService } from './indexing/indexing-storage.service';
 import { RepositoryChunkService } from './indexing/repository-chunk.service';
 import { RepositoryCloneService } from './indexing/repository-clone.service';
@@ -37,6 +38,7 @@ import { RepositoriesService } from './repositories.service';
     RepositoryAccessValidationService,
     RepositoryIndexingQueueService,
     RepositoryIndexingWorkerService,
+    GithubIndexingEstimateService,
     RepositoryCloneService,
     RepositoryParseService,
     RepositoryChunkService,

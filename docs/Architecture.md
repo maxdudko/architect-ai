@@ -6,14 +6,15 @@ This document describes the architecture that is implemented in the current MVP.
 
 Architect AI is currently a multi-tenant codebase onboarding application. A user can:
 
-- create an account and a personal workspace;
+- create an account (email/password or Google/GitHub identity) and a personal workspace;
 - invite members and assign workspace roles;
 - connect a GitHub account and select a repository and branch;
-- index TypeScript and JavaScript source asynchronously;
+- index TypeScript, JavaScript, Python, and PHP source asynchronously;
 - browse indexed files and symbols;
-- ask repository-scoped questions and receive source citations;
+- ask repository-scoped or workspace-scoped questions and receive source citations;
 - generate and browse evidence-backed onboarding guides;
-- use hosted AI or a workspace-owned OpenAI key;
+- use hosted AI or a workspace-owned API key for OpenAI, Anthropic, Grok, or Gemini;
+- subscribe to a paid plan through Stripe or stay on Free;
 - view usage, while platform admins manage limits and inspect analytics and logs.
 
 The MVP does **not** yet implement architecture visualization, decision memory, impact analysis, GitLab or Bitbucket ingestion, repository webhooks, incremental indexing, or a knowledge graph.
@@ -45,7 +46,7 @@ NestJS indexing worker
    └── generates onboarding guides
 
 External services:
-GitHub OAuth/API · OpenAI and/or Anthropic · Resend (optional) · Sentry (optional)
+GitHub OAuth/API · Google identity OAuth · OpenAI, Anthropic, Grok, and/or Gemini · Stripe · Resend (optional) · Sentry (optional)
 ```
 
 Both the HTTP process and worker bootstrap the same NestJS `AppModule`. `INDEXING_WORKER_ENABLED` prevents queue consumers from running in the API process. The worker has no HTTP listener and enables both repository-indexing and onboarding-guide workers.
@@ -80,14 +81,16 @@ The repository is a pnpm workspace orchestrated by Turborepo. The active code-in
 
 Implemented user surfaces include:
 
-- landing, sign-up, and sign-in;
+- landing (including contact form), sign-up, and sign-in (email/password plus Google and GitHub identity OAuth);
+- password reset (`/forgot-password`, `/reset-password/:token`) and profile name updates (`/profile`);
 - dashboard and workspace switching;
-- repository connection, status, file, and symbol browsing;
+- repository connection (OAuth list or public GitHub URL), status, file, and symbol browsing;
 - streaming repository chat, conversation history, citations, and feedback;
 - onboarding guide library and guide detail views;
-- workspace settings, members, and invitations;
-- workspace AI settings and usage;
+- workspace settings, members (including role updates), invitations (including resend), usage, billing, and AI provider keys;
 - separate platform-admin authentication, analytics, users, plans, and logs.
+
+Personal `/settings` remains a placeholder. Architecture Explorer and Decision Memory appear on the dashboard as later-phase placeholders.
 
 The browser sends access tokens as bearer tokens. Refresh tokens are rotated by the API and stored in an HTTP-only cookie. Next.js middleware uses a lightweight access-token cookie to route users; API guards remain the authorization boundary.
 
@@ -100,7 +103,7 @@ The browser sends access tokens as bearer tokens. Refresh tokens are rotated by 
 - `modules/code-intelligence`, `modules/retrieval`, and `modules/llm`;
 - `conversations` and `chat`;
 - `modules/onboarding`;
-- `workspace-ai`, `usage`, `analytics`, `system-logs`, and `admin`.
+- `workspace-ai`, `usage`, `billing`, `analytics`, `system-logs`, and `admin`.
 
 Controllers expose REST endpoints; chat additionally exposes Server-Sent Events (SSE). Swagger is available at `/docs` outside production, and `/health` is the container health endpoint.
 
@@ -120,13 +123,15 @@ Jobs use retries and exponential backoff. Repository status and run records make
 ### 5.1 Authentication and workspace authorization
 
 ```text
-Sign up / sign in
-  → bcrypt password verification
+Sign up / sign in (email-password or Google/GitHub identity OAuth)
+  → bcrypt password verification, or IdentityAccount link
   → access JWT + rotating refresh JWT
   → refresh session stored in Redis
   → active workspace encoded in access token
   → workspace and role guards authorize each request
 ```
+
+Email/password accounts store a password hash. Google and GitHub **identity** sign-in create or link an `IdentityAccount` and do not grant GitHub repository access. GitHub **repository connect** is a separate OAuth flow that stores encrypted tokens on `OAuthAccount`.
 
 Sign-up creates a personal `FREE` workspace and `OWNER` membership. Roles are `OWNER`, `ADMIN`, `MEMBER`, and `VIEWER`. Workspace-scoped endpoints verify both active membership and route workspace. Mutating operations add role checks.
 
@@ -146,7 +151,7 @@ User requests connect URL
   → enqueue INITIAL_CONNECT indexing
 ```
 
-GitHub OAuth credentials belong to a user, while connected repositories belong to a workspace. OAuth and workspace OpenAI keys are encrypted with AES-256-GCM via `TOKEN_ENCRYPTION_KEY`.
+GitHub OAuth credentials belong to a user, while connected repositories belong to a workspace. Members can list remotes the connected account can see or resolve a public GitHub URL / `owner/repo` via `GET /integrations/github/resolve`. OAuth tokens and workspace BYOK provider keys are encrypted with AES-256-GCM via `TOKEN_ENCRYPTION_KEY`.
 
 Repository mutation and reindex operations can perform a live GitHub access check for the acting user. Reading already-indexed workspace content is authorized by workspace membership rather than every member having direct GitHub access.
 
@@ -156,13 +161,14 @@ The current schema has a global unique constraint on `(provider, externalId)`, s
 
 ```text
 Connect / retry / reindex
-  → reindex job creates IndexingRun and removes prior index artifacts
+  → reindex job creates a new IndexingRun alongside the live index
   → shallow authenticated git clone
   → Tree-sitter parse
   → semantic symbol chunks
   → batch embeddings
-  → Qdrant upsert
+  → Qdrant upsert tagged with the new run id
   → repository READY
+  → delete previous generation's Postgres artifacts and Qdrant vectors
   → enqueue onboarding-guide generation
 ```
 
@@ -173,15 +179,15 @@ PENDING → CLONING → PARSING → CHUNKING → EMBEDDING → READY
      └──────────────── any terminal retry exhaustion ───────► FAILED
 ```
 
+A repository that already has a successful index stays searchable during rebuild. Chat, file browse, and symbol browse pin to the latest `SUCCEEDED` `IndexingRun`. Progress still moves through `CLONING` / `PARSING` / `CHUNKING` / `EMBEDDING`. If the new run fails, status returns to `READY` and `indexingError` records the refresh failure. First-time connect/retry failures still end in `FAILED`.
+
 The stages are chained BullMQ jobs rather than one long job:
 
-1. **Reindex** creates an `IndexingRun`, clears stale PostgreSQL artifacts and Qdrant vectors, then enqueues clone.
+1. **Reindex** creates an `IndexingRun`, sets repository status to `CLONING`, and enqueues clone. It does not delete the live index.
 2. **Clone** performs a shallow clone of the selected/default branch into `INDEXING_TMP_DIR` and records branch and commit SHA.
-3. **Parse** scans supported files, persists inventory, extracts symbols and static relationships, and prunes stale files.
+3. **Parse** scans supported files, persists inventory for the current run, extracts symbols and static relationships, and prunes unseen files in that run only.
 4. **Chunk** creates one source-backed semantic chunk per meaningful symbol.
-5. **Embed** batches chunks through the configured embedding provider, upserts vectors, marks the run successful and repository `READY`, then cleans temporary files.
-
-Because reindex deletes the previous searchable artifacts before the replacement index succeeds, a failed reindex leaves the repository without its previous searchable index. Blue/green index replacement is a future reliability improvement.
+5. **Embed** batches chunks through the configured embedding provider, upserts vectors, marks the run successful and repository `READY`, then deletes the previous generation, cleans temporary files, and enqueues living-guide generation.
 
 ### 5.4 Code intelligence
 
@@ -189,15 +195,15 @@ The code-intelligence module is independent of chat and LLM generation:
 
 ```text
 Recursive scanner
-  → extension-based language detection
+  → language-pack detection (and non-parsed manifests)
   → Tree-sitter AST adapter
-  → symbol extraction
-  → static relationship extraction
+  → pack symbol extraction
+  → pack static relationship extraction
   → PostgreSQL persistence
   → semantic chunk construction
 ```
 
-Current language support is TypeScript and JavaScript, including TSX/JSX and module variants. Ignored build/dependency directories, binaries, unsupported files, empty files, and unparseable files are skipped.
+Current language support is TypeScript, JavaScript, Python, and PHP (including TSX/JSX and PHP/Python module variants). Languages are registered as packs under `apps/api/src/modules/code-intelligence/languages/`. Ignored build/dependency directories, binaries, unsupported files, empty files, and unparseable files are skipped. Manifests such as `package.json`, `composer.json`, and `pyproject.toml` are inventoried without parsing.
 
 Extracted symbols include functions, classes, methods, interfaces, enums, type aliases, variables, constants, namespaces, and modules. Relations include imports, exports, extends, implements, calls, and uses. This is static, syntax-level analysis; it is not a complete runtime call graph.
 
@@ -217,7 +223,7 @@ Question path:
 ```text
 Question
   → query embedding
-  → Qdrant cosine search with workspace/repository filters
+  → Qdrant cosine search with workspace, repository, and live indexing-run filters
   → similarity ranking with lightweight code-hint bonuses
   → hydrate chunks, files, and symbols from PostgreSQL
   → deduplicate and assemble RetrievedContext
@@ -239,13 +245,15 @@ Current ranking combines vector similarity with lightweight query/code-hint bonu
 
 ### 5.6 LLM providers and BYOK
 
-Chat and onboarding guides consume a shared `LlmProvider` contract. The hosted provider is selected with `LLM_PROVIDER`:
+Chat and onboarding guides consume a shared `LlmProvider` contract, built by a single `buildLlmProvider` factory shared between the hosted provider and BYOK resolution. The hosted provider is selected with `LLM_PROVIDER`:
 
 - `mock` for deterministic local development;
 - `openai`;
-- `anthropic`.
+- `anthropic`;
+- `grok`;
+- `gemini`.
 
-A workspace owner or admin can save an OpenAI API key. When present, `WorkspaceLlmResolver` creates a workspace-specific OpenAI provider for generation. BYOK affects LLM generation only; embeddings remain platform-configured.
+A workspace owner or admin can save an API key per provider (OpenAI, Anthropic, Grok, or Gemini) and mark one as the workspace's active provider. When a provider is active, `WorkspaceLlmResolver` builds a workspace-specific provider instance from the decrypted key for generation; otherwise it falls back to the hosted provider. Switching the active provider takes effect immediately and does not require re-entering a key. BYOK affects LLM generation only; embeddings remain platform-configured.
 
 Mock embeddings and the mock LLM exercise the complete application flow but do not provide production-quality semantic answers or guides.
 
@@ -273,20 +281,20 @@ Generation writes a new guide set only after all requested targets succeed. Exis
 
 Prisma manages relational data in these main groups:
 
-- identity: `User`, `Admin`, `OAuthAccount`;
+- identity: `User`, `Admin`, `IdentityAccount`, `OAuthAccount`;
 - tenancy: `Workspace`, `Membership`, `Invitation`;
-- commercial controls: `PlanLimit`, `WorkspaceAiSettings`;
+- commercial controls: `Plan`, `PlanPrice`, `PlanLimit`, `WorkspaceSubscription`, `WorkspaceAiSettings`;
 - repositories: `Repository`, `IndexingRun`;
 - code knowledge: `RepositoryFile`, `CodeSymbol`, `SymbolRelation`, `Chunk`;
 - generated knowledge: `Guide`, `GuideGenerationRun`;
 - conversations: `Conversation`, `Message`, `MessageSourceCitation`, `AnswerFeedback`;
-- operations and product data: `AnalyticsEvent`, `SystemLog`.
+- operations and product data: `AnalyticsEvent`, `SystemLog`, `StripeWebhookEvent`.
 
 Workspace IDs are carried through repository, conversation, guide, usage, and citation queries. Qdrant payloads repeat workspace and repository IDs so vector searches can enforce tenant filters.
 
 ### Qdrant: derived vector index
 
-The shared collection defaults to `architect_chunks`. A point ID is the PostgreSQL chunk ID. Payloads include workspace, repository, file, symbol, language, branch, and commit-related context. Qdrant is rebuildable derived state; PostgreSQL owns chunk content and metadata.
+The shared collection defaults to `architect_chunks`. A point ID is the PostgreSQL chunk ID. Payloads include workspace, repository, indexing run, file, symbol, language, branch, and commit-related context. Qdrant is rebuildable derived state; PostgreSQL owns chunk content and metadata. Search filters by the latest successful indexing run so a rebuild cannot mix generations.
 
 ### Redis: ephemeral coordination
 
@@ -306,11 +314,11 @@ Plan limits are database rows keyed by workspace plan and metric. The MVP enforc
 - monthly indexing runs;
 - monthly guide-generation runs;
 - monthly AI questions;
-- current active members plus pending invitations.
+- current active members (pending invitations do not consume a seat until accepted);
 
-New workspaces are `FREE`; `PRO` and `ENTERPRISE` are unlimited placeholders. Billing, checkout, invoices, and self-service plan changes are not implemented. OpenAI BYOK removes question and guide limits but does not remove repository, indexing, or member limits.
+New workspaces are `FREE`. Paid plans (`PRO` and others configured by admins) have monthly Stripe prices for STANDARD and BYOK billing modes. Owners and admins upgrade through Stripe Checkout, manage payment methods in the Stripe billing portal, and can schedule a period-end downgrade to Free or resume that cancellation. Plans marked `isContactSales` (typically Enterprise) skip checkout and point to sales. Having an active BYOK provider removes question and guide limits but does not remove repository, indexing, or member limits, and does not change the Stripe plan price.
 
-Platform-admin endpoints and pages expose workspace usage, user management, editable plan limits, product analytics, and persisted system logs.
+Platform-admin endpoints and pages expose workspace usage, user management, editable plan limits and prices, product analytics, and persisted system logs.
 
 ## 8. Security and isolation
 
@@ -321,13 +329,13 @@ Implemented controls include:
 - HTTP-only refresh cookies;
 - workspace membership and role guards;
 - separate admin authentication secrets;
-- signed GitHub OAuth state;
+- signed GitHub and identity OAuth state;
 - encrypted OAuth and BYOK secrets at rest;
 - repository/workspace filters in PostgreSQL and Qdrant;
 - DTO allow-list validation;
 - configurable CORS;
 - request IDs, audit/system logs, and optional Sentry;
-- production startup validation for critical secrets.
+- production startup validation for critical secrets, including Stripe keys.
 
 Known MVP constraints:
 
@@ -354,7 +362,7 @@ Development containers bind-mount the repository and run framework watch modes. 
 
 ### Production
 
-`docker-compose.prod.yml` is the implemented production target for a single AWS EC2 host:
+`docker-compose.prod.yml` is the implemented production target for a single VM (Hostinger VPS, AWS EC2, or similar):
 
 - multi-stage, non-root application images;
 - separate API and worker processes;
@@ -391,8 +399,8 @@ lint → unit tests → typecheck → API E2E tests → build
 
 The next architecture work should extend the current boundaries rather than claim already-planned systems:
 
-1. make indexing non-destructive and incremental; add GitHub webhook-triggered refresh;
-2. add more language parsers and improve relationship resolution;
+1. add incremental indexing and GitHub webhook-triggered refresh;
+2. add more language packs (Go, Java, Rust) and improve relationship resolution;
 3. add lexical/hybrid retrieval, reranking, and retrieval evaluation;
 4. remove the global repository/workspace uniqueness constraint;
 5. move rate limiting and all session behavior to shared infrastructure;
@@ -402,10 +410,13 @@ The next architecture work should extend the current boundaries rather than clai
 
 Detailed implementation notes:
 
+- [Documentation index](README.md)
 - [Main app flow](features/main-app-flow.md)
+- [Auth and identity](features/auth-and-identity.md)
 - [Code intelligence](features/code-intelligence.md)
 - [Retrieval](features/retrieval.md)
 - [Living onboarding guides](features/onboarding-guides.md)
-- [Usage limits and AI providers](features/usage-and-ai-providers.md)
+- [Usage limits, billing, and AI providers](features/usage-and-ai-providers.md)
+- [Hostinger / VPS deployment](features/deploy-hostinger.md)
 - [EC2 deployment](features/deploy-ec2.md)
 - [Product roadmap](Roadmap.md)

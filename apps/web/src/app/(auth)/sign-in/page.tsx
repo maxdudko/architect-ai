@@ -1,4 +1,4 @@
-import { AuthShell, SignInForm } from '@/features/auth';
+import { AuthShell, OAuthButtons, SignInForm } from '@/features/auth';
 
 export default function SignInPage() {
   return (
@@ -10,6 +10,7 @@ export default function SignInPage() {
       footerAction="Create one"
     >
       <SignInForm />
+      <OAuthButtons />
     </AuthShell>
   );
 }

@@ -7,18 +7,26 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   AnalyticsEventType,
+  IndexingResourceMetric,
+  RepositoryProvider,
   RepositoryStatus,
   UsageMetric,
 } from '@prisma/client';
-import { QueueEvents, Worker } from 'bullmq';
+import { QueueEvents, UnrecoverableError, Worker } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import { access } from 'node:fs/promises';
 import { AnalyticsService } from '../../analytics/analytics.service';
 import { captureError } from '../../common/observability/error-tracker';
 import { OnboardingGuideQueueService } from '../../modules/onboarding/queue/onboarding-guide-queue.service';
+import {
+  getIndexingResourceLimitPayload,
+  isIndexingResourceLimitError,
+} from '../../usage/indexing-resource-limit.error';
 import { UsageService } from '../../usage/usage.service';
+import { IndexingResourceLimitService } from '../../usage/indexing-resource-limit.service';
 import { RepositoriesRepository } from '../repositories.repository';
 import { RepositoryIndexingQueueService } from '../repository-indexing.queue.service';
+import { GithubIndexingEstimateService } from './github-indexing-estimate.service';
 import {
   CloneJobData,
   EmbedJobData,
@@ -57,6 +65,8 @@ export class RepositoryIndexingWorkerService
     private readonly onboardingGuideQueue: OnboardingGuideQueueService,
     private readonly analyticsService: AnalyticsService,
     private readonly usageService: UsageService,
+    private readonly indexingResourceLimitService: IndexingResourceLimitService,
+    private readonly githubIndexingEstimateService: GithubIndexingEstimateService,
   ) {
     this.workerEnabled =
       (this.configService.get<string>('INDEXING_WORKER_ENABLED') ?? 'false') ===
@@ -89,28 +99,35 @@ export class RepositoryIndexingWorkerService
     this.worker = new Worker(
       queueName,
       async (job) => {
-        switch (job.name as IndexingJobName) {
-          case INDEXING_JOB_NAMES.reindex:
-            await this.processReindex(job.data as ReindexJobData);
-            return;
-          case INDEXING_JOB_NAMES.clone:
-            await this.processClone(job.data as CloneJobData);
-            return;
-          case INDEXING_JOB_NAMES.parse:
-            await this.processParse(
-              job.data as CloneJobData & { clonePath: string },
-            );
-            return;
-          case INDEXING_JOB_NAMES.chunk:
-            await this.processChunk(
-              job.data as CloneJobData & { clonePath: string },
-            );
-            return;
-          case INDEXING_JOB_NAMES.embed:
-            await this.processEmbed(job.data as EmbedJobData);
-            return;
-          default:
-            throw new Error(`Unknown job name: ${job.name}`);
+        try {
+          switch (job.name as IndexingJobName) {
+            case INDEXING_JOB_NAMES.reindex:
+              await this.processReindex(job.data as ReindexJobData);
+              return;
+            case INDEXING_JOB_NAMES.clone:
+              await this.processClone(job.data as CloneJobData);
+              return;
+            case INDEXING_JOB_NAMES.parse:
+              await this.processParse(
+                job.data as CloneJobData & { clonePath: string },
+              );
+              return;
+            case INDEXING_JOB_NAMES.chunk:
+              await this.processChunk(
+                job.data as CloneJobData & { clonePath: string },
+              );
+              return;
+            case INDEXING_JOB_NAMES.embed:
+              await this.processEmbed(job.data as EmbedJobData);
+              return;
+            default:
+              throw new Error(`Unknown job name: ${job.name}`);
+          }
+        } catch (error) {
+          if (isIndexingResourceLimitError(error)) {
+            throw this.indexingResourceLimitService.toUnrecoverableError(error);
+          }
+          throw error;
         }
       },
       {
@@ -138,7 +155,8 @@ export class RepositoryIndexingWorkerService
         return;
       }
       const maxAttempts = job.opts.attempts ?? 1;
-      if (job.attemptsMade < maxAttempts) {
+      const unrecoverable = error instanceof UnrecoverableError;
+      if (!unrecoverable && job.attemptsMade < maxAttempts) {
         this.logger.warn(
           JSON.stringify({
             event: 'indexing_job_retry',
@@ -180,16 +198,37 @@ export class RepositoryIndexingWorkerService
       const existingRun = await this.repositoriesRepository.getIndexingRunById(
         data.runId,
       );
+      const resourceLimit = getIndexingResourceLimitPayload(error);
       await this.repositoriesRepository.updateIndexingRun(data.runId, {
         status: 'FAILED',
         error: error.message,
-        errors: [error.message],
+        errors: resourceLimit ?? [error.message],
         completedAt: failedAt,
         processingDurationMs: existingRun
           ? Math.max(0, failedAt.getTime() - existingRun.startedAt.getTime())
           : undefined,
       });
       await this.indexingStorageService.cleanupRunDirectory(data.runId);
+      try {
+        await this.repositoriesRepository.deleteArtifactsForIndexingRun(
+          data.runId,
+        );
+        await this.embeddingService.deleteIndexingRunVectors(data.runId);
+      } catch (cleanupError) {
+        this.logger.warn(
+          JSON.stringify({
+            event: 'indexing_failed_run_cleanup_failed',
+            runId: data.runId,
+            workspaceId: data.workspaceId,
+            repositoryId: data.repositoryId,
+            error:
+              cleanupError instanceof Error
+                ? cleanupError.message
+                : String(cleanupError),
+            service: 'indexing-worker',
+          }),
+        );
+      }
     }
     await this.queueService.markAsFailed({
       workspaceId: data.workspaceId,
@@ -220,6 +259,8 @@ export class RepositoryIndexingWorkerService
   }
 
   private async processReindex(data: ReindexJobData): Promise<void> {
+    await this.assertGithubTreeWithinLimits(data);
+
     const run = await this.repositoriesRepository.createIndexingRun({
       repositoryId: data.repositoryId,
       trigger: data.trigger,
@@ -233,14 +274,8 @@ export class RepositoryIndexingWorkerService
       {
         status: RepositoryStatus.CLONING,
         indexingError: null,
-        lastIndexedAt: null,
       },
     );
-
-    await this.repositoriesRepository.deleteArtifactsForRepository(
-      data.repositoryId,
-    );
-    await this.embeddingService.deleteRepositoryVectors(data.repositoryId);
 
     await this.queueService.enqueueCloneJob({
       ...data,
@@ -251,6 +286,13 @@ export class RepositoryIndexingWorkerService
 
   private async processClone(data: CloneJobData): Promise<void> {
     const result = await this.cloneService.cloneRepository(data);
+    const workingTreeBytes =
+      await this.indexingStorageService.getWorkingTreeSize(result.clonePath);
+    await this.indexingResourceLimitService.assertWithin(
+      data.workspaceId,
+      IndexingResourceMetric.REPOSITORY_SIZE_BYTES,
+      workingTreeBytes,
+    );
     await this.repositoriesRepository.updateIndexingRun(data.runId, {
       branch: result.branch,
       commitSha: result.commitSha,
@@ -262,7 +304,6 @@ export class RepositoryIndexingWorkerService
       {
         status: RepositoryStatus.PARSING,
         indexingError: null,
-        lastIndexedAt: null,
       },
     );
     await this.queueService.enqueueParseJob({
@@ -301,7 +342,6 @@ export class RepositoryIndexingWorkerService
       {
         status: RepositoryStatus.CHUNKING,
         indexingError: null,
-        lastIndexedAt: null,
       },
     );
     await this.queueService.enqueueChunkJob(data);
@@ -311,6 +351,7 @@ export class RepositoryIndexingWorkerService
     data: CloneJobData & { clonePath: string },
   ): Promise<void> {
     const chunkResult = await this.chunkService.chunkRepository({
+      workspaceId: data.workspaceId,
       repositoryId: data.repositoryId,
       runId: data.runId,
       clonePath: data.clonePath,
@@ -324,7 +365,6 @@ export class RepositoryIndexingWorkerService
       {
         status: RepositoryStatus.EMBEDDING,
         indexingError: null,
-        lastIndexedAt: null,
       },
     );
     await this.queueService.enqueueEmbedJob(data);
@@ -365,6 +405,7 @@ export class RepositoryIndexingWorkerService
         lastIndexedAt: new Date(),
       },
     );
+    await this.swapLiveIndex(data.repositoryId, data.runId);
     if (data.trigger === 'INITIAL_CONNECT') {
       await this.analyticsService.recordEvent({
         type: AnalyticsEventType.REPOSITORY_INDEXING_SUCCEEDED,
@@ -415,6 +456,56 @@ export class RepositoryIndexingWorkerService
           service: 'indexing-worker',
         }),
       );
+    }
+  }
+
+  private async assertGithubTreeWithinLimits(
+    data: ReindexJobData,
+  ): Promise<void> {
+    const repository = await this.repositoriesRepository.findById(
+      data.workspaceId,
+      data.repositoryId,
+    );
+    if (!repository || repository.provider !== RepositoryProvider.GITHUB) {
+      return;
+    }
+
+    await this.githubIndexingEstimateService.assertWithinLimits({
+      workspaceId: data.workspaceId,
+      userId: data.userId,
+      owner: repository.owner,
+      name: repository.name,
+      branch: data.branch || repository.defaultBranch,
+    });
+  }
+
+  private async swapLiveIndex(
+    repositoryId: string,
+    liveRunId: string,
+  ): Promise<void> {
+    const previousRunIds = await this.repositoriesRepository.listIndexingRunIds(
+      repositoryId,
+      { excludeId: liveRunId, status: 'SUCCEEDED' },
+    );
+
+    for (const previousRunId of previousRunIds) {
+      try {
+        await this.repositoriesRepository.deleteArtifactsForIndexingRun(
+          previousRunId,
+        );
+        await this.embeddingService.deleteIndexingRunVectors(previousRunId);
+      } catch (error) {
+        this.logger.warn(
+          JSON.stringify({
+            event: 'indexing_swap_cleanup_failed',
+            liveRunId,
+            previousRunId,
+            repositoryId,
+            error: error instanceof Error ? error.message : String(error),
+            service: 'indexing-worker',
+          }),
+        );
+      }
     }
   }
 }

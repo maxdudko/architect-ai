@@ -1,6 +1,7 @@
 export interface ChunkVectorPayload {
   workspaceId: string;
   repositoryId: string;
+  indexingRunId: string;
   chunkId: string;
   symbolId: string | null;
   fileId: string | null;

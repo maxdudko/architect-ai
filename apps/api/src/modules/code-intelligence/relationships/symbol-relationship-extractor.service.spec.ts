@@ -1,8 +1,11 @@
 import { SymbolRelationType } from '@prisma/client';
+import { createDefaultLanguagePackRegistry } from '../languages/default-language-packs';
 import { SymbolRelationshipExtractorService } from './symbol-relationship-extractor.service';
 
 describe('SymbolRelationshipExtractorService', () => {
-  const service = new SymbolRelationshipExtractorService();
+  const service = new SymbolRelationshipExtractorService(
+    createDefaultLanguagePackRegistry(),
+  );
 
   it('extracts import and call relationships', () => {
     const relationships = service.extract({

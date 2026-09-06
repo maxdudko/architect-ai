@@ -2,6 +2,8 @@
 
 Phase 1 production layout: Docker Compose on a single VM. Kubernetes and ECS are out of scope.
 
+For Hostinger or any generic Ubuntu VPS, follow [Hostinger / VPS deployment](./deploy-hostinger.md) instead.
+
 Public traffic terminates at Caddy (TLS). Postgres, Redis, and Qdrant are not published.
 
 ```text
@@ -20,6 +22,8 @@ Hostnames:
 
 - `https://app.<domain>` → Next.js
 - `https://api.<domain>` → NestJS (GitHub OAuth callback stays on this origin)
+
+Single hostname (for example a provider default like `srv….hstgr.cloud`): see [Hostinger / VPS deployment](./deploy-hostinger.md#single-hostname-hostinger-default). Set `APP_HOST` to that host, `NEXT_PUBLIC_API_BASE_URL=https://<host>/api`, and OAuth callbacks to `https://<host>/api/integrations/github/callback` (Caddy strips `/api` before NestJS). Caddy also forwards `/integrations/*` on the app host to the API so a callback without `/api` still works.
 
 ## Instance
 
@@ -75,20 +79,23 @@ Replace every `CHANGE_ME` value.
 
 - JWT / OAuth / encryption secrets: `openssl rand -base64 48`
 - `POSTGRES_PASSWORD`: `openssl rand -hex 32` (hex only — base64 `/+` breaks the Postgres URL)
+- Stripe: set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`; point the Stripe webhook at `https://api.<domain>/billing/webhook`
 
 Compose builds `DATABASE_URL` from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`. Keep the password URL-safe.
 
 Required URL alignment:
 
-| Variable                    | Example                                                |
-| --------------------------- | ------------------------------------------------------ |
-| `APP_HOST` / `API_HOST`     | `app.example.com` / `api.example.com` (no scheme)      |
-| `WEB_URL` / `CORS_ORIGINS`  | `https://app.example.com`                              |
-| `NEXT_PUBLIC_API_BASE_URL`  | `https://api.example.com`                              |
-| `GITHUB_OAUTH_REDIRECT_URI` | `https://api.example.com/integrations/github/callback` |
-| `COOKIE_DOMAIN`             | `.example.com`                                         |
+| Variable                         | Example                                                |
+| -------------------------------- | ------------------------------------------------------ |
+| `APP_HOST` / `API_HOST`          | `app.example.com` / `api.example.com` (no scheme)      |
+| `WEB_URL` / `CORS_ORIGINS`       | `https://app.example.com`                              |
+| `NEXT_PUBLIC_API_BASE_URL`       | `https://api.example.com`                              |
+| `GITHUB_OAUTH_REDIRECT_URI`      | `https://api.example.com/integrations/github/callback` |
+| `GOOGLE_OAUTH_REDIRECT_URI`      | `https://api.example.com/auth/oauth/google/callback`   |
+| `AUTH_GITHUB_OAUTH_REDIRECT_URI` | `https://api.example.com/auth/oauth/github/callback`   |
+| `COOKIE_DOMAIN`                  | `.example.com`                                         |
 
-`NEXT_PUBLIC_API_BASE_URL` is baked into the web image at **build** time. Changing it later requires `docker compose ... up -d --build web`.
+All `NEXT_PUBLIC_*` values (`NEXT_PUBLIC_API_BASE_URL`, OAuth button flags, Sentry) are baked into the web image at **build** time. Changing them later requires `docker compose ... up -d --build web`.
 
 Do **not** run `pnpm --filter api prisma:seed` in production. Seed passwords are for local development only.
 
@@ -99,9 +106,16 @@ Create the first product user at `https://app.<domain>/sign-up`. Create a platfo
 Create a GitHub OAuth App:
 
 - Homepage URL: `https://app.<domain>`
-- Authorization callback URL: `https://api.<domain>/integrations/github/callback`
+- Authorization callback URLs:
+  - `https://api.<domain>/integrations/github/callback` (repository connect)
+  - `https://api.<domain>/auth/oauth/github/callback` (sign-in / sign-up)
 
-Set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_OAUTH_REDIRECT_URI`, `TOKEN_ENCRYPTION_KEY`, and `GITHUB_OAUTH_STATE_SECRET` in `.env.production`.
+Create a Google Cloud OAuth client (Web application) with:
+
+- Authorized JavaScript origin: `https://app.<domain>`
+- Authorized redirect URI: `https://api.<domain>/auth/oauth/google/callback`
+
+Set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_OAUTH_REDIRECT_URI`, `TOKEN_ENCRYPTION_KEY`, `GITHUB_OAUTH_STATE_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, and `AUTH_GITHUB_OAUTH_REDIRECT_URI` in `.env.production`. `AUTH_GITHUB_CLIENT_ID` / `AUTH_GITHUB_CLIENT_SECRET` are optional and fall back to the GitHub integration app.
 
 ## Start
 

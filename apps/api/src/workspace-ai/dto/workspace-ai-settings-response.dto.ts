@@ -1,12 +1,24 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { AiProvider } from '@prisma/client';
+
+export class WorkspaceAiCredentialSummaryDto {
+  @ApiProperty({ enum: AiProvider })
+  provider!: AiProvider;
+
+  @ApiProperty()
+  keyLast4!: string;
+
+  @ApiProperty()
+  updatedAt!: string;
+}
 
 export class WorkspaceAiSettingsResponseDto {
   @ApiProperty({ enum: ['HOSTED', 'BYOK'] })
   mode!: 'HOSTED' | 'BYOK';
 
-  @ApiPropertyOptional({ nullable: true })
-  openaiKeyLast4!: string | null;
+  @ApiPropertyOptional({ enum: AiProvider, nullable: true })
+  activeProvider!: AiProvider | null;
 
-  @ApiPropertyOptional({ nullable: true })
-  updatedAt!: string | null;
+  @ApiProperty({ type: [WorkspaceAiCredentialSummaryDto] })
+  credentials!: WorkspaceAiCredentialSummaryDto[];
 }
