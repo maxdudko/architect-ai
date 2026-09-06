@@ -9,7 +9,7 @@ describe('GithubHttpService', () => {
 
   beforeEach(() => {
     fetchMock = jest.fn();
-    global.fetch = fetchMock as unknown as typeof fetch;
+    global.fetch = fetchMock;
     service = new GithubHttpService({
       get: (key: string) => {
         if (key === 'GITHUB_CLIENT_ID') {
@@ -35,16 +35,17 @@ describe('GithubHttpService', () => {
       ok: true,
       status: 200,
       headers: new Headers(),
-      json: async () => [
-        {
-          id: 1,
-          name: 'platform',
-          full_name: 'acme/platform',
-          private: true,
-          default_branch: 'main',
-          owner: { login: 'acme' },
-        },
-      ],
+      json: () =>
+        Promise.resolve([
+          {
+            id: 1,
+            name: 'platform',
+            full_name: 'acme/platform',
+            private: true,
+            default_branch: 'main',
+            owner: { login: 'acme' },
+          },
+        ]),
     });
 
     const result = await service.listRepositories('token', 1, 30);
@@ -60,34 +61,36 @@ describe('GithubHttpService', () => {
         ok: true,
         status: 200,
         headers: new Headers(),
-        json: async () => [],
+        json: () => Promise.resolve([]),
       })
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
         headers: new Headers(),
-        json: async () => ({
-          total_count: 1,
-          installations: [{ id: 42, app_slug: 'architect-ai' }],
-        }),
+        json: () =>
+          Promise.resolve({
+            total_count: 1,
+            installations: [{ id: 42, app_slug: 'architect-ai' }],
+          }),
       })
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
         headers: new Headers(),
-        json: async () => ({
-          total_count: 1,
-          repositories: [
-            {
-              id: 9,
-              name: 'private-app',
-              full_name: 'maxdudko/private-app',
-              private: true,
-              default_branch: 'main',
-              owner: { login: 'maxdudko' },
-            },
-          ],
-        }),
+        json: () =>
+          Promise.resolve({
+            total_count: 1,
+            repositories: [
+              {
+                id: 9,
+                name: 'private-app',
+                full_name: 'maxdudko/private-app',
+                private: true,
+                default_branch: 'main',
+                owner: { login: 'maxdudko' },
+              },
+            ],
+          }),
       });
 
     const result = await service.listRepositories('token', 1, 30);
@@ -108,18 +111,18 @@ describe('GithubHttpService', () => {
         ok: true,
         status: 200,
         headers: new Headers(),
-        json: async () => [],
+        json: () => Promise.resolve([]),
       })
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
         headers: new Headers(),
-        json: async () => ({ total_count: 0, installations: [] }),
+        json: () => Promise.resolve({ total_count: 0, installations: [] }),
       });
 
-    await expect(service.listRepositories('token', 1, 30)).rejects.toBeInstanceOf(
-      UnprocessableEntityException,
-    );
+    await expect(
+      service.listRepositories('token', 1, 30),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
   it('returns an empty OAuth list when installations are forbidden', async () => {
@@ -128,13 +131,13 @@ describe('GithubHttpService', () => {
         ok: true,
         status: 200,
         headers: new Headers(),
-        json: async () => [],
+        json: () => Promise.resolve([]),
       })
       .mockResolvedValueOnce({
         ok: false,
         status: 403,
         headers: new Headers(),
-        json: async () => ({ message: 'Forbidden' }),
+        json: () => Promise.resolve({ message: 'Forbidden' }),
       });
 
     const result = await service.listRepositories('token', 1, 30);

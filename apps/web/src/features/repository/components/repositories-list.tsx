@@ -233,9 +233,7 @@ export function RepositoriesList() {
                   onChange={(event) => setRepoSearch(event.target.value)}
                 />
                 {githubReposQuery.isLoading ? <Skeleton className="h-16 w-full" /> : null}
-                {!githubReposQuery.isLoading &&
-                githubReposQuery.isError &&
-                !reconnectRequired ? (
+                {!githubReposQuery.isLoading && githubReposQuery.isError && !reconnectRequired ? (
                   <p className="text-sm text-destructive">
                     {getApiErrorMessage(
                       githubReposQuery.error,
