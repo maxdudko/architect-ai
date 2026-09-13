@@ -565,9 +565,7 @@ export function LandingPage({
             <GitHubLink
               className="hidden items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
               iconClassName="size-4"
-              // TODO: Temporarily disabling the GitHub link until the repo is public
-              // href={githubRepoUrl}
-              href={null}
+              href={githubRepoUrl}
             />
             {isAuthenticated ? (
               <Link
@@ -1180,13 +1178,6 @@ export function LandingPage({
               <ProfileLink href={creatorEmailUrl} icon={Mail} label="Email" />
             </div>
           </div>
-          {/* TODO: Specify email address */}
-          {/* CONTACT_TO_EMAIL=you@your-resend-account.com
-              MAIL_FROM='Architect AI <onboarding@resend.dev>' */}
-          {/* Testing domain restriction: The resend.dev domain
-              is for testing and can only send to your own email address.
-              To send to other recipients, verify a domain and update the from address to use it. */}
-
           <ContactForm />
         </div>
       </section>

@@ -2,7 +2,7 @@
 
 > The collective engineering memory for software teams.
 
-Architect AI is an open-source MVP for onboarding developers into unfamiliar codebases. It connects to GitHub, indexes source code, and provides repository chat and generated onboarding guides backed by file and line references.
+Architect AI is an Agentic RAG and codebase intelligence system that helps your team understand how systems work, preserve why they were built, and onboard without relying on tribal knowledge. It connects to GitHub, indexes source code, and provides repository chat and generated onboarding guides backed by file and line references.
 
 This repository currently implements the **AI Onboarding Assistant** phase. Architecture exploration, decision memory, and impact analysis remain roadmap items.
 
