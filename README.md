@@ -333,4 +333,4 @@ The project is under active development. Keep implementation documentation align
 
 ## License
 
-No license has been selected yet.
+Apache-2.0 license
