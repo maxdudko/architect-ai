@@ -972,58 +972,7 @@ feature introduces no new secret material.
 - Concurrent requests for the same repository from several
   members.
 
-## 17. Open implementation questions
-
-These must be resolved in `plan.md` or explicitly deferred and
-recorded in `../decisions.md`.
-
-- **Q-1.** Is the module and dependency model derived on demand
-  per request, or produced once per indexing revision and
-  stored? AD-6 and LG-6 constrain the answer; AD-2 does not
-  prescribe it.
-- **Q-2.** Where does target attribution (AD-5) happen — as part
-  of producing an indexing revision, or as a derivation over a
-  completed revision? If it happens during indexing, does an
-  already-indexed repository need a new revision before it can
-  be mapped, and how is that communicated under FR-12?
-- **Q-3.** Which relationship types may contribute to module
-  dependencies in the MVP, given that RS-5 establishes
-  `IMPORTS` as the only type carrying target-location signal?
-- **Q-4.** What exactly are the supported grouping rules
-  (FR-2)? Are they the existing folder-prefix convention from
-  `IndexedTopologyAnalyzer.moduleCandidates`, a language- or
-  manifest-aware refinement, or both? What are the documented
-  limitations?
-- **Q-5.** What are the concrete threshold values required by
-  LG-4?
-- **Q-6.** What are the unresolved reason categories required by
-  FR-6 and EV-5?
-- **Q-7.** How are external targets recognized (FR-7), given
-  that manifests are inventoried but not parsed?
-- **Q-8.** How is a module's stable key defined so that it is
-  stable within a revision and meaningful across revisions when
-  files move?
-- **Q-9.** Which single source reference shape does Phase 2
-  adopt (EV-2), and does Dependency Mapping reuse the existing
-  retrieval citation shape or the symbol and file response
-  shapes?
-- **Q-10.** How is the revision for a view selected and carried
-  (IR-1, IR-3) so that no part of the view independently
-  re-resolves "latest successful revision"?
-- **Q-11.** How does the surface present the graph, and does
-  presenting it require a rendering capability the web
-  application does not currently have?
-- **Q-12.** Does Dependency Mapping consume any usage or rate
-  limit beyond existing request rate limiting, given that it
-  performs no LLM work?
-- **Q-13.** Which automated tests cover each acceptance
-  criterion, and what fixture repository provides known
-  resolvable cross-file relationships for AC-2, AC-3, and AC-4?
-- **Q-14.** Do Architecture Search and System Overview consume
-  this feature's module and dependency model directly, and if
-  so what contract do they depend on?
-
-## 18. Definition of done
+## 17. Definition of done
 
 - Modules, dependencies, dependents, confidence
   classifications, unresolved relationships, and evidence are

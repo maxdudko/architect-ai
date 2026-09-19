@@ -1074,56 +1074,7 @@ unmetered AI generation.
   formatting.
 - Answer retained after its revision is deleted.
 
-## 17. Open implementation questions
-
-To be resolved in `plan.md` or explicitly deferred and recorded
-in `../decisions.md`.
-
-- **Q-1.** Which architecture search intents are supported in
-  the MVP (FR-3), and what is each one's exact structural
-  query?
-- **Q-2.** How is intent determined, and how is entity
-  resolution performed against module and symbol names, given
-  that no name-search capability exists on the current symbol
-  endpoint?
-- **Q-3.** Is Architecture Search stateless per question, or
-  does it reuse the existing conversation model, given that the
-  existing question path requires an existing `Conversation`?
-- **Q-4.** How is the question allowance consumed (FR-13),
-  given that it is counted from persisted `USER` message rows,
-  and how is an unmetered path ruled out?
-- **Q-5.** How is structural evidence represented and, if at
-  all, persisted, given that `MessageSourceCitation` requires a
-  non-null `chunkId` and a score (AD-6)?
-- **Q-6.** Which single source reference shape does Phase 2
-  adopt (EV-2)?
-- **Q-7.** Are structural findings returned as a separate
-  structured payload alongside the generated text (FR-9), and
-  what is that payload's shape?
-- **Q-8.** What are the concrete context budget values required
-  by LG-5, and the bounds required by LG-1, LG-3, and LG-4?
-- **Q-9.** Is the answer delivered progressively, and if so does
-  it reuse the existing streaming event conventions?
-- **Q-10.** How are observed, interpreted, and
-  not-establishable segments of an answer represented so that
-  UI-4 can render them reliably, and how is that enforced
-  against free-form model output?
-- **Q-11.** How is model output validated against the supplied
-  evidence set, in particular to reject fabricated file paths?
-- **Q-12.** May the read-only workspace role ask architecture
-  questions (FR-1), given that it may read indexed content but
-  not ask chat questions today?
-- **Q-13.** Does Architecture Search depend on a persisted
-  architecture model or an on-demand derivation, and what
-  contract does it consume from Dependency Mapping (AD-1)?
-- **Q-14.** Are architecture answers cached, and if so how does
-  caching interact with revision changes and workspace
-  isolation?
-- **Q-15.** Which automated tests cover each acceptance
-  criterion, and what fixture repository provides known
-  resolvable relationships plus a known unanswerable question?
-
-## 18. Definition of done
+## 17. Definition of done
 
 - Supported intents are implemented and documented, including
   what is not supported.
