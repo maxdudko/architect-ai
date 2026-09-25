@@ -79,8 +79,11 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-Architect AI <onboarding@resend.dev>}
       CONTACT_TO_EMAIL: ${CONTACT_TO_EMAIL:-sales@architect.ai}
-      CHOKIDAR_USEPOLLING: 'true'
-      TSC_WATCHFILE: UsePollingInterval
+      # Linux bind mounts deliver inotify events. Polling (CHOKIDAR_USEPOLLING=true and
+      # TSC_WATCHFILE=UsePollingInterval) stats the whole tree and pins every CPU.
+      # macOS/Windows Docker Desktop can opt in by setting those variables.
+      CHOKIDAR_USEPOLLING: ${CHOKIDAR_USEPOLLING:-false}
+      TSC_WATCHFILE: ${TSC_WATCHFILE:-UseFsEvents}
     ports:
       - '${API_PORT:-5000}:5000'
     volumes:
@@ -115,7 +118,9 @@ services:
     container_name: architect-ai-indexing-worker
     restart: unless-stopped
     working_dir: /workspace
-    command: pnpm --filter api dev:worker
+    # Reuse the API watch build. A second `nest start` deletes the same dist/
+    # directory, crash-loops both processes, and pins the CPU before :3000 is up.
+    command: pnpm --filter api start:worker
     environment:
       NODE_ENV: development
       DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://architect-ai-user:architect-ai-password@postgres:5432/architect-ai-db}
@@ -147,12 +152,8 @@ services:
       - api-node-modules:/workspace/node_modules
       - pnpm-store:/pnpm/store
     depends_on:
-      postgres:
+      api:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      qdrant:
-        condition: service_started
 
   web:
     build:
@@ -174,6 +175,8 @@ services:
     volumes:
       - .:/workspace
       - web-node-modules:/workspace/node_modules
+      # Next.js treats a bind-mounted .next as a slow disk and falls back to polling.
+      - web-next:/workspace/apps/web/.next
       - pnpm-store:/pnpm/store
     depends_on:
       api:
@@ -198,3 +201,4 @@ volumes:
   pnpm-store:
   api-node-modules:
   web-node-modules:
+  web-next:
