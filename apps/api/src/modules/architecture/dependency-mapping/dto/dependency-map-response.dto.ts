@@ -170,6 +170,16 @@ export class DependencyMapResponseDto {
   moduleBounds!: BoundDisclosureDto;
 
   @ApiProperty({
+    type: () => [DependencyMapEdgeDto],
+    description:
+      'Directed dependencies whose both ends are in the returned module list. Evidence is loaded separately.',
+  })
+  dependencies!: DependencyMapEdgeDto[];
+
+  @ApiProperty({ type: BoundDisclosureDto })
+  dependencyBounds!: BoundDisclosureDto;
+
+  @ApiProperty({
     description:
       'True when the graph exceeds the declared bounds, so only focused exploration is offered.',
   })
@@ -195,6 +205,24 @@ export class DependencyMapResponseDto {
 
   @ApiProperty({ type: [String] })
   partialReasons!: string[];
+}
+
+/** A module dependency on the repository view, without its evidence body. */
+export class DependencyMapEdgeDto {
+  @ApiProperty()
+  fromModuleKey!: string;
+
+  @ApiProperty()
+  toModuleKey!: string;
+
+  @ApiProperty({ enum: SymbolRelationType, isArray: true })
+  relationTypes!: SymbolRelationType[];
+
+  @ApiProperty()
+  supportingRelationCount!: number;
+
+  @ApiProperty({ enum: ['RESOLVED'] })
+  confidence!: Extract<DependencyConfidence, 'RESOLVED'>;
 }
 
 export class ModuleDependencyDto {

@@ -22,6 +22,8 @@ function dependencyMap(overrides: Partial<DependencyMap> = {}): DependencyMap {
     rebuildInProgress: false,
     modules: [],
     moduleBounds: { limit: 40, returned: 0, total: 0, truncated: false },
+    dependencies: [],
+    dependencyBounds: { limit: 80, returned: 0, total: 0, truncated: false },
     focusedExplorationRequired: false,
     totals: {
       moduleCount: 0,

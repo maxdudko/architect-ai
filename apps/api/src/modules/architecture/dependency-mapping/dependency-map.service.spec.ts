@@ -296,6 +296,85 @@ describe('DependencyMapService', () => {
       expect(result.focusedExplorationRequired).toBe(true);
     });
 
+    it('returns edges whose both ends are in the visible module slice', async () => {
+      const modules = Array.from(
+        { length: DEPENDENCY_MAP_LIMITS.modulesPerView + 2 },
+        (_, index) => moduleNode(`src/module-${index}`),
+      );
+      const hiddenKey = modules[modules.length - 1].key;
+      graphProvider.getGraph.mockResolvedValue(
+        graph({
+          modules,
+          dependencies: [
+            edge('src/module-0', 'src/module-1', {
+              supportingRelationCount: 4,
+            }),
+            edge('src/module-1', hiddenKey, { supportingRelationCount: 9 }),
+            edge('src/module-0', 'src/module-2', {
+              supportingRelationCount: 2,
+            }),
+          ],
+        }),
+      );
+
+      const result = await service.getDependencyMap(
+        WORKSPACE_ID,
+        REPOSITORY_ID,
+      );
+
+      expect(result.dependencies.map((item) => item.toModuleKey)).toEqual([
+        'src/module-1',
+        'src/module-2',
+      ]);
+      expect(result.dependencies[0]).toEqual(
+        expect.objectContaining({
+          fromModuleKey: 'src/module-0',
+          supportingRelationCount: 4,
+          confidence: 'RESOLVED',
+        }),
+      );
+      expect(result.dependencies[0]).not.toHaveProperty('evidence');
+      expect(result.dependencyBounds).toEqual({
+        limit: DEPENDENCY_MAP_LIMITS.edgesPerView,
+        returned: 2,
+        total: 2,
+        truncated: false,
+      });
+    });
+
+    it('bounds the repository edge list and discloses how many were omitted', async () => {
+      const modules = Array.from({ length: 10 }, (_, index) =>
+        moduleNode(`src/module-${index}`),
+      );
+      const dependencies = Array.from(
+        { length: DEPENDENCY_MAP_LIMITS.edgesPerView + 3 },
+        (_, index) =>
+          edge('src/module-0', `src/module-${(index % 9) + 1}`, {
+            supportingRelationCount: 100 - index,
+          }),
+      );
+
+      graphProvider.getGraph.mockResolvedValue(
+        graph({ modules, dependencies }),
+      );
+
+      const result = await service.getDependencyMap(
+        WORKSPACE_ID,
+        REPOSITORY_ID,
+      );
+
+      expect(result.dependencies).toHaveLength(
+        DEPENDENCY_MAP_LIMITS.edgesPerView,
+      );
+      expect(result.dependencies[0].supportingRelationCount).toBe(100);
+      expect(result.dependencyBounds).toEqual({
+        limit: DEPENDENCY_MAP_LIMITS.edgesPerView,
+        returned: DEPENDENCY_MAP_LIMITS.edgesPerView,
+        total: dependencies.length,
+        truncated: true,
+      });
+    });
+
     it('bounds dependencies and dependents of a selected module', async () => {
       const modules = [
         moduleNode('src/app'),

@@ -81,6 +81,14 @@ export interface DependencyMapTotals {
   excludedFileCount: number;
 }
 
+export interface DependencyMapEdge {
+  fromModuleKey: string;
+  toModuleKey: string;
+  relationTypes: SymbolRelationType[];
+  supportingRelationCount: number;
+  confidence: Extract<DependencyConfidence, 'RESOLVED'>;
+}
+
 export interface DependencyMap {
   repositoryId: string;
   repositoryStatus: RepositoryStatus;
@@ -89,6 +97,8 @@ export interface DependencyMap {
   rebuildInProgress: boolean;
   modules: ArchitectureModuleSummary[];
   moduleBounds: BoundDisclosure;
+  dependencies: DependencyMapEdge[];
+  dependencyBounds: BoundDisclosure;
   focusedExplorationRequired: boolean;
   totals: DependencyMapTotals;
   exclusions: ModuleExclusion[];

@@ -11,6 +11,7 @@ import type {
   ArchitectureRevisionDto,
   BoundDisclosureDto,
   DependencyEvidenceResponseDto,
+  DependencyMapEdgeDto,
   DependencyMapResponseDto,
   DependencyMapState,
   ExternalDependencyDto,
@@ -76,6 +77,16 @@ export class DependencyMapService {
       0,
       DEPENDENCY_MAP_LIMITS.modulesPerView,
     );
+    const visibleModuleKeys = new Set(modules.map((module) => module.key));
+    const visibleEdges = graph.dependencies.filter(
+      (edge) =>
+        visibleModuleKeys.has(edge.fromModuleKey) &&
+        visibleModuleKeys.has(edge.toModuleKey),
+    );
+    const dependencies = visibleEdges.slice(
+      0,
+      DEPENDENCY_MAP_LIMITS.edgesPerView,
+    );
 
     return {
       repositoryId,
@@ -88,6 +99,12 @@ export class DependencyMapService {
         DEPENDENCY_MAP_LIMITS.modulesPerView,
         modules.length,
         graph.modules.length,
+      ),
+      dependencies: dependencies.map(toOverviewEdge),
+      dependencyBounds: bounds(
+        DEPENDENCY_MAP_LIMITS.edgesPerView,
+        dependencies.length,
+        visibleEdges.length,
       ),
       focusedExplorationRequired:
         graph.modules.length > DEPENDENCY_MAP_LIMITS.modulesPerView,
@@ -334,6 +351,8 @@ export class DependencyMapService {
       rebuildInProgress: state === 'REBUILDING',
       modules: [],
       moduleBounds: bounds(DEPENDENCY_MAP_LIMITS.modulesPerView, 0, 0),
+      dependencies: [],
+      dependencyBounds: bounds(DEPENDENCY_MAP_LIMITS.edgesPerView, 0, 0),
       focusedExplorationRequired: false,
       totals: {
         moduleCount: 0,
@@ -389,6 +408,16 @@ function toRevisionDto(
 
 function toModuleSummary(module: ArchitectureModuleNode): ModuleSummaryDto {
   return { ...module };
+}
+
+function toOverviewEdge(edge: ModuleDependencyEdge): DependencyMapEdgeDto {
+  return {
+    fromModuleKey: edge.fromModuleKey,
+    toModuleKey: edge.toModuleKey,
+    relationTypes: edge.relationTypes,
+    supportingRelationCount: edge.supportingRelationCount,
+    confidence: edge.confidence,
+  };
 }
 
 function toDependencyDto(

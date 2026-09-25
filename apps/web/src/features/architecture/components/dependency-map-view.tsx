@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useAuth } from '@/providers/auth-provider';
 import {
@@ -25,8 +26,16 @@ import { describeBound, describeState, formatCount } from '../utils/dependency-m
 import { DependencyEvidenceDialog, type SelectedDependency } from './dependency-evidence-dialog';
 import { LimitationsNote } from './limitations-note';
 import { ModuleDetailPanel } from './module-detail-panel';
-import { ModuleInventoryTable } from './module-inventory-table';
 import { RevisionBanner } from './revision-banner';
+import { toDependencyFlow } from '../utils/to-dependency-flow';
+
+const DependencyMapCanvas = dynamic(
+  () => import('./dependency-map-canvas').then((module) => module.DependencyMapCanvas),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-[36rem] w-full" />,
+  },
+);
 
 interface DependencyMapViewProps {
   repositoryId: string;
@@ -95,7 +104,24 @@ export function DependencyMapView({ repositoryId }: DependencyMapViewProps) {
 
   const state = describeState(map);
   const moduleBoundNotice = describeBound(map.moduleBounds, 'modules');
+  const dependencyBoundNotice = describeBound(map.dependencyBounds, 'dependencies');
   const repositoryName = repositoryQuery.data?.fullName ?? 'Repository';
+  const selectedFiles =
+    moduleQuery.data && moduleQuery.data.module.key === activeModuleKey
+      ? moduleQuery.data.files
+      : [];
+  const selectedFileBounds =
+    moduleQuery.data && moduleQuery.data.module.key === activeModuleKey
+      ? moduleQuery.data.fileBounds
+      : null;
+  const flow = toDependencyFlow({
+    modules: map.modules,
+    dependencies: map.dependencies,
+    filter: moduleFilter,
+    selectedModuleKey: activeModuleKey,
+    files: selectedFiles,
+    fileBounds: selectedFileBounds,
+  });
 
   return (
     <div className="space-y-6">
@@ -138,13 +164,13 @@ export function DependencyMapView({ repositoryId }: DependencyMapViewProps) {
             </p>
           ) : null}
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(20rem,1fr)]">
             <Card>
               <CardHeader>
                 <CardTitle>Modules</CardTitle>
                 <CardDescription>
-                  {formatCount(map.modules.length, 'module')} shown, ordered by size and dependency
-                  degree.
+                  {formatCount(map.modules.length, 'module')} shown, grouped by folder. Select a
+                  module to see the files inside it.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -154,22 +180,26 @@ export function DependencyMapView({ repositoryId }: DependencyMapViewProps) {
                   placeholder="Filter modules by path"
                 />
 
-                <div className="max-h-[28rem] overflow-y-auto">
-                  {visibleModules.length === 0 ? (
-                    <p className="px-3 py-2 text-sm text-muted-foreground">
-                      No module matches this filter.
-                    </p>
-                  ) : (
-                    <ModuleInventoryTable
-                      modules={visibleModules}
-                      selectedModuleKey={activeModuleKey}
-                      onSelect={setSelectedModuleKey}
-                    />
-                  )}
-                </div>
+                {visibleModules.length === 0 ? (
+                  <p className="px-3 py-2 text-sm text-muted-foreground">
+                    No module matches this filter.
+                  </p>
+                ) : (
+                  <DependencyMapCanvas
+                    nodes={flow.nodes}
+                    edges={flow.edges}
+                    onSelectModule={(moduleKey) =>
+                      setSelectedModuleKey((current) => (current === moduleKey ? null : moduleKey))
+                    }
+                    onInspectDependency={setInspectedDependency}
+                  />
+                )}
 
                 {moduleBoundNotice ? (
                   <p className="text-xs text-muted-foreground">{moduleBoundNotice}</p>
+                ) : null}
+                {dependencyBoundNotice ? (
+                  <p className="text-xs text-muted-foreground">{dependencyBoundNotice}</p>
                 ) : null}
               </CardContent>
             </Card>

@@ -7,6 +7,8 @@
 export const DEPENDENCY_MAP_LIMITS = {
   /** Modules returned in the repository-level view. */
   modulesPerView: 40,
+  /** Module-to-module edges returned in the repository-level view. */
+  edgesPerView: 80,
   /** Direct dependencies returned for a selected module. */
   dependenciesPerModule: 25,
   /** Direct dependents returned for a selected module. */
