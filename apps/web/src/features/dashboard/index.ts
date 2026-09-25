@@ -1,3 +1,4 @@
+export * from './components/architecture-widget';
 export * from './components/conversations-widget';
 export * from './components/dashboard-view';
 export * from './components/guides-widget';

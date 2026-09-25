@@ -86,6 +86,9 @@ export function RepositoryBrowse({ repositoryId }: RepositoryBrowseProps) {
           <>
             <RepositoryStatusBadge status={repository.status} />
             <Button asChild variant="outline">
+              <Link href={`/repositories/${repository.id}/architecture`}>Architecture</Link>
+            </Button>
+            <Button asChild variant="outline">
               <Link href={`/repositories/${repository.id}/guides`}>Guides</Link>
             </Button>
           </>

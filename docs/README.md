@@ -18,6 +18,7 @@ Implementation-first notes for the shipped Architect AI MVP. Later product phase
 | [Code intelligence](./features/code-intelligence.md)                     | Tree-sitter parse, symbols, relations, chunks                                                                                        |
 | [Retrieval](./features/retrieval.md)                                     | Embeddings, Qdrant, semantic search, context assembly                                                                                |
 | [Living onboarding guides](./features/onboarding-guides.md)              | Guide types, generation worker, REST, UI polling                                                                                     |
+| [Dependency mapping](./features/dependency-mapping.md)                   | Folder-level modules, import-derived dependencies, confidence classification, known limitations                                      |
 | [Usage, billing, and AI providers](./features/usage-and-ai-providers.md) | Plan limits, Stripe, hosted vs BYOK generation                                                                                       |
 | [Hostinger / VPS deployment](./features/deploy-hostinger.md)             | Step-by-step Docker Compose production deploy on Hostinger KVM (or similar Ubuntu VPS)                                               |
 | [EC2 deployment](./features/deploy-ec2.md)                               | Same single-host layout on AWS EC2 (security groups, EBS, Elastic IP)                                                                |
