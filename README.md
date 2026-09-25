@@ -323,7 +323,7 @@ Index: [docs/README.md](docs/README.md).
 - Rate limiting is in-process and is not coordinated across API replicas.
 - The production Compose topology is single-host.
 - Mock AI providers validate integration behavior but not answer quality.
-- Personal `/settings`, Architecture Explorer, and Decision Memory remain placeholders (`/profile` name updates are shipped).
+- Personal `/settings` and Decision Memory remain placeholders (`/profile` name updates are shipped). Architecture Explorer ships Dependency Mapping and Architecture Search.
 
 These constraints are documented in more detail in [MVP Architecture](docs/Architecture.md).
 

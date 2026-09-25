@@ -3,9 +3,8 @@
 Record of resolved open questions and deviations, as required by
 Phase 2 §12 (Definition of Done).
 
-Scope of this record: **Dependency Mapping**, the first of the three
-Phase 2 features. Questions belonging to Architecture Search and
-System Overview are listed as deferred so the record stays complete.
+Scope of this record: **Dependency Mapping** and **Architecture Search**.
+System Overview questions stay deferred so the record remains complete.
 
 Implemented in `apps/api/src/modules/architecture/` and
 `apps/web/src/features/architecture/`. Known limitations are documented
@@ -145,13 +144,74 @@ Vitest over the query hooks, API layer and presentation utilities, in
 line with the existing web test convention (node environment, no
 component rendering).
 
+### Q-6 — Supported architecture search intents
+
+**Decision.** A closed set, classified by one structured LLM call that
+returns the intent and the raw names the user typed. Code resolves those
+names against the dependency graph. The model never chooses a module.
+
+| Intent               | Meaning                                                               |
+| -------------------- | --------------------------------------------------------------------- |
+| `DEPENDENTS_OF`      | What depends on a named module                                        |
+| `DEPENDENCIES_OF`    | What a named module depends on                                        |
+| `CONNECTED_TO`       | Both directions, kept distinct                                        |
+| `MODULE_REFERENCES`  | Which modules import the module that contains a named file or utility |
+| `SOURCE_EXPLANATION` | Source context only; retrieval cannot create a dependency             |
+| `NOT_ESTABLISHABLE`  | Runtime, brokers, traffic, or deployment; no structural inventory     |
+| `UNSUPPORTED`        | Anything else, including transitive "everything that depends on X"    |
+
+### Q-12 — Whether the read-only role may ask
+
+**Decision.** Asking matches chat: `OWNER`, `ADMIN`, and `MEMBER`.
+`VIEWER` can read prior answers on the architecture page and cannot ask
+or rate them.
+
+### Q-4 — Metering architecture questions
+
+**Decision.** Each accepted question is a `USER` message on a
+non-deleted conversation, so the existing `AI_QUESTIONS` count includes
+it. Quota is checked before the message is written. A repository with no
+successful index is refused before any message exists.
+
+### Q-3 and Q-5 — What is persisted, and how structural evidence is cited
+
+**Decision.** `Conversation.purpose` is `CHAT` or `ARCHITECTURE_SEARCH`.
+One architecture conversation exists per workspace, repository, and
+author. Chat listing returns only `CHAT`. Structural findings and
+structural evidence live in assistant message metadata. Retrieved chunks
+still use `MessageSourceCitation`. Structural evidence is not stored
+there, because that table requires a chunk id. Feedback uses the
+existing answer-feedback endpoint on the assistant message.
+
+### Q-6 (search spec) — Source reference shape
+
+**Decision.** Reuse `ArchitectureSourceReferenceDto`, already chosen for
+Dependency Mapping.
+
+### Q-8 — Context budget
+
+**Decision.** Fixed, not overridable:
+
+| Bound                                  | Value             |
+| -------------------------------------- | ----------------- |
+| Question length                        | 2,000 characters  |
+| Module names sent to the classifier    | 40                |
+| Dependencies or dependents per finding | 25                |
+| Evidence items per dependency          | 20                |
+| Ambiguous module candidates            | 10                |
+| Retrieval results                      | 8                 |
+| Retrieved source text                  | 8,000 characters  |
+| Structured facts                       | 12,000 characters |
+
+Retrieval is pinned to the indexing revision selected for the question.
+Truncation is stated in the prompt and on the answer.
+
 ## Deferred
 
-| Question                                    | Owner               |
-| ------------------------------------------- | ------------------- |
-| Q-6 — Supported architecture search intents | Architecture Search |
-| Q-7 — System Overview output schema         | System Overview     |
-| Q-8 — Concurrent overview generation        | System Overview     |
+| Question                             | Owner           |
+| ------------------------------------ | --------------- |
+| Q-7 — System Overview output schema  | System Overview |
+| Q-8 — Concurrent overview generation | System Overview |
 
 ## Deviations
 

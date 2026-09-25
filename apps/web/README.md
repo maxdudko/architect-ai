@@ -85,7 +85,7 @@ Each feature under `src/features/` contains:
 
 **Placeholder:** `settings` (personal account preferences beyond `/profile` name updates are not implemented)
 
-Architecture Explorer and Decision Memory appear on the dashboard as later-phase placeholders.
+Decision Memory appears on the dashboard as a later-phase placeholder. Architecture Explorer ships Dependency Mapping and Architecture Search.
 
 ### API layer
 

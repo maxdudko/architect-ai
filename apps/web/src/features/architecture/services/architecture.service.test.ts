@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getArchitectureModule, getDependencyEvidence, getDependencyMap } from '@/lib/api';
+import {
+  getArchitectureModule,
+  getArchitectureSearch,
+  getDependencyEvidence,
+  getDependencyMap,
+} from '@/lib/api';
 import {
   ARCHITECTURE_QUERY_KEYS,
   useArchitectureModuleQuery,
+  useArchitectureSearchQuery,
   useDependencyEvidenceQuery,
   useDependencyMapQuery,
 } from './architecture.service';
@@ -28,6 +34,7 @@ vi.mock('@/lib/api', () => ({
   getDependencyMap: vi.fn(),
   getArchitectureModule: vi.fn(),
   getDependencyEvidence: vi.fn(),
+  getArchitectureSearch: vi.fn(),
 }));
 
 function lastOptions(): QueryOptions {
@@ -66,6 +73,14 @@ describe('architecture query keys', () => {
       'evidence',
       'apps/api',
       'packages/shared',
+    ]);
+    expect(ARCHITECTURE_QUERY_KEYS.search('workspace-1', 'repo-1')).toEqual([
+      'workspaces',
+      'workspace-1',
+      'repositories',
+      'repo-1',
+      'architecture',
+      'search',
     ]);
   });
 
@@ -125,5 +140,13 @@ describe('architecture query hooks', () => {
       'apps/api',
       'packages/shared',
     );
+  });
+
+  it('loads the architecture search thread for the repository', async () => {
+    useArchitectureSearchQuery('workspace-1', 'repo-1');
+
+    expect(lastOptions().enabled).toBe(true);
+    await lastOptions().queryFn();
+    expect(getArchitectureSearch).toHaveBeenCalledWith('workspace-1', 'repo-1');
   });
 });

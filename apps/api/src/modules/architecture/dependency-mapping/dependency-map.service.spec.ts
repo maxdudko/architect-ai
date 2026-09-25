@@ -118,6 +118,7 @@ describe('DependencyMapService', () => {
     dataSource.findRepositoryInWorkspace.mockResolvedValue({
       id: REPOSITORY_ID,
       status: RepositoryStatus.READY,
+      fullName: 'acme/platform',
     });
     dataSource.findLatestSucceededRevision.mockResolvedValue(REVISION);
   });
@@ -172,6 +173,7 @@ describe('DependencyMapService', () => {
       dataSource.findRepositoryInWorkspace.mockResolvedValue({
         id: REPOSITORY_ID,
         status: RepositoryStatus.PARSING,
+        fullName: 'acme/platform',
       });
       dataSource.findLatestSucceededRevision.mockResolvedValue(null);
 
@@ -188,6 +190,7 @@ describe('DependencyMapService', () => {
       dataSource.findRepositoryInWorkspace.mockResolvedValue({
         id: REPOSITORY_ID,
         status: RepositoryStatus.CHUNKING,
+        fullName: 'acme/platform',
       });
       graphProvider.getGraph.mockResolvedValue(
         graph({

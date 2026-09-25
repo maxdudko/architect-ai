@@ -1,7 +1,12 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { getArchitectureModule, getDependencyEvidence, getDependencyMap } from '@/lib/api';
+import {
+  getArchitectureModule,
+  getArchitectureSearch,
+  getDependencyEvidence,
+  getDependencyMap,
+} from '@/lib/api';
 
 export const ARCHITECTURE_QUERY_KEYS = {
   root: (workspaceId: string, repositoryId: string) =>
@@ -23,6 +28,8 @@ export const ARCHITECTURE_QUERY_KEYS = {
       from,
       to,
     ] as const,
+  search: (workspaceId: string, repositoryId: string) =>
+    [...ARCHITECTURE_QUERY_KEYS.root(workspaceId, repositoryId), 'search'] as const,
 };
 
 export function useDependencyMapQuery(workspaceId: string, repositoryId: string) {
@@ -65,5 +72,13 @@ export function useDependencyEvidenceQuery(
         dependency?.to ?? '',
       ),
     enabled: Boolean(workspaceId && repositoryId && dependency),
+  });
+}
+
+export function useArchitectureSearchQuery(workspaceId: string, repositoryId: string) {
+  return useQuery({
+    queryKey: ARCHITECTURE_QUERY_KEYS.search(workspaceId, repositoryId),
+    queryFn: () => getArchitectureSearch(workspaceId, repositoryId),
+    enabled: Boolean(workspaceId && repositoryId),
   });
 }

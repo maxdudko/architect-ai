@@ -27,6 +27,7 @@ import { DependencyEvidenceDialog, type SelectedDependency } from './dependency-
 import { LimitationsNote } from './limitations-note';
 import { ModuleDetailPanel } from './module-detail-panel';
 import { RevisionBanner } from './revision-banner';
+import { ArchitectureSectionNav } from './architecture-section-nav';
 import { toDependencyFlow } from '../utils/to-dependency-flow';
 
 const DependencyMapCanvas = dynamic(
@@ -125,6 +126,7 @@ export function DependencyMapView({ repositoryId }: DependencyMapViewProps) {
 
   return (
     <div className="space-y-6">
+      <ArchitectureSectionNav repositoryId={repositoryId} section="map" />
       <PageHeader
         title="Dependency map"
         description={`Module dependencies in ${repositoryName}, derived from the indexed source.`}

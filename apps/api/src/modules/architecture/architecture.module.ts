@@ -1,9 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MembershipsModule } from '../../memberships/memberships.module';
-import { PrismaModule } from '../../prisma/prisma.module';
+import { AnalyticsModule } from '../../analytics/analytics.module';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { WorkspaceParamGuard } from '../../common/guards/workspace-param.guard';
+import { ConversationsModule } from '../../conversations/conversations.module';
+import { MembershipsModule } from '../../memberships/memberships.module';
+import { RetrievalModule } from '../retrieval/retrieval.module';
+import { PrismaModule } from '../../prisma/prisma.module';
+import { UsageModule } from '../../usage/usage.module';
+import { WorkspaceAiModule } from '../../workspace-ai/workspace-ai.module';
 import { InMemoryDependencyMapCache } from './dependency-mapping/cache/in-memory-dependency-map.cache';
 import { RedisDependencyMapCache } from './dependency-mapping/cache/redis-dependency-map.cache';
 import { DEPENDENCY_MAP_CACHE } from './dependency-mapping/cache/dependency-map-cache.interface';
@@ -14,6 +19,8 @@ import { DependencyGraphProvider } from './dependency-mapping/dependency-graph.p
 import { DependencyGraphBuilder } from './dependency-mapping/derivation/dependency-graph.builder';
 import { ModuleGrouperService } from './dependency-mapping/derivation/module-grouper.service';
 import { TargetResolverService } from './dependency-mapping/derivation/target-resolver.service';
+import { ArchitectureSearchController } from './architecture-search/architecture-search.controller';
+import { ArchitectureSearchService } from './architecture-search/architecture-search.service';
 
 /**
  * Phase 2 Architecture Explorer.
@@ -23,8 +30,17 @@ import { TargetResolverService } from './dependency-mapping/derivation/target-re
  * Architecture Search and System Overview to consume rather than re-deriving.
  */
 @Module({
-  imports: [ConfigModule, PrismaModule, MembershipsModule],
-  controllers: [DependencyMapController],
+  imports: [
+    ConfigModule,
+    PrismaModule,
+    MembershipsModule,
+    ConversationsModule,
+    UsageModule,
+    WorkspaceAiModule,
+    RetrievalModule,
+    AnalyticsModule,
+  ],
+  controllers: [DependencyMapController, ArchitectureSearchController],
   providers: [
     PrismaArchitectureDataSource,
     ModuleGrouperService,
@@ -43,6 +59,7 @@ import { TargetResolverService } from './dependency-mapping/derivation/target-re
     },
     DependencyGraphProvider,
     DependencyMapService,
+    ArchitectureSearchService,
     WorkspaceParamGuard,
     RolesGuard,
   ],

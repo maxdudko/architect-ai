@@ -44,10 +44,14 @@ export class PrismaArchitectureDataSource {
   findRepositoryInWorkspace(
     workspaceId: string,
     repositoryId: string,
-  ): Promise<{ id: string; status: RepositoryStatus } | null> {
+  ): Promise<{
+    id: string;
+    status: RepositoryStatus;
+    fullName: string;
+  } | null> {
     return this.prisma.repository.findFirst({
       where: { id: repositoryId, workspaceId, deletedAt: null },
-      select: { id: true, status: true },
+      select: { id: true, status: true, fullName: true },
     });
   }
 

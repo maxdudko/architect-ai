@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import {
   Card,
@@ -25,12 +26,24 @@ interface RepositoryBrowseProps {
   repositoryId: string;
 }
 
+function architectureReturnPath(repositoryId: string, returnTo: string | null): string | null {
+  const mapPath = `/repositories/${repositoryId}/architecture`;
+  const searchPath = `${mapPath}/search`;
+  if (returnTo === mapPath || returnTo === searchPath) {
+    return returnTo;
+  }
+  return null;
+}
+
 export function RepositoryBrowse({ repositoryId }: RepositoryBrowseProps) {
   const { activeWorkspace } = useAuth();
   const workspaceId = activeWorkspace?.id ?? '';
+  const searchParams = useSearchParams();
+  const requestedFile = searchParams.get('file');
+  const safeReturnTo = architectureReturnPath(repositoryId, searchParams.get('returnTo'));
   const repositoryQuery = useRepositoryQuery(workspaceId, repositoryId);
   const filesQuery = useRepositoryFilesQuery(workspaceId, repositoryId);
-  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(requestedFile);
 
   const files = filesQuery.data ?? [];
   const activeFilePath =
@@ -94,6 +107,12 @@ export function RepositoryBrowse({ repositoryId }: RepositoryBrowseProps) {
           </>
         }
       />
+
+      {safeReturnTo ? (
+        <Link href={safeReturnTo} className="text-sm underline">
+          Back to architecture
+        </Link>
+      ) : null}
 
       {repository.status !== 'READY' ? (
         <p className="text-sm text-muted-foreground">

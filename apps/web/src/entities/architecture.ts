@@ -205,3 +205,100 @@ export interface DependencyEvidence {
   bounds: BoundDisclosure;
   limitations: string[];
 }
+
+export type ArchitectureSearchIntent =
+  | 'DEPENDENTS_OF'
+  | 'DEPENDENCIES_OF'
+  | 'CONNECTED_TO'
+  | 'MODULE_REFERENCES'
+  | 'SOURCE_EXPLANATION'
+  | 'NOT_ESTABLISHABLE'
+  | 'UNSUPPORTED';
+
+export type EpistemicLabel = 'OBSERVED' | 'INTERPRETED' | 'NOT_ESTABLISHABLE';
+
+export interface ArchitectureSearchModuleRef {
+  key: string;
+  name: string;
+  path: string;
+}
+
+export interface ArchitectureSearchEvidence {
+  repositoryId: string;
+  filePath: string;
+  startLine: number | null;
+  endLine: number | null;
+  name: string | null;
+  qualifiedName: string | null;
+  relationType: SymbolRelationType;
+}
+
+export interface ArchitectureSearchFinding {
+  direction: 'DEPENDENCY' | 'DEPENDENT';
+  moduleKey: string;
+  moduleName: string;
+  relatedModuleKey: string;
+  relatedModuleName: string;
+  relationTypes: SymbolRelationType[];
+  supportingRelationCount: number;
+  confidence: 'RESOLVED';
+  epistemic: 'OBSERVED';
+  evidence: ArchitectureSearchEvidence[];
+}
+
+export interface ArchitectureSearchEntityResolution {
+  outcome: 'RESOLVED' | 'AMBIGUOUS' | 'NOT_FOUND' | 'NONE';
+  query: string | null;
+  module: ArchitectureSearchModuleRef | null;
+  candidates: ArchitectureSearchModuleRef[];
+  candidateBounds: BoundDisclosure;
+}
+
+export interface ArchitectureSearchRetrievedEvidence {
+  repositoryId: string;
+  filePath: string;
+  startLine: number | null;
+  endLine: number | null;
+  name: string | null;
+  qualifiedName: string | null;
+  epistemic: 'INTERPRETED';
+}
+
+export interface ArchitectureSearchAnswer {
+  conversationId: string;
+  userMessageId: string;
+  assistantMessageId: string;
+  repositoryId: string;
+  repositoryStatus: RepositoryStatus;
+  revision: ArchitectureRevision;
+  rebuildInProgress: boolean;
+  historical: boolean;
+  intent: ArchitectureSearchIntent;
+  epistemic: EpistemicLabel;
+  content: string;
+  truncated: boolean;
+  contextTruncated: boolean;
+  findings: ArchitectureSearchFinding[];
+  dependencyBounds: BoundDisclosure;
+  dependentBounds: BoundDisclosure;
+  entityResolution: ArchitectureSearchEntityResolution;
+  retrievedEvidence: ArchitectureSearchRetrievedEvidence[];
+  limitations: string[];
+  feedbackRating: 'HELPFUL' | 'NOT_HELPFUL' | null;
+}
+
+export interface ArchitectureSearchTurn {
+  question: string;
+  askedAt: string;
+  answer: ArchitectureSearchAnswer | null;
+}
+
+export interface ArchitectureSearchThread {
+  conversationId: string | null;
+  repositoryId: string;
+  repositoryStatus: RepositoryStatus;
+  indexingAvailable: boolean;
+  latestRevision: ArchitectureRevision | null;
+  rebuildInProgress: boolean;
+  turns: ArchitectureSearchTurn[];
+}
