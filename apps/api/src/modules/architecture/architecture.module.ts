@@ -21,6 +21,12 @@ import { ModuleGrouperService } from './dependency-mapping/derivation/module-gro
 import { TargetResolverService } from './dependency-mapping/derivation/target-resolver.service';
 import { ArchitectureSearchController } from './architecture-search/architecture-search.controller';
 import { ArchitectureSearchService } from './architecture-search/architecture-search.service';
+import { SystemOverviewController } from './system-overview/system-overview.controller';
+import { SystemOverviewOrchestrator } from './system-overview/system-overview.orchestrator';
+import { SystemOverviewPromptBuilder } from './system-overview/system-overview-prompt.builder';
+import { SystemOverviewService } from './system-overview/system-overview.service';
+import { SystemOverviewQueueService } from './system-overview/queue/system-overview-queue.service';
+import { SystemOverviewWorkerService } from './system-overview/queue/system-overview-worker.service';
 
 /**
  * Phase 2 Architecture Explorer.
@@ -40,7 +46,11 @@ import { ArchitectureSearchService } from './architecture-search/architecture-se
     RetrievalModule,
     AnalyticsModule,
   ],
-  controllers: [DependencyMapController, ArchitectureSearchController],
+  controllers: [
+    DependencyMapController,
+    ArchitectureSearchController,
+    SystemOverviewController,
+  ],
   providers: [
     PrismaArchitectureDataSource,
     ModuleGrouperService,
@@ -60,6 +70,11 @@ import { ArchitectureSearchService } from './architecture-search/architecture-se
     DependencyGraphProvider,
     DependencyMapService,
     ArchitectureSearchService,
+    SystemOverviewPromptBuilder,
+    SystemOverviewOrchestrator,
+    SystemOverviewQueueService,
+    SystemOverviewWorkerService,
+    SystemOverviewService,
     WorkspaceParamGuard,
     RolesGuard,
   ],

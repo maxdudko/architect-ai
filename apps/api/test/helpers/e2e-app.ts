@@ -91,6 +91,7 @@ export function configureTestEnvironment(): void {
     process.env.JWT_ADMIN_REFRESH_TTL || '30d';
   process.env.RETRIEVAL_CACHE_DRIVER = 'memory';
   process.env.ARCHITECTURE_CACHE_DRIVER = 'memory';
+  process.env.ARCHITECTURE_OVERVIEW_QUEUE_DRIVER = 'memory';
   process.env.LLM_PROVIDER = 'mock';
   process.env.EMBEDDING_PROVIDER = 'mock';
   process.env.RATE_LIMIT_ENABLED = 'false';

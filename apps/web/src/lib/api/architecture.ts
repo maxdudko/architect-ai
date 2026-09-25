@@ -1,9 +1,11 @@
 import type {
   ArchitectureModuleDetail,
+  ArchitectureOverviewRun,
   ArchitectureSearchAnswer,
   ArchitectureSearchThread,
   DependencyEvidence,
   DependencyMap,
+  SystemOverview,
 } from '@/entities';
 import { parseSseChunk } from '@/features/chat/hooks/parse-sse';
 import { loadAuthState } from '@/lib/auth/storage';
@@ -18,6 +20,10 @@ function architectureBasePath(workspaceId: string, repositoryId: string): string
 
 function searchBasePath(workspaceId: string, repositoryId: string): string {
   return `/workspaces/${workspaceId}/repositories/${repositoryId}/architecture/search`;
+}
+
+function overviewBasePath(workspaceId: string, repositoryId: string): string {
+  return `/workspaces/${workspaceId}/repositories/${repositoryId}/architecture/overview`;
 }
 
 export async function getDependencyMap(
@@ -192,4 +198,32 @@ export async function streamArchitectureSearch(
   if (buffer.trim()) {
     dispatchChunk(buffer);
   }
+}
+
+export async function getSystemOverview(
+  workspaceId: string,
+  repositoryId: string,
+): Promise<SystemOverview> {
+  const { data } = await apiClient.get<SystemOverview>(overviewBasePath(workspaceId, repositoryId));
+  return data;
+}
+
+export async function generateSystemOverview(
+  workspaceId: string,
+  repositoryId: string,
+): Promise<ArchitectureOverviewRun> {
+  const { data } = await apiClient.post<ArchitectureOverviewRun>(
+    `${overviewBasePath(workspaceId, repositoryId)}/generations`,
+  );
+  return data;
+}
+
+export async function regenerateSystemOverview(
+  workspaceId: string,
+  repositoryId: string,
+): Promise<ArchitectureOverviewRun> {
+  const { data } = await apiClient.post<ArchitectureOverviewRun>(
+    `${overviewBasePath(workspaceId, repositoryId)}/generations/regenerate`,
+  );
+  return data;
 }

@@ -90,7 +90,7 @@ Implemented user surfaces include:
 - workspace settings, members (including role updates), invitations (including resend), usage, billing, and AI provider keys;
 - separate platform-admin authentication, analytics, users, plans, and logs.
 
-Personal `/settings` remains a placeholder. Decision Memory appears on the dashboard as a later-phase placeholder. Architecture Explorer ships Dependency Mapping and Architecture Search.
+Personal `/settings` remains a placeholder. Decision Memory appears on the dashboard as a later-phase placeholder. Architecture Explorer ships Dependency Mapping, Architecture Search, and System Overview.
 
 The browser sends access tokens as bearer tokens. Refresh tokens are rotated by the API and stored in an HTTP-only cookie. Next.js middleware uses a lightweight access-token cookie to route users; API guards remain the authorization boundary.
 

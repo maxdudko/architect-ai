@@ -3,8 +3,8 @@
 Record of resolved open questions and deviations, as required by
 Phase 2 §12 (Definition of Done).
 
-Scope of this record: **Dependency Mapping** and **Architecture Search**.
-System Overview questions stay deferred so the record remains complete.
+Scope of this record: **Dependency Mapping**, **Architecture Search**, and
+**System Overview**.
 
 Implemented in `apps/api/src/modules/architecture/` and
 `apps/web/src/features/architecture/`. Known limitations are documented
@@ -206,12 +206,53 @@ Dependency Mapping.
 Retrieval is pinned to the indexing revision selected for the question.
 Truncation is stated in the prompt and on the answer.
 
+### Q-7 — System Overview output schema
+
+**Decision.** One current `ArchitectureOverview` per repository, plus
+`ArchitectureOverviewGenerationRun` for the job. The document is Markdown
+with these H2 headings, in order: Main Modules, Module Dependencies,
+Technologies and Infrastructure, Integration Patterns, Architectural
+Boundaries, Limitations. A missing section is filled with
+`Unclear from indexed evidence.` The stored document is capped at 16,000
+characters by shortening section bodies. Cited paths are checked against
+the selected revision before the document may replace the current one.
+
+The overview is not a `GuideType`. Post-index guide generation requests
+every guide type, and an active guide run is returned for any later
+guide request regardless of type. Putting the overview on that path would
+either break existing guide generation or swallow overview requests.
+
+### Q-8 — Concurrent overview generation
+
+**Decision.** A second overview request while one run is `QUEUED` or
+`RUNNING` for that repository returns the active run. A partial unique
+index enforces one active overview run per repository. Guide generation
+runs do not block overview runs, and overview runs do not block guides.
+The previous overview stays readable until a validated replacement is
+stored in the same transaction that marks the run succeeded.
+
+### Context budget
+
+**Decision.** Fixed, not overridable:
+
+| Bound                             | Value             |
+| --------------------------------- | ----------------- |
+| Modules                           | 20                |
+| Dependencies among those modules  | 40                |
+| Unresolved and external summaries | 20 each           |
+| Technology hints and entry points | 20 each           |
+| Retrieval `topK`                  | 8                 |
+| Retrieved source text             | 8,000 characters  |
+| Structured facts                  | 12,000 characters |
+| Stored markdown                   | 16,000 characters |
+
+Facts use the dependency map's significance order. Technology hints are
+matched against the revision's file inventory. The onboarding topology
+analyzer is not called.
+
 ## Deferred
 
-| Question                             | Owner           |
-| ------------------------------------ | --------------- |
-| Q-7 — System Overview output schema  | System Overview |
-| Q-8 — Concurrent overview generation | System Overview |
+None for Phase 2.
 
 ## Deviations
 
@@ -308,3 +349,15 @@ target path or the target name.
 inflate the strength of a dependency. Keeping the target **name** in
 the in-memory key preserves distinct PHP and plain-Python targets,
 which have no path to key on (EV-5).
+
+### D-8 — System Overview is not a guide type
+
+**Spec.** System Overview may reuse the guide entities (its AD-3).
+
+**Decision.** The overview has its own document and generation run. It
+reuses the guide worker enable flag, BullMQ Redis connection, LLM
+resolver, retrieval, and `GUIDE_GENERATIONS` allowance.
+
+**Why.** Adding a guide type would be pulled into every post-index run,
+and the guide queue returns any active run for the repository. Both
+outcomes are forbidden by the overview spec.

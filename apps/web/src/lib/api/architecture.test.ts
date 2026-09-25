@@ -2,10 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from './axios';
 import {
   askArchitectureSearch,
+  generateSystemOverview,
   getArchitectureModule,
   getArchitectureSearch,
   getDependencyEvidence,
   getDependencyMap,
+  getSystemOverview,
+  regenerateSystemOverview,
 } from './architecture';
 
 vi.mock('./axios', () => ({
@@ -80,5 +83,34 @@ describe('architecture api client', () => {
       { content: 'What depends on billing?' },
     );
     expect(response.epistemic).toBe('OBSERVED');
+  });
+
+  it('reads the system overview for a repository', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: { repositoryId: 'repo-1', generationAllowed: false, overview: null },
+    });
+
+    const response = await getSystemOverview('workspace-1', 'repo-1');
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      '/workspaces/workspace-1/repositories/repo-1/architecture/overview',
+    );
+    expect(response.overview).toBeNull();
+  });
+
+  it('queues overview generation and regeneration', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { status: 'QUEUED' } });
+
+    await generateSystemOverview('workspace-1', 'repo-1');
+    await regenerateSystemOverview('workspace-1', 'repo-1');
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      '/workspaces/workspace-1/repositories/repo-1/architecture/overview/generations',
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      '/workspaces/workspace-1/repositories/repo-1/architecture/overview/generations/regenerate',
+    );
   });
 });

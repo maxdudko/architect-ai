@@ -302,3 +302,45 @@ export interface ArchitectureSearchThread {
   rebuildInProgress: boolean;
   turns: ArchitectureSearchTurn[];
 }
+
+export type ArchitectureOverviewGenerationStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+
+export type ArchitectureOverviewGenerationTrigger = 'MANUAL_GENERATE' | 'MANUAL_REGENERATE';
+
+export interface ArchitectureOverviewDocument {
+  id: string;
+  title: string;
+  markdown: string;
+  summary: string | null;
+  revision: ArchitectureRevision;
+  generatedAt: string;
+  generationVersion: number;
+  stale: boolean;
+  citedPaths: string[];
+  partial: boolean;
+  modulesAbsent: boolean;
+}
+
+export interface ArchitectureOverviewRun {
+  id: string;
+  status: ArchitectureOverviewGenerationStatus;
+  trigger: ArchitectureOverviewGenerationTrigger;
+  completedStep: number;
+  totalSteps: number;
+  error: string | null;
+  revision: ArchitectureRevision | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface SystemOverview {
+  repositoryId: string;
+  repositoryStatus: RepositoryStatus;
+  indexingAvailable: boolean;
+  generationAllowed: boolean;
+  rebuildInProgress: boolean;
+  latestRevision: ArchitectureRevision | null;
+  overview: ArchitectureOverviewDocument | null;
+  run: ArchitectureOverviewRun | null;
+}

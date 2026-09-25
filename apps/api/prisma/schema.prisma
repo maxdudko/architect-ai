@@ -101,6 +101,18 @@ enum GuideGenerationTrigger {
   REINDEX
 }
 
+enum ArchitectureOverviewGenerationStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum ArchitectureOverviewGenerationTrigger {
+  MANUAL_GENERATE
+  MANUAL_REGENERATE
+}
+
 enum CodeSymbolType {
   FUNCTION
   CLASS
@@ -273,9 +285,11 @@ model Workspace {
   updatedAt           DateTime               @updatedAt @map("updated_at")
   deletedAt           DateTime?              @map("deleted_at")
   conversations       Conversation[]
-  guides              Guide[]
-  guideGenerationRuns GuideGenerationRun[]
-  aiSettings          WorkspaceAiSettings?
+  guides                              Guide[]
+  guideGenerationRuns                 GuideGenerationRun[]
+  architectureOverviews               ArchitectureOverview[]
+  architectureOverviewGenerationRuns  ArchitectureOverviewGenerationRun[]
+  aiSettings                          WorkspaceAiSettings?
   aiCredentials       WorkspaceAiCredential[]
 
   @@index([createdAt], map: "workspaces_created_at_idx")
@@ -477,8 +491,10 @@ model Repository {
   symbols             CodeSymbol[]
   symbolRelations     SymbolRelation[]
   chunks              Chunk[]
-  guides              Guide[]
-  guideGenerationRuns GuideGenerationRun[]
+  guides                             Guide[]
+  guideGenerationRuns                GuideGenerationRun[]
+  architectureOverview               ArchitectureOverview?
+  architectureOverviewGenerationRuns ArchitectureOverviewGenerationRun[]
 
   @@unique([provider, externalId])
   @@index([workspaceId])
@@ -533,6 +549,51 @@ model GuideGenerationRun {
   @@index([workspaceId, repositoryId], map: "guide_generation_runs_workspace_repository_idx")
   @@index([repositoryId, status, createdAt], map: "guide_generation_runs_repository_status_created_idx")
   @@map("guide_generation_runs")
+}
+
+model ArchitectureOverview {
+  id                  String     @id @default(uuid()) @db.Uuid
+  workspaceId         String     @db.Uuid
+  repositoryId        String     @unique @db.Uuid
+  title               String
+  markdown            String     @db.Text
+  summary             String?    @db.Text
+  metadata            Json
+  generationVersion   Int        @default(1)
+  sourceIndexingRunId String     @db.Uuid
+  sourceCommitSha     String?
+  sourceBranch        String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  workspace           Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  repository          Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, repositoryId], map: "architecture_overviews_workspace_repository_idx")
+  @@map("architecture_overviews")
+}
+
+model ArchitectureOverviewGenerationRun {
+  id                  String                                  @id @default(uuid()) @db.Uuid
+  workspaceId         String                                  @db.Uuid
+  repositoryId        String                                  @db.Uuid
+  trigger             ArchitectureOverviewGenerationTrigger
+  status              ArchitectureOverviewGenerationStatus    @default(QUEUED)
+  sourceIndexingRunId String?                                 @db.Uuid
+  sourceCommitSha     String?
+  sourceBranch        String?
+  completedStep       Int                                     @default(0)
+  totalSteps          Int                                     @default(4)
+  error               String?                                 @db.Text
+  createdAt           DateTime                                @default(now())
+  startedAt           DateTime?
+  completedAt         DateTime?
+  updatedAt           DateTime                                @updatedAt
+  workspace           Workspace                               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  repository          Repository                              @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, repositoryId], map: "architecture_overview_runs_workspace_repository_idx")
+  @@index([repositoryId, status, createdAt], map: "architecture_overview_runs_repository_status_created_idx")
+  @@map("architecture_overview_generation_runs")
 }
 
 model IndexingRun {

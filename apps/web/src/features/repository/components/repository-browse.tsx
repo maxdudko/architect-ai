@@ -29,7 +29,8 @@ interface RepositoryBrowseProps {
 function architectureReturnPath(repositoryId: string, returnTo: string | null): string | null {
   const mapPath = `/repositories/${repositoryId}/architecture`;
   const searchPath = `${mapPath}/search`;
-  if (returnTo === mapPath || returnTo === searchPath) {
+  const overviewPath = `${mapPath}/overview`;
+  if (returnTo === mapPath || returnTo === searchPath || returnTo === overviewPath) {
     return returnTo;
   }
   return null;

@@ -4,6 +4,7 @@ import {
   getArchitectureSearch,
   getDependencyEvidence,
   getDependencyMap,
+  getSystemOverview,
 } from '@/lib/api';
 import {
   ARCHITECTURE_QUERY_KEYS,
@@ -11,6 +12,7 @@ import {
   useArchitectureSearchQuery,
   useDependencyEvidenceQuery,
   useDependencyMapQuery,
+  useSystemOverviewQuery,
 } from './architecture.service';
 
 interface QueryOptions {
@@ -35,6 +37,7 @@ vi.mock('@/lib/api', () => ({
   getArchitectureModule: vi.fn(),
   getDependencyEvidence: vi.fn(),
   getArchitectureSearch: vi.fn(),
+  getSystemOverview: vi.fn(),
 }));
 
 function lastOptions(): QueryOptions {
@@ -81,6 +84,14 @@ describe('architecture query keys', () => {
       'repo-1',
       'architecture',
       'search',
+    ]);
+    expect(ARCHITECTURE_QUERY_KEYS.overview('workspace-1', 'repo-1')).toEqual([
+      'workspaces',
+      'workspace-1',
+      'repositories',
+      'repo-1',
+      'architecture',
+      'overview',
     ]);
   });
 
@@ -148,5 +159,13 @@ describe('architecture query hooks', () => {
     expect(lastOptions().enabled).toBe(true);
     await lastOptions().queryFn();
     expect(getArchitectureSearch).toHaveBeenCalledWith('workspace-1', 'repo-1');
+  });
+
+  it('loads the system overview for the repository', async () => {
+    useSystemOverviewQuery('workspace-1', 'repo-1');
+
+    expect(lastOptions().enabled).toBe(true);
+    await lastOptions().queryFn();
+    expect(getSystemOverview).toHaveBeenCalledWith('workspace-1', 'repo-1');
   });
 });

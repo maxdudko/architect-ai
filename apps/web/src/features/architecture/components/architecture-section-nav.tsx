@@ -3,7 +3,7 @@ import { Button } from '@/shared/components';
 
 interface ArchitectureSectionNavProps {
   repositoryId: string;
-  section: 'map' | 'search';
+  section: 'map' | 'search' | 'overview';
 }
 
 export function ArchitectureSectionNav({ repositoryId, section }: ArchitectureSectionNavProps) {
@@ -14,6 +14,9 @@ export function ArchitectureSectionNav({ repositoryId, section }: ArchitectureSe
       </Button>
       <Button asChild size="sm" variant={section === 'search' ? 'default' : 'outline'}>
         <Link href={`/repositories/${repositoryId}/architecture/search`}>Search</Link>
+      </Button>
+      <Button asChild size="sm" variant={section === 'overview' ? 'default' : 'outline'}>
+        <Link href={`/repositories/${repositoryId}/architecture/overview`}>Overview</Link>
       </Button>
     </div>
   );

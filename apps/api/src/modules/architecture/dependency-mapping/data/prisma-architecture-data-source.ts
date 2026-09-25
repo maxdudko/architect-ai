@@ -241,6 +241,56 @@ export class PrismaArchitectureDataSource {
     return symbols;
   }
 
+  /**
+   * File paths and languages for one revision, bounded by the same ceiling as
+   * graph derivation. Used for technology and entry-point detection without
+   * loading symbols or relationships.
+   */
+  listFileInventory(
+    repositoryId: string,
+    indexingRunId: string,
+  ): Promise<Array<{ path: string; language: string }>> {
+    return this.prisma.repositoryFile.findMany({
+      where: {
+        repositoryId,
+        indexingRunId,
+        ignored: false,
+        binary: false,
+        generated: false,
+      },
+      select: { path: true, language: true },
+      orderBy: { path: 'asc' },
+      take: DEPENDENCY_MAP_CEILING.maxFiles,
+    });
+  }
+
+  /**
+   * Indexed files on one revision that are equal to one of the given paths or
+   * sit inside that path as a directory.
+   */
+  async listExistingPaths(
+    repositoryId: string,
+    indexingRunId: string,
+    paths: string[],
+  ): Promise<string[]> {
+    if (paths.length === 0) {
+      return [];
+    }
+
+    const rows = await this.prisma.repositoryFile.findMany({
+      where: {
+        repositoryId,
+        indexingRunId,
+        OR: paths.flatMap((path) => [
+          { path },
+          { path: { startsWith: `${path}/` } },
+        ]),
+      },
+      select: { path: true },
+    });
+    return rows.map((row) => row.path);
+  }
+
   /** Indexed file metadata for a bounded set of paths within one revision. */
   async listFilesByPath(
     repositoryId: string,

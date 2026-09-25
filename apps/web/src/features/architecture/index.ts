@@ -1,5 +1,6 @@
 export * from './components/architecture-section-nav';
 export * from './components/architecture-search-view';
+export * from './components/system-overview-view';
 export * from './components/confidence-badge';
 export * from './components/dependency-evidence-dialog';
 export * from './components/dependency-map-view';
