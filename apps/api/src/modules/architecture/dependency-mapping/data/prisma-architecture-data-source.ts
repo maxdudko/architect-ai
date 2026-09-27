@@ -6,15 +6,21 @@ import {
   SymbolRelationType,
 } from '@prisma/client';
 import { PrismaService } from '../../../../prisma/prisma.service';
-import { DEPENDENCY_MAP_CEILING } from '../dependency-map.constants';
+import {
+  DEPENDENCY_MAP_CEILING,
+  MAX_SYMBOL_LOOKUP_PATHS,
+} from '../dependency-map.constants';
 import type {
   ArchitectureRevision,
   ArchitectureSnapshot,
   ArchitectureSnapshotNotableSymbol,
 } from '../types/architecture-snapshot.type';
 
-/** Upper bound on file paths passed to a notable-symbol lookup. */
-const MAX_SYMBOL_LOOKUP_PATHS = 1_000;
+export interface NotableSymbolLookup {
+  symbols: ArchitectureSnapshotNotableSymbol[];
+  total: number;
+  lookupTruncated: boolean;
+}
 
 /** Symbol types worth surfacing as a module's notable symbols. */
 const NOTABLE_SYMBOL_TYPES: CodeSymbolType[] = [
@@ -65,6 +71,40 @@ export class PrismaArchitectureDataSource {
     const run = await this.prisma.indexingRun.findFirst({
       where: { repositoryId, status: IndexingRunStatus.SUCCEEDED },
       orderBy: [{ completedAt: 'desc' }, { startedAt: 'desc' }],
+      select: {
+        id: true,
+        branch: true,
+        commitSha: true,
+        completedAt: true,
+      },
+    });
+
+    if (!run) {
+      return null;
+    }
+
+    return {
+      indexingRunId: run.id,
+      branch: run.branch,
+      commitSha: run.commitSha,
+      completedAt: run.completedAt,
+    };
+  }
+
+  /**
+   * One succeeded revision, when it still belongs to this repository.
+   * A missing or failed run returns null so the caller can fall back.
+   */
+  async findSucceededRevision(
+    repositoryId: string,
+    indexingRunId: string,
+  ): Promise<ArchitectureRevision | null> {
+    const run = await this.prisma.indexingRun.findFirst({
+      where: {
+        id: indexingRunId,
+        repositoryId,
+        status: IndexingRunStatus.SUCCEEDED,
+      },
       select: {
         id: true,
         branch: true,
@@ -206,39 +246,51 @@ export class PrismaArchitectureDataSource {
   /**
    * Notable symbols for a module, drawn from a bounded slice of its files so
    * the lookup stays proportional to the requested page (spec FR-9).
+   * `total` counts symbols on the paths that were searched. `lookupTruncated`
+   * is true when the module has more files than that search considers.
    */
   async listNotableSymbols(
     repositoryId: string,
     indexingRunId: string,
     filePaths: string[],
     limit: number,
-  ): Promise<ArchitectureSnapshotNotableSymbol[]> {
+  ): Promise<NotableSymbolLookup> {
     if (filePaths.length === 0) {
-      return [];
+      return { symbols: [], total: 0, lookupTruncated: false };
     }
 
-    const symbols = await this.prisma.codeSymbol.findMany({
-      where: {
-        repositoryId,
-        indexingRunId,
-        filePath: { in: filePaths.slice(0, MAX_SYMBOL_LOOKUP_PATHS) },
-        type: { in: NOTABLE_SYMBOL_TYPES },
-        exported: true,
-      },
-      select: {
-        name: true,
-        qualifiedName: true,
-        type: true,
-        filePath: true,
-        language: true,
-        startLine: true,
-        endLine: true,
-      },
-      orderBy: [{ filePath: 'asc' }, { startLine: 'asc' }],
-      take: limit,
-    });
+    const searchedPaths = filePaths.slice(0, MAX_SYMBOL_LOOKUP_PATHS);
+    const where = {
+      repositoryId,
+      indexingRunId,
+      filePath: { in: searchedPaths },
+      type: { in: NOTABLE_SYMBOL_TYPES },
+      exported: true,
+    };
 
-    return symbols;
+    const [symbols, total] = await Promise.all([
+      this.prisma.codeSymbol.findMany({
+        where,
+        select: {
+          name: true,
+          qualifiedName: true,
+          type: true,
+          filePath: true,
+          language: true,
+          startLine: true,
+          endLine: true,
+        },
+        orderBy: [{ filePath: 'asc' }, { startLine: 'asc' }],
+        take: limit,
+      }),
+      this.prisma.codeSymbol.count({ where }),
+    ]);
+
+    return {
+      symbols,
+      total,
+      lookupTruncated: filePaths.length > searchedPaths.length,
+    };
   }
 
   /**

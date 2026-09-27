@@ -12,13 +12,14 @@ const MODULE_WIDTH = 220;
 const MODULE_GAP_Y = 12;
 const MODULE_MIN_HEIGHT = 76;
 const MODULE_MAX_HEIGHT = 132;
-const EXPANDED_MODULE_WIDTH = 280;
-const MODULE_HEADER = 64;
-const FOLDER_HEADER = 28;
-const FILE_ROW_HEIGHT = 26;
+const EXPANDED_MODULE_WIDTH = 520;
+const MODULE_HEADER = 56;
+const TRUNCATION_LINE = 20;
+const FILE_ROW_HEIGHT = 28;
+const FILE_LIST_MAX_HEIGHT = 220;
 const INNER_PADDING = 12;
 
-export type DependencyFlowNodeKind = 'group' | 'module' | 'folder' | 'file';
+export type DependencyFlowNodeKind = 'group' | 'module';
 
 export interface DependencyFlowNode {
   id: string;
@@ -43,9 +44,15 @@ export type DependencyFlowNodeData =
       filesTruncated: boolean;
       filesReturned: number;
       filesTotal: number;
-    }
-  | { kind: 'folder'; label: string }
-  | { kind: 'file'; path: string; language: string; lineCount: number };
+      files: DependencyFlowFile[];
+    };
+
+export interface DependencyFlowFile {
+  path: string;
+  displayPath: string;
+  language: string;
+  href: string | null;
+}
 
 export interface DependencyFlowEdge {
   id: string;
@@ -68,6 +75,7 @@ export interface DependencyFlowInput {
   selectedModuleKey: string | null;
   files: ArchitectureModuleFile[];
   fileBounds: BoundDisclosure | null;
+  fileHref?: (filePath: string) => string;
 }
 
 /**
@@ -112,10 +120,10 @@ export function toDependencyFlow(input: DependencyFlowInput): DependencyFlow {
     let groupWidth = MODULE_WIDTH + GROUP_PADDING * 2;
     const groupChildren: DependencyFlowNode[] = [];
     for (const built of builtModules) {
-      built.module.position = { x: GROUP_PADDING, y: cursorY };
-      groupChildren.push(built.module, ...built.children);
-      cursorY += built.module.height + MODULE_GAP_Y;
-      groupWidth = Math.max(groupWidth, built.module.width + GROUP_PADDING * 2);
+      built.position = { x: GROUP_PADDING, y: cursorY };
+      groupChildren.push(built);
+      cursorY += built.height + MODULE_GAP_Y;
+      groupWidth = Math.max(groupWidth, built.width + GROUP_PADDING * 2);
     }
 
     nodes.push(
@@ -139,17 +147,12 @@ export function toDependencyFlow(input: DependencyFlowInput): DependencyFlow {
       id: `${edge.fromModuleKey}::${edge.toModuleKey}`,
       source: `module:${edge.fromModuleKey}`,
       target: `module:${edge.toModuleKey}`,
-      label: String(edge.supportingRelationCount),
+      label: `${edge.supportingRelationCount} · resolved`,
       fromModuleKey: edge.fromModuleKey,
       toModuleKey: edge.toModuleKey,
     }));
 
   return { nodes, edges };
-}
-
-interface BuiltModule {
-  module: DependencyFlowNode;
-  children: DependencyFlowNode[];
 }
 
 function buildModuleNode(
@@ -158,74 +161,40 @@ function buildModuleNode(
   selected: boolean,
   maxFileCount: number,
   input: DependencyFlowInput,
-): BuiltModule {
-  const moduleId = `module:${summary.key}`;
-  const children: DependencyFlowNode[] = [];
+): DependencyFlowNode {
   let height = moduleCardHeight(summary.fileCount, maxFileCount);
   let width = MODULE_WIDTH;
 
-  if (selected) {
+  const bounds = selected ? input.fileBounds : null;
+  const files = selected ? toFlowFiles(summary.path, input.files, input.fileHref) : [];
+
+  if (selected && files.length > 0) {
     width = EXPANDED_MODULE_WIDTH;
-    const folders = groupFiles(summary.path, input.files);
-    let cursorY = MODULE_HEADER;
-    const innerWidth = EXPANDED_MODULE_WIDTH - INNER_PADDING * 2;
-    for (const folder of folders) {
-      const folderId = `folder:${summary.key}:${folder.label}`;
-      const folderHeight = FOLDER_HEADER + folder.files.length * FILE_ROW_HEIGHT;
-      children.push({
-        id: folderId,
-        kind: 'folder',
-        parentId: moduleId,
-        position: { x: INNER_PADDING, y: cursorY },
-        width: innerWidth,
-        height: folderHeight,
-        data: { kind: 'folder', label: folder.label },
-      });
-      folder.files.forEach((file, index) => {
-        children.push({
-          id: `file:${file.path}`,
-          kind: 'file',
-          parentId: folderId,
-          position: { x: 0, y: FOLDER_HEADER + index * FILE_ROW_HEIGHT },
-          width: innerWidth,
-          height: FILE_ROW_HEIGHT,
-          data: {
-            kind: 'file',
-            path: file.path,
-            language: file.language,
-            lineCount: file.lineCount,
-          },
-        });
-      });
-      cursorY += folderHeight + 8;
-    }
-    height = Math.max(height, cursorY + INNER_PADDING);
+    const listHeight = Math.min(FILE_LIST_MAX_HEIGHT, files.length * FILE_ROW_HEIGHT);
+    const header = MODULE_HEADER + (bounds?.truncated ? TRUNCATION_LINE : 0);
+    height = header + listHeight + INNER_PADDING;
   }
 
-  const bounds = selected ? input.fileBounds : null;
-
   return {
-    module: {
-      id: moduleId,
+    id: `module:${summary.key}`,
+    kind: 'module',
+    parentId,
+    position: { x: 0, y: 0 },
+    width,
+    height,
+    data: {
       kind: 'module',
-      parentId,
-      position: { x: 0, y: 0 },
-      width,
-      height,
-      data: {
-        kind: 'module',
-        moduleKey: summary.key,
-        path: summary.path,
-        fileCount: summary.fileCount,
-        outgoingDependencyCount: summary.outgoingDependencyCount,
-        incomingDependencyCount: summary.incomingDependencyCount,
-        selected,
-        filesTruncated: bounds?.truncated ?? false,
-        filesReturned: bounds?.returned ?? 0,
-        filesTotal: bounds?.total ?? 0,
-      },
+      moduleKey: summary.key,
+      path: summary.path,
+      fileCount: summary.fileCount,
+      outgoingDependencyCount: summary.outgoingDependencyCount,
+      incomingDependencyCount: summary.incomingDependencyCount,
+      selected,
+      filesTruncated: bounds?.truncated ?? false,
+      filesReturned: bounds?.returned ?? 0,
+      filesTotal: bounds?.total ?? 0,
+      files,
     },
-    children,
   };
 }
 
@@ -237,32 +206,21 @@ function moduleCardHeight(fileCount: number, maxFileCount: number): number {
   return Math.round(MODULE_MIN_HEIGHT + (MODULE_MAX_HEIGHT - MODULE_MIN_HEIGHT) * ratio);
 }
 
-interface FileFolder {
-  label: string;
-  files: ArchitectureModuleFile[];
-}
-
-function groupFiles(modulePath: string, files: ArchitectureModuleFile[]): FileFolder[] {
+function toFlowFiles(
+  modulePath: string,
+  files: ArchitectureModuleFile[],
+  fileHref: DependencyFlowInput['fileHref'],
+): DependencyFlowFile[] {
   const prefix = modulePath.endsWith('/') ? modulePath : `${modulePath}/`;
-  const byFolder = new Map<string, ArchitectureModuleFile[]>();
-
-  for (const file of files) {
-    const relative = file.path.startsWith(prefix) ? file.path.slice(prefix.length) : file.path;
-    const slash = relative.indexOf('/');
-    const label = slash === -1 ? 'root' : relative.slice(0, slash);
-    const list = byFolder.get(label);
-    if (list) {
-      list.push(file);
-    } else {
-      byFolder.set(label, [file]);
-    }
-  }
-
-  return [...byFolder.keys()]
-    .sort((left, right) => {
-      if (left === 'root') return -1;
-      if (right === 'root') return 1;
-      return left.localeCompare(right);
+  return files
+    .map((file) => {
+      const relative = file.path.startsWith(prefix) ? file.path.slice(prefix.length) : file.path;
+      return {
+        path: file.path,
+        displayPath: `/${relative}`,
+        language: file.language,
+        href: fileHref?.(file.path) ?? null,
+      };
     })
-    .map((label) => ({ label, files: byFolder.get(label) ?? [] }));
+    .sort((left, right) => left.displayPath.localeCompare(right.displayPath));
 }

@@ -19,6 +19,8 @@ Resolved questions and deviations: [decisions.md](../specs/phase-2-architecture-
 
 `apps/web/src/features/architecture/` holds the read surface, reachable
 from the dashboard widget and the Architecture button on a repository.
+The repository view is a read-only React Flow canvas (`@xyflow/react`).
+Selecting a module opens its dependencies, dependents, files, and evidence.
 
 ## Pipeline
 
@@ -83,6 +85,16 @@ existing repositories convention.
 | `GET dependency-map`                    | Modules, totals, exclusions, grouping rules, state |
 | `GET dependency-map/module?key=`        | One module with dependencies and dependents        |
 | `GET dependency-map/evidence?from=&to=` | Source evidence behind one directed dependency     |
+
+`GET dependency-map` accepts an optional `q` (at most 200 characters).
+It matches module path and name across the full graph and still returns
+at most 40 modules. Optional `indexingRunId` on all three reads keeps
+the view on that succeeded revision. The map response sets
+`newerRevisionAvailable` when a later succeeded revision exists. A
+missing requested revision falls back to the latest succeeded run.
+Repository-level edges are capped at 80. Notable symbols use the same
+bound disclosure as the other lists, and the lookup only considers the
+first 1,000 files in the module.
 
 Module keys are query parameters because they are folder paths
 containing slashes.

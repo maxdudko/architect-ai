@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import {
   Button,
@@ -22,7 +23,12 @@ import {
   useArchitectureModuleQuery,
   useDependencyMapQuery,
 } from '../services/architecture.service';
-import { describeBound, describeState, formatCount } from '../utils/dependency-map-presentation';
+import {
+  architectureFileHref,
+  describeBound,
+  describeState,
+  formatCount,
+} from '../utils/dependency-map-presentation';
 import { DependencyEvidenceDialog, type SelectedDependency } from './dependency-evidence-dialog';
 import { LimitationsNote } from './limitations-note';
 import { ModuleDetailPanel } from './module-detail-panel';
@@ -45,31 +51,62 @@ interface DependencyMapViewProps {
 export function DependencyMapView({ repositoryId }: DependencyMapViewProps) {
   const { activeWorkspace } = useAuth();
   const workspaceId = activeWorkspace?.id ?? '';
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const moduleFromUrl = searchParams.get('module');
 
   const repositoryQuery = useRepositoryQuery(workspaceId, repositoryId);
-  const mapQuery = useDependencyMapQuery(workspaceId, repositoryId);
-
-  const [selectedModuleKey, setSelectedModuleKey] = useState<string | null>(null);
+  const [pinnedRunId, setPinnedRunId] = useState<string | null>(null);
   const [moduleFilter, setModuleFilter] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [inspectedDependency, setInspectedDependency] = useState<SelectedDependency | null>(null);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(moduleFilter.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [moduleFilter]);
+
+  const mapQuery = useDependencyMapQuery(workspaceId, repositoryId, {
+    q: debouncedQuery || undefined,
+    indexingRunId: pinnedRunId ?? undefined,
+  });
+
   const map = mapQuery.data;
+  // Capture the settled revision during render so later reads stay on it.
+  // In-flight and placeholder results are ignored, and a newer revision stays
+  // opt-in until "Load newer revision" clears the pin.
+  const settledRunId =
+    mapQuery.isPlaceholderData || mapQuery.isFetching
+      ? null
+      : (map?.revision?.indexingRunId ?? null);
+  if (
+    settledRunId &&
+    settledRunId !== pinnedRunId &&
+    !(pinnedRunId && map?.newerRevisionAvailable)
+  ) {
+    setPinnedRunId(settledRunId);
+  }
 
-  const visibleModules = useMemo(() => {
-    const modules = map?.modules ?? [];
-    const needle = moduleFilter.trim().toLowerCase();
-    if (!needle) {
-      return modules;
+  const activeModuleKey = moduleFromUrl && moduleFromUrl.length > 0 ? moduleFromUrl : null;
+
+  const moduleQuery = useArchitectureModuleQuery(
+    workspaceId,
+    repositoryId,
+    activeModuleKey,
+    pinnedRunId ?? undefined,
+  );
+
+  function selectModule(moduleKey: string | null) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (moduleKey) {
+      params.set('module', moduleKey);
+    } else {
+      params.delete('module');
     }
-    return modules.filter((module) => module.path.toLowerCase().includes(needle));
-  }, [map?.modules, moduleFilter]);
-
-  const activeModuleKey =
-    selectedModuleKey && (map?.modules ?? []).some((module) => module.key === selectedModuleKey)
-      ? selectedModuleKey
-      : null;
-
-  const moduleQuery = useArchitectureModuleQuery(workspaceId, repositoryId, activeModuleKey);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
 
   if (!workspaceId) {
     return (
@@ -107,21 +144,24 @@ export function DependencyMapView({ repositoryId }: DependencyMapViewProps) {
   const moduleBoundNotice = describeBound(map.moduleBounds, 'modules');
   const dependencyBoundNotice = describeBound(map.dependencyBounds, 'dependencies');
   const repositoryName = repositoryQuery.data?.fullName ?? 'Repository';
-  const selectedFiles =
-    moduleQuery.data && moduleQuery.data.module.key === activeModuleKey
-      ? moduleQuery.data.files
-      : [];
-  const selectedFileBounds =
-    moduleQuery.data && moduleQuery.data.module.key === activeModuleKey
-      ? moduleQuery.data.fileBounds
-      : null;
+  const selectedDetail =
+    moduleQuery.data && moduleQuery.data.module.key === activeModuleKey ? moduleQuery.data : null;
+  const selectedFiles = selectedDetail?.files ?? [];
+  const selectedFileBounds = selectedDetail?.fileBounds ?? null;
+  const canvasModules =
+    !debouncedQuery &&
+    selectedDetail &&
+    !map.modules.some((module) => module.key === selectedDetail.module.key)
+      ? [...map.modules, selectedDetail.module]
+      : map.modules;
   const flow = toDependencyFlow({
-    modules: map.modules,
+    modules: canvasModules,
     dependencies: map.dependencies,
-    filter: moduleFilter,
+    filter: '',
     selectedModuleKey: activeModuleKey,
     files: selectedFiles,
     fileBounds: selectedFileBounds,
+    fileHref: (filePath) => architectureFileHref(repositoryId, filePath, activeModuleKey),
   });
 
   return (
@@ -137,7 +177,7 @@ export function DependencyMapView({ repositoryId }: DependencyMapViewProps) {
         }
       />
 
-      <RevisionBanner map={map} />
+      <RevisionBanner map={map} onLoadNewer={() => setPinnedRunId(null)} />
 
       {state ? <EmptyState title={state.title} description={state.description} /> : null}
 
@@ -162,7 +202,7 @@ export function DependencyMapView({ repositoryId }: DependencyMapViewProps) {
           {map.focusedExplorationRequired ? (
             <p className="rounded-lg border border-border/70 bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
               This repository has more modules than fit in a readable view, so focused exploration
-              is in effect. Filter the list to reach a specific module.
+              is in effect. Search all modules; at most 40 matches are shown.
             </p>
           ) : null}
 
@@ -179,19 +219,19 @@ export function DependencyMapView({ repositoryId }: DependencyMapViewProps) {
                 <SearchInput
                   value={moduleFilter}
                   onChange={(event) => setModuleFilter(event.target.value)}
-                  placeholder="Filter modules by path"
+                  placeholder="Search all modules by path or name"
                 />
 
-                {visibleModules.length === 0 ? (
+                {map.modules.length === 0 ? (
                   <p className="px-3 py-2 text-sm text-muted-foreground">
-                    No module matches this filter.
+                    No module matches this search.
                   </p>
                 ) : (
                   <DependencyMapCanvas
                     nodes={flow.nodes}
                     edges={flow.edges}
                     onSelectModule={(moduleKey) =>
-                      setSelectedModuleKey((current) => (current === moduleKey ? null : moduleKey))
+                      selectModule(activeModuleKey === moduleKey ? null : moduleKey)
                     }
                     onInspectDependency={setInspectedDependency}
                   />
@@ -238,6 +278,8 @@ export function DependencyMapView({ repositoryId }: DependencyMapViewProps) {
       <DependencyEvidenceDialog
         workspaceId={workspaceId}
         repositoryId={repositoryId}
+        indexingRunId={pinnedRunId ?? undefined}
+        returnModuleKey={activeModuleKey}
         dependency={inspectedDependency}
         onOpenChange={(open) => {
           if (!open) {

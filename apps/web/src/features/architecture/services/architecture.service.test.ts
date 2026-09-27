@@ -112,7 +112,7 @@ describe('architecture query hooks', () => {
 
     expect(lastOptions().enabled).toBe(false);
     await lastOptions().queryFn();
-    expect(getDependencyMap).toHaveBeenCalledWith('', 'repo-1');
+    expect(getDependencyMap).toHaveBeenCalledWith('', 'repo-1', {});
   });
 
   it('enables the dependency map query once both ids are present', () => {
@@ -130,7 +130,12 @@ describe('architecture query hooks', () => {
 
     expect(lastOptions().enabled).toBe(true);
     await lastOptions().queryFn();
-    expect(getArchitectureModule).toHaveBeenCalledWith('workspace-1', 'repo-1', 'apps/api');
+    expect(getArchitectureModule).toHaveBeenCalledWith(
+      'workspace-1',
+      'repo-1',
+      'apps/api',
+      undefined,
+    );
   });
 
   it('disables the evidence query until a dependency is inspected', async () => {
@@ -150,6 +155,7 @@ describe('architecture query hooks', () => {
       'repo-1',
       'apps/api',
       'packages/shared',
+      undefined,
     );
   });
 

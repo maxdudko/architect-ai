@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import {
   Dialog,
   DialogContent,
@@ -10,7 +11,7 @@ import {
   Skeleton,
 } from '@/shared/components';
 import { useDependencyEvidenceQuery } from '../services/architecture.service';
-import { describeBound } from '../utils/dependency-map-presentation';
+import { architectureFileHref, describeBound } from '../utils/dependency-map-presentation';
 import { ConfidenceBadge } from './confidence-badge';
 
 export interface SelectedDependency {
@@ -21,6 +22,8 @@ export interface SelectedDependency {
 interface DependencyEvidenceDialogProps {
   workspaceId: string;
   repositoryId: string;
+  indexingRunId?: string;
+  returnModuleKey: string | null;
   dependency: SelectedDependency | null;
   onOpenChange: (open: boolean) => void;
 }
@@ -32,10 +35,17 @@ interface DependencyEvidenceDialogProps {
 export function DependencyEvidenceDialog({
   workspaceId,
   repositoryId,
+  indexingRunId,
+  returnModuleKey,
   dependency,
   onOpenChange,
 }: DependencyEvidenceDialogProps) {
-  const evidenceQuery = useDependencyEvidenceQuery(workspaceId, repositoryId, dependency);
+  const evidenceQuery = useDependencyEvidenceQuery(
+    workspaceId,
+    repositoryId,
+    dependency,
+    indexingRunId,
+  );
   const evidence = evidenceQuery.data;
   const boundNotice = evidence ? describeBound(evidence.bounds, 'supporting imports') : null;
 
@@ -72,14 +82,29 @@ export function DependencyEvidenceDialog({
                 key={`${item.source.filePath}-${item.target.filePath}-${item.observedTarget ?? ''}`}
                 className="rounded-md border border-border/70 px-3 py-2 text-sm"
               >
-                <p className="truncate font-medium">{item.source.filePath}</p>
+                <p className="truncate font-medium">
+                  <Link
+                    href={architectureFileHref(repositoryId, item.source.filePath, returnModuleKey)}
+                    className="underline"
+                  >
+                    {item.source.filePath}
+                  </Link>
+                </p>
                 <p className="truncate text-xs text-muted-foreground">
                   imports{' '}
                   <code className="rounded bg-muted px-1">
                     {item.observedTarget ?? item.targetName ?? 'unknown'}
                   </code>
                 </p>
-                <p className="truncate text-xs text-muted-foreground">→ {item.target.filePath}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  →{' '}
+                  <Link
+                    href={architectureFileHref(repositoryId, item.target.filePath, returnModuleKey)}
+                    className="underline"
+                  >
+                    {item.target.filePath}
+                  </Link>
+                </p>
                 <p className="text-xs text-muted-foreground">
                   {item.source.relationType} · matched by {formatStrategy(item.resolutionStrategy)}
                 </p>

@@ -8,6 +8,7 @@ import { WorkspaceParamGuard } from '../../../common/guards/workspace-param.guar
 import { DependencyMapService } from './dependency-map.service';
 import {
   DependencyEvidenceQueryDto,
+  DependencyMapQueryDto,
   ModuleDetailQueryDto,
 } from './dto/dependency-map-query.dto';
 import type {
@@ -44,10 +45,12 @@ export class DependencyMapController {
   getDependencyMap(
     @Param('id') workspaceId: string,
     @Param('repositoryId') repositoryId: string,
+    @Query() query: DependencyMapQueryDto,
   ): Promise<DependencyMapResponseDto> {
     return this.dependencyMapService.getDependencyMap(
       workspaceId,
       repositoryId,
+      query,
     );
   }
 
@@ -70,6 +73,7 @@ export class DependencyMapController {
       workspaceId,
       repositoryId,
       query.key,
+      query.indexingRunId,
     );
   }
 
@@ -93,6 +97,7 @@ export class DependencyMapController {
       repositoryId,
       query.from,
       query.to,
+      query.indexingRunId,
     );
   }
 }

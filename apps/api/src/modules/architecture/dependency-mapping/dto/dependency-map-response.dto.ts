@@ -163,6 +163,12 @@ export class DependencyMapResponseDto {
   })
   rebuildInProgress!: boolean;
 
+  @ApiProperty({
+    description:
+      'True when this view is pinned to an older succeeded revision than the latest one.',
+  })
+  newerRevisionAvailable!: boolean;
+
   @ApiProperty({ type: [ModuleSummaryDto] })
   modules!: ModuleSummaryDto[];
 
@@ -381,6 +387,9 @@ export class ModuleDetailResponseDto {
 
   @ApiProperty({ type: [ModuleSymbolDto] })
   notableSymbols!: ModuleSymbolDto[];
+
+  @ApiProperty({ type: BoundDisclosureDto })
+  symbolBounds!: BoundDisclosureDto;
 
   @ApiProperty({ type: [String] })
   limitations!: string[];

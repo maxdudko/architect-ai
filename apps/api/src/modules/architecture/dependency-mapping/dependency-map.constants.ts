@@ -25,6 +25,12 @@ export const DEPENDENCY_MAP_LIMITS = {
   symbolsPerModule: 50,
 } as const;
 
+/** File paths considered when listing a module's notable symbols. */
+export const MAX_SYMBOL_LOOKUP_PATHS = 1_000;
+
+/** Maximum length of the dependency-map module search query. */
+export const DEPENDENCY_MAP_SEARCH_MAX_LENGTH = 200;
+
 /**
  * Derivation ceiling (spec AD-6, LG-5). Above these sizes the graph is
  * derived from a truncated input and the view is reported as partial.

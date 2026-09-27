@@ -31,6 +31,7 @@ import {
   describeAnswerEpistemic,
   describeEpistemic,
   describeSearchIntent,
+  questionForModule,
 } from '../utils/architecture-search-presentation';
 import { ArchitectureSectionNav } from './architecture-section-nav';
 
@@ -176,6 +177,9 @@ export function ArchitectureSearchView({ repositoryId }: ArchitectureSearchViewP
                 repositoryId={repositoryId}
                 answer={turn.answer}
                 canRate={canAsk}
+                onChooseCandidate={(modulePath) =>
+                  setQuestion(questionForModule(turn.answer?.intent ?? '', modulePath))
+                }
               />
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -241,11 +245,13 @@ function AnswerCard({
   repositoryId,
   answer,
   canRate,
+  onChooseCandidate,
 }: {
   workspaceId: string;
   repositoryId: string;
   answer: ArchitectureSearchAnswer;
   canRate: boolean;
+  onChooseCandidate: (modulePath: string) => void;
 }) {
   const dependencyNotice = describeBound(answer.dependencyBounds, 'dependencies');
   const dependentNotice = describeBound(answer.dependentBounds, 'dependents');
@@ -275,7 +281,14 @@ function AnswerCard({
           <ul className="space-y-1 text-sm">
             {answer.entityResolution.candidates.map((candidate) => (
               <li key={candidate.key}>
-                {candidate.name} <span className="text-muted-foreground">({candidate.path})</span>
+                <button
+                  type="button"
+                  className="text-left underline"
+                  onClick={() => onChooseCandidate(candidate.path)}
+                >
+                  {candidate.name}
+                </button>{' '}
+                <span className="text-muted-foreground">({candidate.path})</span>
               </li>
             ))}
           </ul>

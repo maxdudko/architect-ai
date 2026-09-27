@@ -14,6 +14,7 @@ import request from 'supertest';
 import type {
   LlmGenerateRequest,
   LlmProvider,
+  LlmStreamEvent,
 } from '../src/modules/llm/interfaces/llm-provider.interface';
 import { RetrievalService } from '../src/modules/retrieval/retrieval.service';
 import type { RetrievedContext } from '../src/modules/retrieval/types/retrieved-context.type';
@@ -588,5 +589,107 @@ describeE2e('Architecture search (e2e)', () => {
       auth.accessToken,
       'What depends on billing?',
     ).expect(403);
+  });
+
+  it('bounds a large dependent list and reports the remainder', async () => {
+    const auth = await signUp(app);
+    const repository = await connectRepository(
+      app,
+      auth.accessToken,
+      auth.activeWorkspace.id,
+    );
+    const files = ['src/billing/invoice.ts', 'src/billing/tax.ts'];
+    const imports: Array<{
+      from: string;
+      targetFilePath: string;
+      targetQualifiedName: string;
+    }> = [];
+    for (let index = 0; index < 26; index += 1) {
+      const folder = `src/d${String(index).padStart(2, '0')}`;
+      files.push(`${folder}/a.ts`, `${folder}/b.ts`);
+      imports.push({
+        from: `${folder}/a.ts`,
+        targetFilePath: '../billing/invoice',
+        targetQualifiedName: 'invoice',
+      });
+    }
+    await seedRevision(prisma, repository.id, {
+      files,
+      imports,
+      commitSha: 'current-sha',
+      completedAt: new Date('2026-09-02T00:00:00.000Z'),
+    });
+
+    const { body } = await ask(
+      auth.activeWorkspace.id,
+      repository.id,
+      auth.accessToken,
+      'What depends on billing?',
+    ).expect(201);
+
+    expect(body.intent).toBe('DEPENDENTS_OF');
+    expect(body.findings).toHaveLength(25);
+    expect(body.dependentBounds).toEqual({
+      limit: 25,
+      returned: 25,
+      total: 26,
+      truncated: true,
+    });
+  });
+
+  it('marks a partial stream incomplete and hides provider internals', async () => {
+    const { auth, repository } = await readyRepository();
+    const resolver = app.get(WorkspaceLlmResolver);
+    jest.spyOn(resolver, 'resolve').mockResolvedValue({
+      name: 'scripted',
+      generate: (llmRequest) => {
+        const blob = llmRequest.messages
+          .map((message) => message.content)
+          .join('\n');
+        const content = blob.includes('architecture-search-classify')
+          ? JSON.stringify(
+              classifyQuestion(llmRequest.messages.at(-1)?.content ?? ''),
+            )
+          : 'unused';
+        return Promise.resolve({ content, model: 'scripted' });
+      },
+      stream(): AsyncIterable<LlmStreamEvent> {
+        let delivered = false;
+        return {
+          [Symbol.asyncIterator](): AsyncIterator<LlmStreamEvent> {
+            return {
+              next() {
+                if (delivered) {
+                  return Promise.reject(
+                    new Error('sk-live-SECRET /home/developer/provider.ts'),
+                  );
+                }
+                delivered = true;
+                return Promise.resolve({
+                  done: false,
+                  value: {
+                    type: 'token',
+                    text: 'Billing is imported by features',
+                  },
+                });
+              },
+            };
+          },
+        };
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .post(
+        `/workspaces/${auth.activeWorkspace.id}/repositories/${repository.id}/architecture/search/messages/stream`,
+      )
+      .set(authHeader(auth.accessToken))
+      .send({ content: 'What depends on billing?' })
+      .expect(200);
+
+    expect(response.text).toContain('Billing is imported by features');
+    expect(response.text).toContain('"truncated":true');
+    expect(response.text).not.toContain('sk-live');
+    expect(response.text).not.toContain('/home/developer');
   });
 });

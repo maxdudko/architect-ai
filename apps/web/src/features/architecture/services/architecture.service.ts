@@ -38,12 +38,23 @@ export const ARCHITECTURE_QUERY_KEYS = {
 
 const OVERVIEW_POLL_MS = 2_000;
 const OVERVIEW_MAX_POLL_AGE_MS = 15 * 60 * 1000;
+const DEPENDENCY_MAP_POLL_MS = 15_000;
 
-export function useDependencyMapQuery(workspaceId: string, repositoryId: string) {
+export function useDependencyMapQuery(
+  workspaceId: string,
+  repositoryId: string,
+  options: { q?: string; indexingRunId?: string } = {},
+) {
   return useQuery({
-    queryKey: ARCHITECTURE_QUERY_KEYS.dependencyMap(workspaceId, repositoryId),
-    queryFn: () => getDependencyMap(workspaceId, repositoryId),
+    queryKey: [
+      ...ARCHITECTURE_QUERY_KEYS.dependencyMap(workspaceId, repositoryId),
+      options.q ?? '',
+      options.indexingRunId ?? '',
+    ],
+    queryFn: () => getDependencyMap(workspaceId, repositoryId, options),
     enabled: Boolean(workspaceId && repositoryId),
+    placeholderData: (previous) => previous,
+    refetchInterval: options.indexingRunId ? DEPENDENCY_MAP_POLL_MS : false,
   });
 }
 
@@ -51,10 +62,14 @@ export function useArchitectureModuleQuery(
   workspaceId: string,
   repositoryId: string,
   moduleKey: string | null,
+  indexingRunId?: string,
 ) {
   return useQuery({
-    queryKey: ARCHITECTURE_QUERY_KEYS.module(workspaceId, repositoryId, moduleKey ?? ''),
-    queryFn: () => getArchitectureModule(workspaceId, repositoryId, moduleKey ?? ''),
+    queryKey: [
+      ...ARCHITECTURE_QUERY_KEYS.module(workspaceId, repositoryId, moduleKey ?? ''),
+      indexingRunId ?? '',
+    ],
+    queryFn: () => getArchitectureModule(workspaceId, repositoryId, moduleKey ?? '', indexingRunId),
     enabled: Boolean(workspaceId && repositoryId && moduleKey),
   });
 }
@@ -63,20 +78,25 @@ export function useDependencyEvidenceQuery(
   workspaceId: string,
   repositoryId: string,
   dependency: { from: string; to: string } | null,
+  indexingRunId?: string,
 ) {
   return useQuery({
-    queryKey: ARCHITECTURE_QUERY_KEYS.evidence(
-      workspaceId,
-      repositoryId,
-      dependency?.from ?? '',
-      dependency?.to ?? '',
-    ),
+    queryKey: [
+      ...ARCHITECTURE_QUERY_KEYS.evidence(
+        workspaceId,
+        repositoryId,
+        dependency?.from ?? '',
+        dependency?.to ?? '',
+      ),
+      indexingRunId ?? '',
+    ],
     queryFn: () =>
       getDependencyEvidence(
         workspaceId,
         repositoryId,
         dependency?.from ?? '',
         dependency?.to ?? '',
+        indexingRunId,
       ),
     enabled: Boolean(workspaceId && repositoryId && dependency),
   });

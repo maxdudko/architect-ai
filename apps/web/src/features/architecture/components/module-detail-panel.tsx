@@ -3,7 +3,12 @@
 import Link from 'next/link';
 import type { ArchitectureModuleDetail, ModuleDependency } from '@/entities';
 import { ErrorState, Skeleton } from '@/shared/components';
-import { describeBound, formatCount } from '../utils/dependency-map-presentation';
+import {
+  architectureFileHref,
+  architectureMapHref,
+  describeBound,
+  formatCount,
+} from '../utils/dependency-map-presentation';
 import { ConfidenceBadge } from './confidence-badge';
 import type { SelectedDependency } from './dependency-evidence-dialog';
 
@@ -146,7 +151,13 @@ export function ModuleDetailPanel({
         <div className="max-h-56 space-y-1 overflow-y-auto">
           {detail.files.map((file) => (
             <p key={file.path} className="truncate text-xs text-muted-foreground">
-              {file.path} · {file.language} · {file.lineCount} lines
+              <Link
+                href={architectureFileHref(repositoryId, file.path, moduleKey)}
+                className="underline"
+              >
+                {file.path}
+              </Link>{' '}
+              · {file.language} · {file.lineCount} lines
             </p>
           ))}
         </div>
@@ -156,24 +167,40 @@ export function ModuleDetailPanel({
           </p>
         ) : null}
         <Link
-          href={`/repositories/${repositoryId}`}
+          href={
+            detail.files[0]
+              ? architectureFileHref(repositoryId, detail.files[0].path, moduleKey)
+              : `/repositories/${repositoryId}?${new URLSearchParams({
+                  returnTo: architectureMapHref(repositoryId, moduleKey),
+                }).toString()}`
+          }
           className="inline-block text-xs text-muted-foreground underline"
         >
           Browse these files and symbols
         </Link>
       </section>
 
-      {detail.notableSymbols.length > 0 ? (
+      {detail.notableSymbols.length > 0 || describeBound(detail.symbolBounds, 'notable symbols') ? (
         <section className="space-y-2">
           <h4 className="text-sm font-medium">Notable symbols</h4>
           <div className="max-h-56 space-y-1 overflow-y-auto">
             {detail.notableSymbols.map((symbol) => (
               <p key={symbol.qualifiedName} className="truncate text-xs text-muted-foreground">
-                <span className="text-foreground">{symbol.name}</span> · {symbol.type} ·{' '}
-                {symbol.filePath}:{symbol.startLine}
+                <Link
+                  href={architectureFileHref(repositoryId, symbol.filePath, moduleKey)}
+                  className="text-foreground underline"
+                >
+                  {symbol.name}
+                </Link>{' '}
+                · {symbol.type} · {symbol.filePath}:{symbol.startLine}
               </p>
             ))}
           </div>
+          {describeBound(detail.symbolBounds, 'notable symbols') ? (
+            <p className="text-xs text-muted-foreground">
+              {describeBound(detail.symbolBounds, 'notable symbols')}
+            </p>
+          ) : null}
         </section>
       ) : null}
     </div>

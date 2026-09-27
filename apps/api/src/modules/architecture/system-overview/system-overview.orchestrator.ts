@@ -162,6 +162,8 @@ export class SystemOverviewOrchestrator {
         partialReasons: facts.partialReasons,
         retrievalUnavailable,
         contextTruncated: facts.contextTruncated,
+        inventoryTruncated:
+          facts.moduleBounds.truncated || facts.dependencyBounds.truncated,
       });
       for (const statement of statements) {
         markdown = appendLimitation(markdown, statement);
@@ -336,6 +338,7 @@ function limitationStatements(input: {
   partialReasons: string[];
   retrievalUnavailable: boolean;
   contextTruncated: boolean;
+  inventoryTruncated: boolean;
 }): string[] {
   const statements: string[] = [];
   if (input.modulesAbsent) {
@@ -354,7 +357,7 @@ function limitationStatements(input: {
       'Retrieved source was unavailable for this generation. Structural statements use the dependency map only.',
     );
   }
-  if (input.contextTruncated) {
+  if (input.contextTruncated || input.inventoryTruncated) {
     statements.push(
       'Structured architecture facts were truncated to fit the context budget. The overview summarizes rather than enumerates.',
     );

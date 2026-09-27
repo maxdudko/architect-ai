@@ -34,7 +34,7 @@ describe('architecture api client', () => {
 
     const response = await getDependencyMap('workspace-1', 'repo-1');
 
-    expect(apiClient.get).toHaveBeenCalledWith(BASE);
+    expect(apiClient.get).toHaveBeenCalledWith(BASE, { params: {} });
     expect(response.state).toBe('READY');
   });
 
@@ -43,6 +43,14 @@ describe('architecture api client', () => {
 
     expect(apiClient.get).toHaveBeenCalledWith(`${BASE}/module`, {
       params: { key: 'apps/api/src' },
+    });
+  });
+
+  it('pins a module read to the indexing revision on screen', async () => {
+    await getArchitectureModule('workspace-1', 'repo-1', 'apps/api/src', 'run-1');
+
+    expect(apiClient.get).toHaveBeenCalledWith(`${BASE}/module`, {
+      params: { key: 'apps/api/src', indexingRunId: 'run-1' },
     });
   });
 

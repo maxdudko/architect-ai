@@ -3,6 +3,7 @@ import {
   describeAnswerEpistemic,
   describeEpistemic,
   describeSearchIntent,
+  questionForModule,
 } from './architecture-search-presentation';
 
 describe('architecture search presentation', () => {
@@ -23,6 +24,22 @@ describe('architecture search presentation', () => {
   it('does not describe an empty observed answer as a resolved dependency', () => {
     expect(describeAnswerEpistemic('OBSERVED', 0).toLowerCase()).toContain('no resolved import');
     expect(describeAnswerEpistemic('OBSERVED', 2)).toContain('resolved import');
+  });
+
+  it('fills a question for the candidate the member chooses', () => {
+    expect(questionForModule('DEPENDENTS_OF', 'src/billing')).toBe('What depends on src/billing?');
+    expect(questionForModule('DEPENDENCIES_OF', 'src/billing')).toBe(
+      'What does src/billing depend on?',
+    );
+    expect(questionForModule('CONNECTED_TO', 'src/billing')).toBe(
+      'What is connected to src/billing?',
+    );
+    expect(questionForModule('MODULE_REFERENCES', 'src/billing/invoice.ts')).toBe(
+      'Which modules reference src/billing/invoice.ts?',
+    );
+    expect(questionForModule('UNSUPPORTED', 'src/billing')).toBe(
+      'Which modules reference src/billing?',
+    );
   });
 
   it('names the supported structural intents', () => {

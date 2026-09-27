@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { DependencyMap, DependencyMapState } from '@/entities';
 import {
+  architectureFileHref,
   describeBound,
   describeConfidence,
   describeRevision,
   describeState,
   formatCount,
+  safeArchitectureReturnPath,
 } from './dependency-map-presentation';
 
 function dependencyMap(overrides: Partial<DependencyMap> = {}): DependencyMap {
@@ -20,6 +22,7 @@ function dependencyMap(overrides: Partial<DependencyMap> = {}): DependencyMap {
       completedAt: '2026-06-24T00:00:00.000Z',
     },
     rebuildInProgress: false,
+    newerRevisionAvailable: false,
     modules: [],
     moduleBounds: { limit: 40, returned: 0, total: 0, truncated: false },
     dependencies: [],
@@ -164,6 +167,16 @@ describe('describeBound', () => {
     expect(notice).toContain('bounded at 40');
   });
 
+  it('says the lookup was bounded when every searched item is shown', () => {
+    const notice = describeBound(
+      { limit: 50, returned: 4, total: 4, truncated: true },
+      'notable symbols',
+    );
+
+    expect(notice).toContain('Showing 4 notable symbols');
+    expect(notice).toContain('may be incomplete');
+  });
+
   it('uses singular wording for a single omitted item', () => {
     const notice = describeBound(
       { limit: 25, returned: 25, total: 26, truncated: true },
@@ -206,5 +219,25 @@ describe('formatCount', () => {
 
   it('accepts an explicit plural', () => {
     expect(formatCount(2, 'dependency', 'dependencies')).toBe('2 dependencies');
+  });
+});
+
+describe('architecture return paths', () => {
+  it('links a file back to the selected module', () => {
+    expect(architectureFileHref('repo-1', 'src/billing/invoice.ts', 'src/billing')).toBe(
+      '/repositories/repo-1?file=src%2Fbilling%2Finvoice.ts&returnTo=%2Frepositories%2Frepo-1%2Farchitecture%3Fmodule%3Dsrc%252Fbilling',
+    );
+  });
+
+  it('accepts a map return that only names the selected module', () => {
+    const returnTo = '/repositories/repo-1/architecture?module=src/billing';
+    expect(safeArchitectureReturnPath('repo-1', returnTo)).toBe(returnTo);
+    expect(safeArchitectureReturnPath('repo-1', '/repositories/repo-1/architecture/search')).toBe(
+      '/repositories/repo-1/architecture/search',
+    );
+    expect(
+      safeArchitectureReturnPath('repo-1', '/repositories/repo-1/architecture?file=secret'),
+    ).toBeNull();
+    expect(safeArchitectureReturnPath('repo-1', 'https://example.com')).toBeNull();
   });
 });

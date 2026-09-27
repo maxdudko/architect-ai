@@ -38,6 +38,20 @@ export function describeAnswerEpistemic(label: EpistemicLabel, findingCount: num
   return describeEpistemic(label).description;
 }
 
+/** Fills the question box with one candidate. It does not submit the question. */
+export function questionForModule(intent: string, modulePath: string): string {
+  switch (intent) {
+    case 'DEPENDENCIES_OF':
+      return `What does ${modulePath} depend on?`;
+    case 'CONNECTED_TO':
+      return `What is connected to ${modulePath}?`;
+    case 'DEPENDENTS_OF':
+      return `What depends on ${modulePath}?`;
+    default:
+      return `Which modules reference ${modulePath}?`;
+  }
+}
+
 export function describeSearchIntent(intent: string): string {
   switch (intent) {
     case 'DEPENDENTS_OF':

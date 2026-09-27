@@ -71,19 +71,20 @@ still satisfied.
 
 ### Q-4 — Graph visualization library
 
-**Decision (user-selected): none.** Dependency Mapping ships as a
-list explorer — a module inventory table plus dependencies and
-dependents panels — with no new frontend dependency.
+**Decision.** The repository view is a read-only React Flow canvas
+(`@xyflow/react`). Selecting a module still opens the detail panel
+for dependencies, dependents, files, symbols, and evidence. An
+earlier decision to ship only a list was superseded once the canvas
+became the way a member sees module grouping and direct edges.
 
-**Why.** The spec's mandatory behaviour is reversible aggregation
-(RS-6) and visible evidence (EV-\*), both of which a table and a
-detail panel serve directly. A node-link canvas would add a
-dependency and a rendering budget without serving a required
-behaviour, and at the declared module bound it would mostly be
-unreadable.
+**Why.** The parent specification asks for a module-level dependency
+view, and a bounded canvas shows those edges without listing every
+symbol. The canvas does not add a second architecture model.
 
-**Consequence.** No spatial overview of the repository. Deferred
-until a Phase 2 feature actually requires one.
+**Consequence.** Edges are labeled with their import count and the
+`resolved` classification. Unresolved and external relationships stay
+in the detail panel, not as drawn edges. The unused inventory table
+was removed.
 
 ### Q-5 — Graph size limits
 
@@ -93,6 +94,7 @@ until a Phase 2 feature actually requires one.
 | Bound                             | Value |
 | --------------------------------- | ----- |
 | Modules per repository view       | 40    |
+| Edges in the repository view      | 80    |
 | Dependencies per module           | 25    |
 | Dependents per module             | 25    |
 | Evidence items per dependency     | 20    |
@@ -114,6 +116,15 @@ hitting the ceiling puts the whole view in the `PARTIAL` state with
 stated reasons. Modules are ordered by significance
 (`fileCount + symbolCount + outgoing + incoming`, tie-broken by key)
 so truncation is deterministic for a revision.
+
+A module outside the first 40 is reached with `q` on
+`GET .../dependency-map`. The query matches path and name across the
+full derived graph and still returns at most 40 matches. An open view
+can pass `indexingRunId` to stay on that succeeded revision.
+`newerRevisionAvailable` is true when a later succeeded revision
+exists, and the graph does not change until the member loads it. A
+requested revision that is gone falls back to the latest succeeded
+run.
 
 ### Q-9 — Source reference format
 

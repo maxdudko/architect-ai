@@ -20,20 +20,11 @@ import {
   useRepositoryQuery,
   useRepositorySymbolsQuery,
 } from '../services/repository.service';
+import { safeArchitectureReturnPath } from '@/features/architecture/utils/dependency-map-presentation';
 import { RepositoryStatusBadge } from './repository-status-badge';
 
 interface RepositoryBrowseProps {
   repositoryId: string;
-}
-
-function architectureReturnPath(repositoryId: string, returnTo: string | null): string | null {
-  const mapPath = `/repositories/${repositoryId}/architecture`;
-  const searchPath = `${mapPath}/search`;
-  const overviewPath = `${mapPath}/overview`;
-  if (returnTo === mapPath || returnTo === searchPath || returnTo === overviewPath) {
-    return returnTo;
-  }
-  return null;
 }
 
 export function RepositoryBrowse({ repositoryId }: RepositoryBrowseProps) {
@@ -41,7 +32,7 @@ export function RepositoryBrowse({ repositoryId }: RepositoryBrowseProps) {
   const workspaceId = activeWorkspace?.id ?? '';
   const searchParams = useSearchParams();
   const requestedFile = searchParams.get('file');
-  const safeReturnTo = architectureReturnPath(repositoryId, searchParams.get('returnTo'));
+  const safeReturnTo = safeArchitectureReturnPath(repositoryId, searchParams.get('returnTo'));
   const repositoryQuery = useRepositoryQuery(workspaceId, repositoryId);
   const filesQuery = useRepositoryFilesQuery(workspaceId, repositoryId);
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(requestedFile);

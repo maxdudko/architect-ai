@@ -6,7 +6,6 @@ export * from './components/dependency-evidence-dialog';
 export * from './components/dependency-map-view';
 export * from './components/limitations-note';
 export * from './components/module-detail-panel';
-export * from './components/module-inventory-table';
 export * from './components/revision-banner';
 export * from './services/architecture.service';
 export * from './utils/dependency-map-presentation';

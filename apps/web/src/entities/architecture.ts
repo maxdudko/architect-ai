@@ -95,6 +95,7 @@ export interface DependencyMap {
   state: DependencyMapState;
   revision: ArchitectureRevision | null;
   rebuildInProgress: boolean;
+  newerRevisionAvailable: boolean;
   modules: ArchitectureModuleSummary[];
   moduleBounds: BoundDisclosure;
   dependencies: DependencyMapEdge[];
@@ -172,6 +173,7 @@ export interface ArchitectureModuleDetail {
   files: ArchitectureModuleFile[];
   fileBounds: BoundDisclosure;
   notableSymbols: ArchitectureModuleSymbol[];
+  symbolBounds: BoundDisclosure;
   limitations: string[];
 }
 

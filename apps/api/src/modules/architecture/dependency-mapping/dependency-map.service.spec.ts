@@ -104,8 +104,13 @@ describe('DependencyMapService', () => {
     dataSource = {
       findRepositoryInWorkspace: jest.fn(),
       findLatestSucceededRevision: jest.fn(),
+      findSucceededRevision: jest.fn(),
       loadSnapshot: jest.fn(),
-      listNotableSymbols: jest.fn().mockResolvedValue([]),
+      listNotableSymbols: jest.fn().mockResolvedValue({
+        symbols: [],
+        total: 0,
+        lookupTruncated: false,
+      }),
       listFilesByPath: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<PrismaArchitectureDataSource>;
 
@@ -297,6 +302,86 @@ describe('DependencyMapService', () => {
         truncated: true,
       });
       expect(result.focusedExplorationRequired).toBe(true);
+      expect(result.newerRevisionAvailable).toBe(false);
+    });
+
+    it('searches the full module set and still returns at most the declared bound', async () => {
+      const modules = Array.from(
+        { length: DEPENDENCY_MAP_LIMITS.modulesPerView + 5 },
+        (_, index) =>
+          moduleNode(`src/module-${String(index).padStart(2, '0')}`, {
+            name: `Module ${index}`,
+            significance: 100 - index,
+          }),
+      );
+      const hidden = modules[modules.length - 1];
+      graphProvider.getGraph.mockResolvedValue(graph({ modules }));
+
+      const result = await service.getDependencyMap(
+        WORKSPACE_ID,
+        REPOSITORY_ID,
+        { q: 'module-44' },
+      );
+
+      expect(hidden.key).toBe('src/module-44');
+      expect(result.modules.map((module) => module.key)).toEqual([hidden.key]);
+      expect(result.moduleBounds).toEqual({
+        limit: DEPENDENCY_MAP_LIMITS.modulesPerView,
+        returned: 1,
+        total: 1,
+        truncated: false,
+      });
+      expect(result.focusedExplorationRequired).toBe(true);
+    });
+
+    it('keeps a requested revision and reports when a newer one exists', async () => {
+      dataSource.findSucceededRevision.mockResolvedValue({
+        ...REVISION,
+        indexingRunId: 'run-old',
+      });
+      dataSource.findLatestSucceededRevision.mockResolvedValue({
+        ...REVISION,
+        indexingRunId: 'run-new',
+      });
+      graphProvider.getGraph.mockResolvedValue(
+        graph({
+          indexingRunId: 'run-old',
+          modules: [moduleNode('src/app')],
+        }),
+      );
+
+      const result = await service.getDependencyMap(
+        WORKSPACE_ID,
+        REPOSITORY_ID,
+        { indexingRunId: 'run-old' },
+      );
+
+      expect(result.revision?.indexingRunId).toBe('run-old');
+      expect(result.newerRevisionAvailable).toBe(true);
+      expect(graphProvider.getGraph).toHaveBeenCalledWith(
+        REPOSITORY_ID,
+        'run-old',
+      );
+    });
+
+    it('falls back to the latest revision when the requested one is gone', async () => {
+      dataSource.findSucceededRevision.mockResolvedValue(null);
+      graphProvider.getGraph.mockResolvedValue(
+        graph({ modules: [moduleNode('src/app')] }),
+      );
+
+      const result = await service.getDependencyMap(
+        WORKSPACE_ID,
+        REPOSITORY_ID,
+        { indexingRunId: '11111111-1111-4111-8111-111111111111' },
+      );
+
+      expect(result.revision?.indexingRunId).toBe(RUN_ID);
+      expect(result.newerRevisionAvailable).toBe(false);
+      expect(graphProvider.getGraph).toHaveBeenCalledWith(
+        REPOSITORY_ID,
+        RUN_ID,
+      );
     });
 
     it('returns edges whose both ends are in the visible module slice', async () => {
@@ -447,6 +532,50 @@ describe('DependencyMapService', () => {
         }),
       ]);
       expect(result.revision.indexingRunId).toBe(RUN_ID);
+      expect(result.symbolBounds).toEqual({
+        limit: DEPENDENCY_MAP_LIMITS.symbolsPerModule,
+        returned: 0,
+        total: 0,
+        truncated: false,
+      });
+    });
+
+    it('discloses notable-symbol truncation, including a capped file lookup', async () => {
+      dataSource.listNotableSymbols.mockResolvedValue({
+        symbols: [
+          {
+            name: 'Invoice',
+            qualifiedName: 'Invoice',
+            type: 'CLASS',
+            filePath: 'src/app/a.ts',
+            language: 'typescript',
+            startLine: 1,
+            endLine: 4,
+          },
+        ],
+        total: 1,
+        lookupTruncated: true,
+      });
+      graphProvider.getGraph.mockResolvedValue(
+        graph({
+          modules: [moduleNode('src/app')],
+          filePathsByModule: { 'src/app': ['src/app/a.ts'] },
+        }),
+      );
+
+      const result = await service.getModuleDetail(
+        WORKSPACE_ID,
+        REPOSITORY_ID,
+        'src/app',
+      );
+
+      expect(result.notableSymbols).toHaveLength(1);
+      expect(result.symbolBounds).toEqual({
+        limit: DEPENDENCY_MAP_LIMITS.symbolsPerModule,
+        returned: 1,
+        total: 1,
+        truncated: true,
+      });
     });
 
     it('rejects an unknown module key', async () => {

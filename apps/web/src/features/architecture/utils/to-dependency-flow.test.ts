@@ -94,7 +94,7 @@ describe('toDependencyFlow', () => {
         id: 'apps/api::packages/shared',
         source: 'module:apps/api',
         target: 'module:packages/shared',
-        label: '6',
+        label: '6 · resolved',
         fromModuleKey: 'apps/api',
         toModuleKey: 'packages/shared',
       },
@@ -120,41 +120,82 @@ describe('toDependencyFlow', () => {
     expect(flow.edges).toEqual([]);
   });
 
-  it('nests the selected module files by the next folder segment', () => {
+  it('puts the selected module files on the card, relative to the module path', () => {
     const flow = toDependencyFlow({
       ...base,
-      modules: [moduleSummary('apps/api', 4)],
+      modules: [moduleSummary('apps/web', 4)],
       dependencies: [],
-      selectedModuleKey: 'apps/api',
+      selectedModuleKey: 'apps/web',
       files: [
-        { path: 'apps/api/package.json', language: 'json', lineCount: 10 },
-        { path: 'apps/api/src/main.ts', language: 'typescript', lineCount: 20 },
-        { path: 'apps/api/prisma/schema.prisma', language: 'prisma', lineCount: 40 },
-        { path: 'apps/api/src/app.module.ts', language: 'typescript', lineCount: 15 },
+        {
+          path: 'apps/web/src/features/architecture/components/dependency-map-view.tsx',
+          language: 'typescript',
+          lineCount: 40,
+        },
+        { path: 'apps/web/package.json', language: 'json', lineCount: 10 },
+        { path: 'apps/web/src/app/page.tsx', language: 'typescript', lineCount: 12 },
       ],
-      fileBounds: { limit: 50, returned: 4, total: 4, truncated: false },
+      fileBounds: { limit: 50, returned: 3, total: 3, truncated: false },
+      fileHref: (filePath) => `/repositories/repo-1?file=${filePath}`,
     });
 
-    const moduleNode = flow.nodes.find((node) => node.id === 'module:apps/api');
+    const moduleNode = flow.nodes.find((node) => node.id === 'module:apps/web');
     expect(moduleNode?.data).toEqual(
-      expect.objectContaining({ selected: true, filesTruncated: false }),
+      expect.objectContaining({
+        selected: true,
+        filesTruncated: false,
+        files: [
+          {
+            path: 'apps/web/package.json',
+            displayPath: '/package.json',
+            language: 'json',
+            href: '/repositories/repo-1?file=apps/web/package.json',
+          },
+          {
+            path: 'apps/web/src/app/page.tsx',
+            displayPath: '/src/app/page.tsx',
+            language: 'typescript',
+            href: '/repositories/repo-1?file=apps/web/src/app/page.tsx',
+          },
+          {
+            path: 'apps/web/src/features/architecture/components/dependency-map-view.tsx',
+            displayPath: '/src/features/architecture/components/dependency-map-view.tsx',
+            language: 'typescript',
+            href: '/repositories/repo-1?file=apps/web/src/features/architecture/components/dependency-map-view.tsx',
+          },
+        ],
+      }),
     );
     expect(moduleNode && moduleNode.width).toBeGreaterThan(220);
-
-    const folders = flow.nodes.filter((node) => node.kind === 'folder');
-    expect(folders.map((node) => (node.data.kind === 'folder' ? node.data.label : ''))).toEqual([
-      'root',
-      'prisma',
-      'src',
-    ]);
-
-    const srcFiles = flow.nodes.filter((node) => node.parentId === 'folder:apps/api:src');
-    expect(srcFiles.map((node) => node.id)).toEqual([
-      'file:apps/api/src/main.ts',
-      'file:apps/api/src/app.module.ts',
-    ]);
+    expect(flow.nodes.some((node) => node.kind !== 'group' && node.kind !== 'module')).toBe(false);
     expect(flow.nodes.findIndex((node) => node.id === 'group:apps')).toBeLessThan(
-      flow.nodes.findIndex((node) => node.id === 'module:apps/api'),
+      flow.nodes.findIndex((node) => node.id === 'module:apps/web'),
+    );
+  });
+
+  it('caps the selected module height when the file list is long', () => {
+    const files = Array.from({ length: 50 }, (_, index) => ({
+      path: `apps/web/src/page-${String(index).padStart(2, '0')}.tsx`,
+      language: 'typescript',
+      lineCount: 1,
+    }));
+    const flow = toDependencyFlow({
+      ...base,
+      modules: [moduleSummary('apps/web', 262)],
+      dependencies: [],
+      selectedModuleKey: 'apps/web',
+      files,
+      fileBounds: { limit: 50, returned: 50, total: 262, truncated: true },
+    });
+
+    const moduleNode = flow.nodes.find((node) => node.id === 'module:apps/web');
+    expect(moduleNode?.height).toBeLessThanOrEqual(308);
+    expect(moduleNode?.data).toEqual(
+      expect.objectContaining({
+        files: expect.arrayContaining([
+          expect.objectContaining({ displayPath: '/src/page-00.tsx' }),
+        ]),
+      }),
     );
   });
 

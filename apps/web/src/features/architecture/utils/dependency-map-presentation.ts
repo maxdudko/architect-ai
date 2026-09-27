@@ -112,7 +112,64 @@ export function describeBound(bound: BoundDisclosure, noun: string): string | nu
     return null;
   }
   const omitted = bound.total - bound.returned;
+  if (omitted <= 0) {
+    return `Showing ${bound.returned} ${noun}. The lookup was bounded, so this list may be incomplete.`;
+  }
   return `Showing the top ${bound.returned} of ${bound.total} ${noun}. ${omitted} more ${omitted === 1 ? 'is' : 'are'} not shown; this view is bounded at ${bound.limit}.`;
+}
+
+/** Dependency map URL, optionally with the selected module restored. */
+export function architectureMapHref(repositoryId: string, moduleKey: string | null): string {
+  if (!moduleKey) {
+    return `/repositories/${repositoryId}/architecture`;
+  }
+  return `/repositories/${repositoryId}/architecture?${new URLSearchParams({ module: moduleKey }).toString()}`;
+}
+
+/** File browser URL that returns to the dependency map, optionally on one module. */
+export function architectureFileHref(
+  repositoryId: string,
+  filePath: string,
+  moduleKey: string | null,
+): string {
+  return `/repositories/${repositoryId}?${new URLSearchParams({
+    file: filePath,
+    returnTo: architectureMapHref(repositoryId, moduleKey),
+  }).toString()}`;
+}
+
+/**
+ * Accepts a return path only when it is this repository's architecture page.
+ * The map may carry a single `module` query. Search and overview may not.
+ */
+export function safeArchitectureReturnPath(
+  repositoryId: string,
+  returnTo: string | null,
+): string | null {
+  if (!returnTo?.startsWith('/') || returnTo.startsWith('//')) {
+    return null;
+  }
+  let url: URL;
+  try {
+    url = new URL(returnTo, 'http://architect.local');
+  } catch {
+    return null;
+  }
+  if (url.origin !== 'http://architect.local') {
+    return null;
+  }
+  const mapPath = `/repositories/${repositoryId}/architecture`;
+  if (url.pathname === `${mapPath}/search` || url.pathname === `${mapPath}/overview`) {
+    return url.search ? null : url.pathname;
+  }
+  if (url.pathname !== mapPath) {
+    return null;
+  }
+  const keys = [...url.searchParams.keys()];
+  if (keys.some((key) => key !== 'module') || url.searchParams.getAll('module').length > 1) {
+    return null;
+  }
+  return `${url.pathname}${url.search}`;
 }
 
 /** Short revision label for the header, e.g. "main · a1b2c3d". */

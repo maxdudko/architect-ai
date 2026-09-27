@@ -54,10 +54,13 @@ export class DependencyMapService {
   async getDependencyMap(
     workspaceId: string,
     repositoryId: string,
+    query: { q?: string; indexingRunId?: string } = {},
   ): Promise<DependencyMapResponseDto> {
     const repository = await this.requireRepository(workspaceId, repositoryId);
-    const revision =
-      await this.dataSource.findLatestSucceededRevision(repositoryId);
+    const { revision, newerRevisionAvailable } = await this.resolveViewRevision(
+      repositoryId,
+      query.indexingRunId,
+    );
     const rebuildInProgress = PROCESSING_STATUSES.includes(repository.status);
 
     if (!revision) {
@@ -73,10 +76,8 @@ export class DependencyMapService {
       revision.indexingRunId,
     );
 
-    const modules = graph.modules.slice(
-      0,
-      DEPENDENCY_MAP_LIMITS.modulesPerView,
-    );
+    const matched = matchModules(graph.modules, query.q);
+    const modules = matched.slice(0, DEPENDENCY_MAP_LIMITS.modulesPerView);
     const visibleModuleKeys = new Set(modules.map((module) => module.key));
     const visibleEdges = graph.dependencies.filter(
       (edge) =>
@@ -94,11 +95,12 @@ export class DependencyMapService {
       state: resolveState(graph),
       revision: toRevisionDto(revision),
       rebuildInProgress,
+      newerRevisionAvailable,
       modules: modules.map(toModuleSummary),
       moduleBounds: bounds(
         DEPENDENCY_MAP_LIMITS.modulesPerView,
         modules.length,
-        graph.modules.length,
+        matched.length,
       ),
       dependencies: dependencies.map(toOverviewEdge),
       dependencyBounds: bounds(
@@ -122,10 +124,12 @@ export class DependencyMapService {
     workspaceId: string,
     repositoryId: string,
     moduleKey: string,
+    indexingRunId?: string,
   ): Promise<ModuleDetailResponseDto> {
     const { graph, revision } = await this.requireGraph(
       workspaceId,
       repositoryId,
+      indexingRunId,
     );
 
     const module = graph.modules.find((entry) => entry.key === moduleKey);
@@ -225,7 +229,15 @@ export class DependencyMapService {
         files.length,
         modulePaths.length,
       ),
-      notableSymbols,
+      notableSymbols: notableSymbols.symbols,
+      symbolBounds: {
+        limit: DEPENDENCY_MAP_LIMITS.symbolsPerModule,
+        returned: notableSymbols.symbols.length,
+        total: notableSymbols.total,
+        truncated:
+          notableSymbols.symbols.length < notableSymbols.total ||
+          notableSymbols.lookupTruncated,
+      },
       limitations: [...DEPENDENCY_MAP_LIMITATIONS],
     };
   }
@@ -235,10 +247,12 @@ export class DependencyMapService {
     repositoryId: string,
     fromModuleKey: string,
     toModuleKey: string,
+    indexingRunId?: string,
   ): Promise<DependencyEvidenceResponseDto> {
     const { graph, revision } = await this.requireGraph(
       workspaceId,
       repositoryId,
+      indexingRunId,
     );
 
     const edge = graph.dependencies.find(
@@ -319,11 +333,13 @@ export class DependencyMapService {
   private async requireGraph(
     workspaceId: string,
     repositoryId: string,
+    indexingRunId?: string,
   ): Promise<{ graph: DependencyGraph; revision: ArchitectureRevision }> {
     await this.requireRepository(workspaceId, repositoryId);
-
-    const revision =
-      await this.dataSource.findLatestSucceededRevision(repositoryId);
+    const { revision } = await this.resolveViewRevision(
+      repositoryId,
+      indexingRunId,
+    );
     if (!revision) {
       throw new NotFoundException(
         'Repository has no successful indexing revision',
@@ -338,6 +354,39 @@ export class DependencyMapService {
     return { graph, revision };
   }
 
+  /**
+   * Picks one succeeded revision for the whole view. A requested run that is
+   * gone falls back to the latest succeeded run instead of mixing data.
+   */
+  private async resolveViewRevision(
+    repositoryId: string,
+    indexingRunId?: string,
+  ): Promise<{
+    revision: ArchitectureRevision | null;
+    newerRevisionAvailable: boolean;
+  }> {
+    const latest =
+      await this.dataSource.findLatestSucceededRevision(repositoryId);
+    const requested = indexingRunId?.trim();
+    if (!requested) {
+      return { revision: latest, newerRevisionAvailable: false };
+    }
+
+    const pinned = await this.dataSource.findSucceededRevision(
+      repositoryId,
+      requested,
+    );
+    if (!pinned) {
+      return { revision: latest, newerRevisionAvailable: false };
+    }
+
+    return {
+      revision: pinned,
+      newerRevisionAvailable:
+        latest !== null && latest.indexingRunId !== pinned.indexingRunId,
+    };
+  }
+
   private emptyMap(
     repositoryId: string,
     repositoryStatus: RepositoryStatus,
@@ -349,6 +398,7 @@ export class DependencyMapService {
       state,
       revision: null,
       rebuildInProgress: state === 'REBUILDING',
+      newerRevisionAvailable: false,
       modules: [],
       moduleBounds: bounds(DEPENDENCY_MAP_LIMITS.modulesPerView, 0, 0),
       dependencies: [],
@@ -372,6 +422,21 @@ export class DependencyMapService {
       partialReasons: [],
     };
   }
+}
+
+function matchModules(
+  modules: ArchitectureModuleNode[],
+  query: string | undefined,
+): ArchitectureModuleNode[] {
+  const needle = query?.trim().toLowerCase() ?? '';
+  if (!needle) {
+    return modules;
+  }
+  return modules.filter(
+    (module) =>
+      module.path.toLowerCase().includes(needle) ||
+      module.name.toLowerCase().includes(needle),
+  );
 }
 
 function resolveState(graph: DependencyGraph): DependencyMapState {

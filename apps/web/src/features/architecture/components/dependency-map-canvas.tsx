@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import {
   Background,
   Controls,
@@ -10,7 +11,11 @@ import {
 } from '@xyflow/react';
 import { useTheme } from 'next-themes';
 import '@xyflow/react/dist/style.css';
-import type { DependencyFlowEdge, DependencyFlowNodeData } from '../utils/to-dependency-flow';
+import type {
+  DependencyFlowEdge,
+  DependencyFlowFile,
+  DependencyFlowNodeData,
+} from '../utils/to-dependency-flow';
 import { formatCount } from '../utils/dependency-map-presentation';
 
 interface DependencyMapCanvasProps {
@@ -31,8 +36,6 @@ interface DependencyMapCanvasProps {
 const nodeTypes = {
   structureGroup: StructureGroup,
   moduleCard: ModuleCard,
-  folderLabel: FolderLabel,
-  fileRow: FileRow,
 };
 
 export function DependencyMapCanvas({
@@ -79,14 +82,7 @@ export function DependencyMapCanvas({
 function toFlowNodes(nodes: DependencyMapCanvasProps['nodes']): Node<DependencyFlowNodeData>[] {
   return nodes.map((node) => ({
     id: node.id,
-    type:
-      node.kind === 'group'
-        ? 'structureGroup'
-        : node.kind === 'module'
-          ? 'moduleCard'
-          : node.kind === 'folder'
-            ? 'folderLabel'
-            : 'fileRow',
+    type: node.kind === 'group' ? 'structureGroup' : 'moduleCard',
     parentId: node.parentId ?? undefined,
     position: node.position,
     data: node.data,
@@ -130,7 +126,7 @@ function ModuleCard({ data }: NodeProps) {
   }
   return (
     <div
-      className={`flex h-full w-full cursor-pointer flex-col rounded-lg border bg-card px-3 py-2 text-left ${
+      className={`flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-lg border bg-card px-3 py-2 text-left ${
         node.selected ? 'border-foreground' : 'border-border hover:border-foreground/40'
       }`}
     >
@@ -144,30 +140,43 @@ function ModuleCard({ data }: NodeProps) {
           Showing {node.filesReturned} of {node.filesTotal} files.
         </p>
       ) : null}
+      {node.files.length > 0 ? (
+        <div
+          className="nowheel nopan mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          onWheel={(event) => event.stopPropagation()}
+        >
+          <ul className="space-y-0.5">
+            {node.files.map((file) => (
+              <li key={file.path}>
+                <FileLink file={file} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function FolderLabel({ data }: NodeProps) {
-  const node = data as DependencyFlowNodeData;
-  const label = node.kind === 'folder' ? node.label : '';
-  return (
-    <div className="h-full w-full">
-      <p className="px-1 text-xs font-medium text-muted-foreground">{label}</p>
-    </div>
+function FileLink({ file }: { file: DependencyFlowFile }) {
+  const label = (
+    <>
+      <span className="truncate font-mono text-[11px]" title={file.displayPath}>
+        {file.displayPath}
+      </span>
+      <span className="shrink-0 text-[10px] text-muted-foreground">{file.language}</span>
+    </>
   );
-}
-
-function FileRow({ data }: NodeProps) {
-  const node = data as DependencyFlowNodeData;
-  if (node.kind !== 'file') {
-    return null;
+  if (!file.href) {
+    return <div className="flex items-center justify-between gap-2 px-1 py-0.5">{label}</div>;
   }
-  const name = node.path.split('/').pop() ?? node.path;
   return (
-    <div className="flex h-full w-full items-center justify-between gap-2 px-1">
-      <span className="truncate text-xs">{name}</span>
-      <span className="shrink-0 text-[10px] text-muted-foreground">{node.language}</span>
-    </div>
+    <Link
+      href={file.href}
+      className="flex items-center justify-between gap-2 px-1 py-0.5 hover:underline"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {label}
+    </Link>
   );
 }

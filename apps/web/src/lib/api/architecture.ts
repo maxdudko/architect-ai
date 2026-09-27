@@ -26,12 +26,26 @@ function overviewBasePath(workspaceId: string, repositoryId: string): string {
   return `/workspaces/${workspaceId}/repositories/${repositoryId}/architecture/overview`;
 }
 
+export interface DependencyMapRequest {
+  q?: string;
+  indexingRunId?: string;
+}
+
 export async function getDependencyMap(
   workspaceId: string,
   repositoryId: string,
+  request: DependencyMapRequest = {},
 ): Promise<DependencyMap> {
+  const params: Record<string, string> = {};
+  if (request.q) {
+    params.q = request.q;
+  }
+  if (request.indexingRunId) {
+    params.indexingRunId = request.indexingRunId;
+  }
   const { data } = await apiClient.get<DependencyMap>(
     architectureBasePath(workspaceId, repositoryId),
+    { params },
   );
   return data;
 }
@@ -40,10 +54,15 @@ export async function getArchitectureModule(
   workspaceId: string,
   repositoryId: string,
   key: string,
+  indexingRunId?: string,
 ): Promise<ArchitectureModuleDetail> {
+  const params: Record<string, string> = { key };
+  if (indexingRunId) {
+    params.indexingRunId = indexingRunId;
+  }
   const { data } = await apiClient.get<ArchitectureModuleDetail>(
     `${architectureBasePath(workspaceId, repositoryId)}/module`,
-    { params: { key } },
+    { params },
   );
   return data;
 }
@@ -53,10 +72,15 @@ export async function getDependencyEvidence(
   repositoryId: string,
   from: string,
   to: string,
+  indexingRunId?: string,
 ): Promise<DependencyEvidence> {
+  const params: Record<string, string> = { from, to };
+  if (indexingRunId) {
+    params.indexingRunId = indexingRunId;
+  }
   const { data } = await apiClient.get<DependencyEvidence>(
     `${architectureBasePath(workspaceId, repositoryId)}/evidence`,
-    { params: { from, to } },
+    { params },
   );
   return data;
 }

@@ -7,6 +7,7 @@ import {
   SymbolRelationType,
 } from '@prisma/client';
 import request from 'supertest';
+import { DependencyGraphProvider } from '../src/modules/architecture/dependency-mapping/dependency-graph.provider';
 import { PrismaService } from '../src/prisma/prisma.service';
 import {
   closeE2eApp,
@@ -505,5 +506,193 @@ describeE2e('Architecture dependency map (e2e)', () => {
       .query({ key: 'src/does-not-exist' })
       .set(authHeader(auth.accessToken))
       .expect(404);
+  });
+
+  it('keeps the previous revision labeled while a rebuild is running', async () => {
+    const auth = await signUp(app);
+    const repository = await connectRepository(
+      app,
+      auth.accessToken,
+      auth.activeWorkspace.id,
+    );
+    const runId = await seedRevision(prisma, repository.id, {
+      files: [{ path: 'src/app/a.ts' }, { path: 'src/app/b.ts' }],
+      commitSha: 'previous-sha',
+    });
+    await prisma.repository.update({
+      where: { id: repository.id },
+      data: { status: RepositoryStatus.PARSING },
+    });
+
+    const { body } = await request(app.getHttpServer())
+      .get(
+        `/workspaces/${auth.activeWorkspace.id}/repositories/${repository.id}/architecture/dependency-map`,
+      )
+      .set(authHeader(auth.accessToken))
+      .expect(200);
+
+    expect(body.rebuildInProgress).toBe(true);
+    expect(body.revision.indexingRunId).toBe(runId);
+    expect(body.revision.commitSha).toBe('previous-sha');
+    const modules = body.modules as Array<{ key: string }>;
+    expect(modules.map((module) => module.key)).toContain('src/app');
+    expect(body.state).not.toBe('NO_INDEX');
+  });
+
+  it('bounds a large graph and finds a module outside that page by search', async () => {
+    const auth = await signUp(app);
+    const repository = await connectRepository(
+      app,
+      auth.accessToken,
+      auth.activeWorkspace.id,
+    );
+    const files: SeedFile[] = [];
+    for (let index = 0; index < 41; index += 1) {
+      const folder = `pkg/m${String(index).padStart(2, '0')}`;
+      files.push({ path: `${folder}/a.ts` }, { path: `${folder}/b.ts` });
+    }
+    await seedRevision(prisma, repository.id, { files });
+    const base = `/workspaces/${auth.activeWorkspace.id}/repositories/${repository.id}/architecture/dependency-map`;
+
+    const bounded = await request(app.getHttpServer())
+      .get(base)
+      .set(authHeader(auth.accessToken))
+      .expect(200);
+
+    expect(bounded.body.focusedExplorationRequired).toBe(true);
+    expect(bounded.body.moduleBounds.truncated).toBe(true);
+    expect(bounded.body.moduleBounds.returned).toBe(40);
+    expect(bounded.body.modules).toHaveLength(40);
+    const boundedModules = bounded.body.modules as Array<{ key: string }>;
+    expect(boundedModules.map((module) => module.key)).not.toContain('pkg/m40');
+
+    const found = await request(app.getHttpServer())
+      .get(base)
+      .query({ q: 'm40' })
+      .set(authHeader(auth.accessToken))
+      .expect(200);
+
+    const foundModules = found.body.modules as Array<{ key: string }>;
+    expect(foundModules.map((module) => module.key)).toEqual(['pkg/m40']);
+    expect(found.body.moduleBounds).toEqual({
+      limit: 40,
+      returned: 1,
+      total: 1,
+      truncated: false,
+    });
+    expect(found.body.focusedExplorationRequired).toBe(true);
+  });
+
+  it('reports a newer succeeded revision without replacing the pinned view', async () => {
+    const auth = await signUp(app);
+    const repository = await connectRepository(
+      app,
+      auth.accessToken,
+      auth.activeWorkspace.id,
+    );
+    const older = await seedRevision(prisma, repository.id, {
+      files: [{ path: 'src/app/a.ts' }, { path: 'src/app/b.ts' }],
+      commitSha: 'older-sha',
+      completedAt: new Date('2026-09-01T00:00:00.000Z'),
+    });
+    const newer = await seedRevision(prisma, repository.id, {
+      files: [{ path: 'src/web/a.ts' }, { path: 'src/web/b.ts' }],
+      commitSha: 'newer-sha',
+      completedAt: new Date('2026-09-02T00:00:00.000Z'),
+    });
+    const base = `/workspaces/${auth.activeWorkspace.id}/repositories/${repository.id}/architecture/dependency-map`;
+
+    const pinned = await request(app.getHttpServer())
+      .get(base)
+      .query({ indexingRunId: older })
+      .set(authHeader(auth.accessToken))
+      .expect(200);
+
+    expect(pinned.body.revision.indexingRunId).toBe(older);
+    expect(pinned.body.newerRevisionAvailable).toBe(true);
+    const pinnedModules = pinned.body.modules as Array<{ key: string }>;
+    expect(pinnedModules.map((module) => module.key)).toEqual(['src/app']);
+
+    const latest = await request(app.getHttpServer())
+      .get(base)
+      .set(authHeader(auth.accessToken))
+      .expect(200);
+    expect(latest.body.revision.indexingRunId).toBe(newer);
+    expect(latest.body.newerRevisionAvailable).toBe(false);
+  });
+
+  it('discloses when notable symbols are truncated', async () => {
+    const auth = await signUp(app);
+    const repository = await connectRepository(
+      app,
+      auth.accessToken,
+      auth.activeWorkspace.id,
+    );
+    const runId = await seedRevision(prisma, repository.id, {
+      files: [{ path: 'src/app/a.ts' }, { path: 'src/app/b.ts' }],
+    });
+    for (let index = 0; index < 51; index += 1) {
+      await prisma.codeSymbol.create({
+        data: {
+          repositoryId: repository.id,
+          indexingRunId: runId,
+          filePath: 'src/app/a.ts',
+          type: CodeSymbolType.FUNCTION,
+          name: `fn${index}`,
+          qualifiedName: `fn${index}`,
+          language: 'typescript',
+          startLine: index + 1,
+          endLine: index + 1,
+          startColumn: 0,
+          endColumn: 0,
+          exported: true,
+        },
+      });
+    }
+
+    const { body } = await request(app.getHttpServer())
+      .get(
+        `/workspaces/${auth.activeWorkspace.id}/repositories/${repository.id}/architecture/dependency-map/module`,
+      )
+      .query({ key: 'src/app' })
+      .set(authHeader(auth.accessToken))
+      .expect(200);
+
+    expect(body.symbolBounds).toEqual({
+      limit: 50,
+      returned: 50,
+      total: 51,
+      truncated: true,
+    });
+    expect(body.notableSymbols).toHaveLength(50);
+  });
+
+  it('returns a sanitized error when the dependency view cannot be derived', async () => {
+    const auth = await signUp(app);
+    const repository = await connectRepository(
+      app,
+      auth.accessToken,
+      auth.activeWorkspace.id,
+    );
+    await seedRevision(prisma, repository.id, {
+      files: [{ path: 'src/app/a.ts' }, { path: 'src/app/b.ts' }],
+    });
+    jest
+      .spyOn(app.get(DependencyGraphProvider), 'getGraph')
+      .mockRejectedValue(
+        new Error('sk-live-SECRET at /home/developer/secret.ts:12'),
+      );
+
+    const { body } = await request(app.getHttpServer())
+      .get(
+        `/workspaces/${auth.activeWorkspace.id}/repositories/${repository.id}/architecture/dependency-map`,
+      )
+      .set(authHeader(auth.accessToken))
+      .expect(500);
+
+    const serialized = JSON.stringify(body);
+    expect(serialized).not.toContain('sk-live');
+    expect(serialized).not.toContain('/home/developer');
+    expect(body.error).toBe('Internal server error');
   });
 });
