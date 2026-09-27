@@ -12,10 +12,11 @@ separately in [docs/features/dependency-mapping.md](../../features/dependency-ma
 
 ## Note on question numbering
 
-The Dependency Mapping spec references `Q-1`, `Q-3`, `Q-5` and `Q-9`
-but ends at §17 without a question list, so the questions themselves
-are restated below. The numbering follows the parent spec §11, which
-is the list the references resolve against.
+None of the three feature specs carries a question list; each ends at
+§17. Their inline `Q-n` references therefore resolve against the parent
+spec §11, and the questions themselves are restated below. Where a
+feature spec raises a question that §11 does not cover, it is recorded
+under the number the feature spec used, labelled with that spec.
 
 ## Resolved
 
@@ -146,14 +147,33 @@ Overview to reuse.
 
 ### Q-10 — Automated tests per acceptance criterion
 
-**Decision.** Acceptance criteria are covered by API e2e tests in
-`apps/api/test/architecture-dependency-map.e2e-spec.ts` (AC-1, AC-2,
-AC-3, AC-4, AC-5, AC-6, AC-7, AC-11, AC-12, plus cross-workspace
-isolation and unknown-module handling), backed by unit specs for the
-resolver, grouper, builder, service and provider. Web coverage is
+**Decision.** Each feature has one API e2e suite covering the
+acceptance criteria of its own spec §15:
+
+| Suite                                  | Criteria covered           |
+| -------------------------------------- | -------------------------- |
+| `architecture-dependency-map.e2e-spec` | AC-1 – AC-9, AC-11 – AC-13 |
+| `architecture-search.e2e-spec`         | AC-1 – AC-8, AC-10 – AC-15 |
+| `architecture-overview.e2e-spec`       | AC-1 – AC-3, AC-5 – AC-17  |
+
+These are backed by unit specs for the resolver, grouper, builder,
+service, provider, classifier parser, structural query, prompt
+builders, markdown normalizer and cited-path checker. Web coverage is
 Vitest over the query hooks, API layer and presentation utilities, in
 line with the existing web test convention (node environment, no
 component rendering).
+
+**Not covered by an e2e suite.** Three criteria are verified by web
+unit tests and code review rather than by an API test, because they
+constrain rendering rather than a response: Dependency Mapping AC-10
+(confidence visible without opening a detail view), Architecture
+Search AC-9 (observed, interpreted and not-establishable content
+distinguishable in the rendered answer), and System Overview AC-4,
+whose e2e asserts the facts sent to the model rather than the prose
+that came back. The last-listed criterion of each spec — Dependency
+Mapping AC-14, Architecture Search AC-16, System Overview AC-18 — is
+the existing-functionality regression, verified by the full API e2e
+run rather than by a dedicated test.
 
 ### Q-6 — Supported architecture search intents
 
@@ -260,6 +280,30 @@ stored in the same transaction that marks the run succeeded.
 Facts use the dependency map's significance order. Technology hints are
 matched against the revision's file inventory. The onboarding topology
 analyzer is not called.
+
+### Q-11 (System Overview spec) — Relationship to the existing guides
+
+**Decision.** The overview and the existing `EXECUTIVE_SUMMARY` and
+`PROJECT_OVERVIEW` guides coexist. Neither guide type is removed,
+renamed, or narrowed, and no guide contract heading changes.
+
+They are separated by surface and by evidence basis. The overview lives
+in the Architecture Explorer at `/architecture/overview`, never in the
+guide library, and its page states that it is grounded in the
+dependency map for one indexing revision and that the two onboarding
+guides are separate documents.
+
+**Why.** The difference the member needs is what the document is
+derived from, not what it is about. The overview is the only generated
+document whose structural claims come from resolved module-to-module
+edges; the two guides remain derived from folder aggregates and
+retrieved chunks, as the spec §0.9 records. Editing the guides to
+avoid overlap would change existing behaviour, which FR-18 forbids.
+
+**Consequence.** The two descriptions can disagree, because they rest
+on different evidence. FR-19 is satisfied by making the basis explicit
+rather than by removing the overlap. Reconciling the guides onto the
+dependency map is left to a later phase.
 
 ## Deferred
 
