@@ -346,6 +346,37 @@ describeE2e('Architecture dependency map (e2e)', () => {
       auth.accessToken,
       auth.activeWorkspace.id,
     );
+    // A live indexing queue leaves the repository PENDING. CI has no Redis, so
+    // connect marks it FAILED. Pin the terminal status this case describes.
+    await prisma.repository.update({
+      where: { id: repository.id },
+      data: { status: RepositoryStatus.FAILED },
+    });
+
+    const { body } = await request(app.getHttpServer())
+      .get(
+        `/workspaces/${auth.activeWorkspace.id}/repositories/${repository.id}/architecture/dependency-map`,
+      )
+      .set(authHeader(auth.accessToken))
+      .expect(200);
+
+    expect(body.state).toBe('NO_INDEX');
+    expect(body.rebuildInProgress).toBe(false);
+    expect(body.revision).toBeNull();
+    expect(body.modules).toEqual([]);
+  });
+
+  it('presents a rebuilding state when the first index is still running', async () => {
+    const auth = await signUp(app);
+    const repository = await connectRepository(
+      app,
+      auth.accessToken,
+      auth.activeWorkspace.id,
+    );
+    await prisma.repository.update({
+      where: { id: repository.id },
+      data: { status: RepositoryStatus.PARSING },
+    });
 
     const { body } = await request(app.getHttpServer())
       .get(
@@ -355,6 +386,7 @@ describeE2e('Architecture dependency map (e2e)', () => {
       .expect(200);
 
     expect(body.state).toBe('REBUILDING');
+    expect(body.rebuildInProgress).toBe(true);
     expect(body.revision).toBeNull();
     expect(body.modules).toEqual([]);
   });
