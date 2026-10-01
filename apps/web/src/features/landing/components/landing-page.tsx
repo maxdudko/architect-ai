@@ -28,7 +28,6 @@ import {
   Send,
   ServerCog,
   ShieldCheck,
-  Sparkles,
   TerminalSquare,
   ThumbsUp,
   Users,
@@ -116,36 +115,50 @@ const modelProviders = [
   { name: 'Hosted AI', detail: 'No key required' },
 ];
 
-const roadmap = [
+const shippedPhases = [
   {
-    label: 'Available now',
-    title: 'Chat with code',
-    detail: 'Repository-aware questions and living onboarding guides.',
-    question: 'How does this system work?',
+    phase: 'Phase 1',
+    title: 'AI Onboarding Assistant',
+    points: [
+      'Connect a GitHub repository and index TypeScript, JavaScript, Python, and PHP.',
+      'Ask repository or workspace questions and get answers with source citations.',
+      'Generate living onboarding guides from the indexed code.',
+    ],
   },
   {
-    label: 'On the roadmap',
-    title: 'Understand architecture',
-    detail: 'Explore dependencies, modules, and service relationships.',
-    question: 'What depends on Auth?',
+    phase: 'Phase 2',
+    title: 'Architecture Explorer',
+    points: [
+      'See a folder-level dependency map built from resolved imports.',
+      'Ask what a module depends on, and what depends on it.',
+      'Generate a system overview grounded in that graph.',
+    ],
+    limit: 'The map is folder-level imports, not packages, services, or runtime behavior.',
+  },
+];
+
+const futurePhases = [
+  {
+    phase: 'Phase 3',
+    title: 'Decision Memory',
+    detail:
+      'Why a choice was made, architecture decision records, and search across tickets and docs in Jira, Linear, Notion, and Confluence.',
   },
   {
-    label: 'On the roadmap',
-    title: 'Remember decisions',
-    detail: 'Connect code to the reasoning behind architectural choices.',
-    question: 'Why was Billing extracted?',
+    phase: 'Phase 4',
+    title: 'Impact Analysis',
+    detail: 'What breaks if something changes, which tests to run, and which teams are affected.',
   },
   {
-    label: 'On the roadmap',
-    title: 'Predict impact',
-    detail: 'See affected areas and test recommendations before changes.',
-    question: 'What breaks if this endpoint changes?',
+    phase: 'Phase 5',
+    title: 'AI Staff Engineer',
+    detail: 'Design reviews, trade-offs, architecture compliance, and pull-request guidance.',
   },
   {
-    label: 'Long-term vision',
-    title: 'Guide technical decisions',
-    detail: 'A durable engineering memory layer for the organization.',
-    question: 'Which trade-offs have we already considered?',
+    phase: 'Phase 6',
+    title: 'Enterprise Platform',
+    detail:
+      'Kubernetes and air-gapped hosting, SSO, audit logs, data residency, and approval workflows.',
   },
 ];
 
@@ -169,21 +182,21 @@ const comparisonRows: Array<{
     copilot: 'partial',
     cursor: 'partial',
     docs: 'partial',
-    architect: true,
+    architect: 'partial',
   },
   {
     capability: 'Preserves decisions',
     copilot: false,
     cursor: false,
     docs: 'partial',
-    architect: true,
+    architect: false,
   },
   {
     capability: 'Predicts change impact',
     copilot: false,
     cursor: false,
     docs: false,
-    architect: true,
+    architect: false,
   },
   {
     capability: 'Source-cited answers',
@@ -242,12 +255,12 @@ const faqs = [
   {
     question: 'Which languages are supported today?',
     answer:
-      'TypeScript and JavaScript are parsed today via Tree-sitter, including TSX/JSX. Additional language parsers are on the roadmap.',
+      'TypeScript, JavaScript, Python, and PHP are parsed today via Tree-sitter, including TSX/JSX. Additional language parsers are on the roadmap.',
   },
   {
     question: 'What is the long-term vision?',
     answer:
-      'Architect AI grows from repository chat into architecture exploration, decision memory, and change-impact analysis—an engineering memory layer, not just another coding assistant.',
+      'Phase 1 and Phase 2 are available today: repository chat, living onboarding guides, and a folder-level architecture explorer. The path continues through decision memory, impact analysis, staff-engineer guidance, and enterprise governance.',
   },
 ];
 
@@ -479,7 +492,6 @@ export function LandingPage({
   githubRepoUrl?: string | null;
 }) {
   const [activeQuestion, setActiveQuestion] = useState(questions[0]);
-  const [activeRoadmap, setActiveRoadmap] = useState(0);
   const isGithubPublic = githubRepoUrl != null;
 
   const handleNavClick = useCallback((event: SyntheticEvent, link: string) => {
@@ -531,6 +543,13 @@ export function LandingPage({
               className="transition-colors hover:text-foreground"
             >
               Guides
+            </a>
+            <a
+              href="#product"
+              onClick={(event) => handleNavClick(event, 'product')}
+              className="transition-colors hover:text-foreground"
+            >
+              Product
             </a>
             <a
               href="#vision"
@@ -928,6 +947,52 @@ export function LandingPage({
         </div>
       </section>
 
+      <section id="product" className="scroll-mt-20 border-b border-border/70 py-20 md:py-28">
+        <div className="container">
+          <div className="max-w-2xl">
+            <SectionEyebrow>Available now</SectionEyebrow>
+            <h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+              Onboarding and architecture, already in the product.
+            </h2>
+            <p className="mt-5 text-lg leading-8 text-muted-foreground">
+              Connect a repository and start with cited answers, living guides, and a structural
+              view of how the code fits together.
+            </p>
+          </div>
+          <div className="mt-12 grid gap-6 lg:grid-cols-2">
+            {shippedPhases.map(({ phase, title, points, limit }) => (
+              <article key={phase} className="rounded-xl border border-border bg-card p-6 md:p-8">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="font-mono text-xs uppercase tracking-[.14em] text-[hsl(var(--landing-accent))]">
+                    {phase}
+                  </p>
+                  <span className="rounded-full border border-[hsl(var(--landing-accent)/.35)] bg-[hsl(var(--landing-accent)/.08)] px-2 py-1 font-mono text-[10px] uppercase tracking-[.12em] text-[hsl(var(--landing-accent))]">
+                    Shipped
+                  </span>
+                </div>
+                <h3 className="mt-4 text-xl font-medium">{title}</h3>
+                <ul className="mt-5 space-y-3">
+                  {points.map((point) => (
+                    <li key={point} className="flex items-start gap-3 text-sm leading-6">
+                      <Check
+                        className="mt-1 size-3.5 shrink-0 text-[hsl(var(--landing-accent))]"
+                        aria-hidden="true"
+                      />
+                      <span className="text-muted-foreground">{point}</span>
+                    </li>
+                  ))}
+                </ul>
+                {limit ? (
+                  <p className="mt-5 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
+                    {limit}
+                  </p>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="border-b border-border/70 bg-accent/30 py-20 md:py-28">
         <div className="container grid gap-12 lg:grid-cols-[1fr_.9fr] lg:items-center">
           <div>
@@ -1028,8 +1093,8 @@ export function LandingPage({
             </table>
           </div>
           <p className="mt-4 text-xs text-muted-foreground">
-            Based on our own product research; other tools evolve quickly and may close these gaps
-            over time.
+            Decision memory and impact analysis are later phases. Based on our own product
+            research; other tools evolve quickly and may close these gaps over time.
           </p>
         </div>
       </section>
@@ -1068,41 +1133,21 @@ export function LandingPage({
               remembers the reasoning behind the software.
             </p>
           </div>
-          <div className="mt-12 grid gap-3 lg:grid-cols-5">
-            {roadmap.map((item, index) => (
-              <button
-                key={item.title}
-                type="button"
-                onClick={() => setActiveRoadmap(index)}
-                className={`group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeRoadmap === index ? 'text-foreground' : 'text-muted-foreground'}`}
-              >
-                <div
-                  className={`mb-5 h-1 rounded-full transition-colors ${activeRoadmap === index ? 'bg-[hsl(var(--landing-accent))]' : 'bg-border group-hover:bg-muted-foreground/40'}`}
-                />
-                <span className="font-mono text-[10px] uppercase tracking-[.12em]">
-                  {item.label}
-                </span>
-                <h3 className="mt-3 font-medium">{item.title}</h3>
-                <p className="mt-2 text-sm leading-6">{item.detail}</p>
-              </button>
+          <div className="mt-12 grid gap-6 sm:grid-cols-2">
+            {futurePhases.map(({ phase, title, detail }) => (
+              <article key={phase} className="rounded-xl border border-border bg-card p-6">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="font-mono text-xs uppercase tracking-[.14em] text-muted-foreground">
+                    {phase}
+                  </p>
+                  <span className="rounded-full border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-[.12em] text-muted-foreground">
+                    Planned
+                  </span>
+                </div>
+                <h3 className="mt-4 text-lg font-medium">{title}</h3>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">{detail}</p>
+              </article>
             ))}
-          </div>
-          <div className="mt-10 flex flex-col gap-3 rounded-xl border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <Sparkles
-                className="mt-0.5 size-4 shrink-0 text-[hsl(var(--landing-accent))]"
-                aria-hidden="true"
-              />
-              <div>
-                <p className="text-sm font-medium">The question this stage should answer</p>
-                <p className="mt-1 font-mono text-xs text-muted-foreground">
-                  {roadmap[activeRoadmap].question}
-                </p>
-              </div>
-            </div>
-            <span className="font-mono text-[10px] uppercase tracking-[.12em] text-muted-foreground">
-              {String(activeRoadmap + 1).padStart(2, '0')} / 05
-            </span>
           </div>
         </div>
       </section>
