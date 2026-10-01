@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import {
   Card,
@@ -19,6 +20,7 @@ import {
   useRepositoryQuery,
   useRepositorySymbolsQuery,
 } from '../services/repository.service';
+import { safeArchitectureReturnPath } from '@/features/architecture/utils/dependency-map-presentation';
 import { RepositoryStatusBadge } from './repository-status-badge';
 
 interface RepositoryBrowseProps {
@@ -28,9 +30,12 @@ interface RepositoryBrowseProps {
 export function RepositoryBrowse({ repositoryId }: RepositoryBrowseProps) {
   const { activeWorkspace } = useAuth();
   const workspaceId = activeWorkspace?.id ?? '';
+  const searchParams = useSearchParams();
+  const requestedFile = searchParams.get('file');
+  const safeReturnTo = safeArchitectureReturnPath(repositoryId, searchParams.get('returnTo'));
   const repositoryQuery = useRepositoryQuery(workspaceId, repositoryId);
   const filesQuery = useRepositoryFilesQuery(workspaceId, repositoryId);
-  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(requestedFile);
 
   const files = filesQuery.data ?? [];
   const activeFilePath =
@@ -86,11 +91,20 @@ export function RepositoryBrowse({ repositoryId }: RepositoryBrowseProps) {
           <>
             <RepositoryStatusBadge status={repository.status} />
             <Button asChild variant="outline">
+              <Link href={`/repositories/${repository.id}/architecture`}>Architecture</Link>
+            </Button>
+            <Button asChild variant="outline">
               <Link href={`/repositories/${repository.id}/guides`}>Guides</Link>
             </Button>
           </>
         }
       />
+
+      {safeReturnTo ? (
+        <Link href={safeReturnTo} className="text-sm underline">
+          Back to architecture
+        </Link>
+      ) : null}
 
       {repository.status !== 'READY' ? (
         <p className="text-sm text-muted-foreground">

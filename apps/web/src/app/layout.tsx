@@ -2,21 +2,21 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { AppProviders } from '@/providers/app-providers';
 
-const siteTitle = 'Architect AI | Engineering memory for software teams';
+const siteTitle = 'Architect AI | AI codebase intelligence';
 const siteDescription =
-  'Architect AI turns a codebase into a searchable, source-cited context layer. Connect a repository, get living onboarding guides, and chat with your system to onboard without relying on tribal knowledge.';
+  'Architect AI turns repositories into searchable engineering context. Ask questions, explore architecture, and generate onboarding guides grounded in your code.';
 
 export const metadata: Metadata = {
   title: siteTitle,
   description: siteDescription,
   keywords: [
-    'AI onboarding',
-    'developer onboarding',
-    'codebase chat',
-    'engineering memory',
+    'codebase intelligence',
+    'repository Q&A',
     'architecture explorer',
-    'AI code assistant',
+    'developer onboarding',
+    'source-grounded answers',
     'BYOK LLM',
+    'self-hosted AI',
   ],
   openGraph: {
     title: siteTitle,

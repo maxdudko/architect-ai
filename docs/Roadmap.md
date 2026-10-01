@@ -52,7 +52,7 @@ It is built around four principles:
 
 # Product Evolution
 
-Phase 1 is **shipped** as the current MVP. Later phases are product direction, not deployed capabilities. See [Architecture](./Architecture.md) for what is implemented.
+Phases 1 and 2 are **shipped**. Later phases are product direction, not deployed capabilities. See [Architecture](./Architecture.md) for what is implemented.
 
 ## Phase 1 — AI Onboarding Assistant (shipped)
 
@@ -109,7 +109,7 @@ These remain product goals, not engineering checkboxes:
 
 ---
 
-# Phase 2 — Architecture Explorer
+# Phase 2 — Architecture Explorer (shipped)
 
 ### Goal
 
@@ -119,31 +119,29 @@ Help teams understand system structure.
 
 Developers cannot easily visualize large systems.
 
-### Features
+### What shipped
 
 #### Dependency Mapping
 
-Visualize:
-
-- module dependencies
-- package relationships
-- service interactions
+A read-only module graph for one repository, derived on demand from the latest succeeded index and drawn with React Flow. A module is a folder of at most two path segments. Edges are `IMPORTS` that resolve to a file in that same revision. Unresolved and external imports are reported rather than dropped.
 
 #### Architecture Search
 
-Example questions:
-
-- What depends on Auth?
-- Which components communicate with Billing?
-- Show all Kafka consumers.
+Closed structural questions over that graph, such as what a module depends on, what depends on it, and which modules reference a named file. Answers are labeled and cited. Runtime questions, including "show all Kafka consumers," are refused as not establishable.
 
 #### System Overview
 
-Generate architecture summaries automatically.
+One current architecture summary per repository, generated asynchronously from the same graph. Cited paths are checked against the indexing revision before the new overview replaces the previous one.
+
+### Not in the shipped scope
+
+- Package or service graphs
+- Runtime, broker, or deployment discovery
+- Transitive "everything that ultimately depends on X"
 
 ### Technical Additions
 
-Phase 1 already parses code with Tree-sitter and stores `CodeSymbol` and `SymbolRelation`. This phase adds visualization and architecture search on that existing graph, plus richer dependency mapping.
+Phase 1 already parses code with Tree-sitter and stores `CodeSymbol` and `SymbolRelation`. This phase reads that graph. It does not add a parse stage, a second index, or a new relationship type.
 
 ### Success Metrics
 
@@ -354,21 +352,21 @@ Become the Engineering Memory Layer
 
 # Competitive Positioning
 
-The table describes the **intended** product, not the Phase 1 MVP. Today Architect AI explains indexed code with citations and generated guides. Decision Memory and Impact Analysis are later phases.
+The table describes the **intended** product. Today Architect AI explains indexed code with citations, generated guides, and a folder-level architecture explorer. Decision Memory and Impact Analysis are later phases.
 
-| Tool                            | Writes Code | Understands Architecture | Preserves Decisions | Predicts Impact |
-| ------------------------------- | ----------- | ------------------------ | ------------------- | --------------- |
-| GitHub Copilot                  | ✓           | Limited                  | ✗                   | ✗               |
-| Cursor                          | ✓           | Partial                  | ✗                   | ✗               |
-| Traditional Documentation Tools | ✗           | Partial                  | Partial             | ✗               |
-| Architect AI (Phase 1 shipped)  | ✗           | Partial                  | ✗                   | ✗               |
-| Architect AI (roadmap)          | Partial     | ✓                        | ✓                   | ✓               |
+| Tool                              | Writes Code | Understands Architecture | Preserves Decisions | Predicts Impact |
+| --------------------------------- | ----------- | ------------------------ | ------------------- | --------------- |
+| GitHub Copilot                    | ✓           | Limited                  | ✗                   | ✗               |
+| Cursor                            | ✓           | Partial                  | ✗                   | ✗               |
+| Traditional Documentation Tools   | ✗           | Partial                  | Partial             | ✗               |
+| Architect AI (Phases 1–2 shipped) | ✗           | Partial                  | ✗                   | ✗               |
+| Architect AI (roadmap)            | Partial     | ✓                        | ✓                   | ✓               |
 
 ---
 
 # Technical Stack
 
-## Shipped (Phase 1)
+## Shipped (Phases 1 and 2)
 
 ### Frontend
 
@@ -397,10 +395,16 @@ The table describes the **intended** product, not the Phase 1 MVP. Today Archite
 - Tree-sitter for TypeScript, JavaScript, Python, and PHP
 - Static symbol and relation extraction
 
+### Architecture Explorer
+
+- Folder-level dependency map derived from indexed imports
+- Closed-intent architecture search
+- Asynchronous system overview
+
 ## Later phases
 
 - Hybrid / lexical search and reranking
-- Architecture visualization and richer dependency graphs
+- Richer dependency graphs beyond folder-level imports (packages, services, runtime)
 - Call graph generation beyond static syntax relations
 - Knowledge graph, decision graph, and ADR ingestion
 - Agent framework for design-review workflows

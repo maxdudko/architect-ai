@@ -1,0 +1,348 @@
+import type { RepositoryStatus } from './repository';
+
+export type SymbolRelationType =
+  | 'IMPORTS'
+  | 'EXPORTS'
+  | 'EXTENDS'
+  | 'IMPLEMENTS'
+  | 'CALLS'
+  | 'USES';
+
+/**
+ * Confidence classification carried by every displayed relationship. It is
+ * never upgraded by name or semantic similarity.
+ */
+export type DependencyConfidence = 'RESOLVED' | 'UNRESOLVED' | 'EXTERNAL';
+
+export type UnresolvedReason =
+  | 'NO_TARGET_PATH_RECORDED'
+  | 'RELATIVE_PATH_NOT_FOUND'
+  | 'ALIAS_UNRESOLVED'
+  | 'AMBIGUOUS_MATCH'
+  | 'TARGET_MODULE_EXCLUDED';
+
+export type ResolutionStrategy = 'RELATIVE_PATH' | 'PATH_SUFFIX' | 'PYTHON_MODULE_PATH';
+
+export type DependencyMapState =
+  | 'READY'
+  | 'NO_INDEX'
+  | 'REBUILDING'
+  | 'NO_MODULES'
+  | 'NO_DEPENDENCIES'
+  | 'PARTIAL';
+
+export interface ArchitectureRevision {
+  indexingRunId: string;
+  branch: string | null;
+  commitSha: string | null;
+  completedAt: string | null;
+}
+
+export interface BoundDisclosure {
+  limit: number;
+  returned: number;
+  total: number;
+  truncated: boolean;
+}
+
+export interface ArchitectureModuleSummary {
+  key: string;
+  name: string;
+  path: string;
+  fileCount: number;
+  symbolCount: number;
+  languages: string[];
+  outgoingDependencyCount: number;
+  incomingDependencyCount: number;
+  internalRelationCount: number;
+  unresolvedRelationCount: number;
+  externalRelationCount: number;
+  significance: number;
+}
+
+export interface ModuleExclusion {
+  reason: string;
+  fileCount: number;
+}
+
+export interface NonDependencyRelationCount {
+  relationType: SymbolRelationType;
+  count: number;
+}
+
+export interface DependencyMapTotals {
+  moduleCount: number;
+  dependencyCount: number;
+  resolvedRelationCount: number;
+  unresolvedRelationCount: number;
+  externalRelationCount: number;
+  internalRelationCount: number;
+  groupedFileCount: number;
+  excludedFileCount: number;
+}
+
+export interface DependencyMapEdge {
+  fromModuleKey: string;
+  toModuleKey: string;
+  relationTypes: SymbolRelationType[];
+  supportingRelationCount: number;
+  confidence: Extract<DependencyConfidence, 'RESOLVED'>;
+}
+
+export interface DependencyMap {
+  repositoryId: string;
+  repositoryStatus: RepositoryStatus;
+  state: DependencyMapState;
+  revision: ArchitectureRevision | null;
+  rebuildInProgress: boolean;
+  newerRevisionAvailable: boolean;
+  modules: ArchitectureModuleSummary[];
+  moduleBounds: BoundDisclosure;
+  dependencies: DependencyMapEdge[];
+  dependencyBounds: BoundDisclosure;
+  focusedExplorationRequired: boolean;
+  totals: DependencyMapTotals;
+  exclusions: ModuleExclusion[];
+  nonDependencyRelationCounts: NonDependencyRelationCount[];
+  groupingRules: string[];
+  limitations: string[];
+  partial: boolean;
+  partialReasons: string[];
+}
+
+export interface ModuleDependency {
+  fromModuleKey: string;
+  toModuleKey: string;
+  relatedModuleKey: string;
+  relatedModuleName: string;
+  relationTypes: SymbolRelationType[];
+  supportingRelationCount: number;
+  confidence: DependencyConfidence;
+  evidenceAvailable: number;
+  evidenceTruncated: boolean;
+}
+
+export interface UnresolvedRelationship {
+  moduleKey: string;
+  sourceFilePath: string;
+  observedTarget: string | null;
+  targetName: string | null;
+  relationType: SymbolRelationType;
+  reason: UnresolvedReason;
+  reasonDescription: string;
+  occurrenceCount: number;
+  confidence: DependencyConfidence;
+}
+
+export interface ExternalDependency {
+  moduleKey: string;
+  targetName: string;
+  relationType: SymbolRelationType;
+  occurrenceCount: number;
+  confidence: DependencyConfidence;
+}
+
+export interface ArchitectureModuleFile {
+  path: string;
+  language: string;
+  lineCount: number;
+}
+
+export interface ArchitectureModuleSymbol {
+  name: string;
+  qualifiedName: string;
+  type: string;
+  filePath: string;
+  language: string;
+  startLine: number;
+  endLine: number;
+}
+
+export interface ArchitectureModuleDetail {
+  repositoryId: string;
+  revision: ArchitectureRevision;
+  module: ArchitectureModuleSummary;
+  dependencies: ModuleDependency[];
+  dependencyBounds: BoundDisclosure;
+  dependents: ModuleDependency[];
+  dependentBounds: BoundDisclosure;
+  unresolved: UnresolvedRelationship[];
+  unresolvedBounds: BoundDisclosure;
+  external: ExternalDependency[];
+  externalBounds: BoundDisclosure;
+  files: ArchitectureModuleFile[];
+  fileBounds: BoundDisclosure;
+  notableSymbols: ArchitectureModuleSymbol[];
+  symbolBounds: BoundDisclosure;
+  limitations: string[];
+}
+
+export interface ArchitectureSourceReference {
+  repositoryId: string;
+  filePath: string;
+  startLine: number | null;
+  endLine: number | null;
+  name: string | null;
+  qualifiedName: string | null;
+  relationType: SymbolRelationType;
+}
+
+export interface DependencyEvidenceItem {
+  source: ArchitectureSourceReference;
+  target: ArchitectureSourceReference;
+  observedTarget: string | null;
+  targetName: string | null;
+  resolutionStrategy: ResolutionStrategy;
+}
+
+export interface DependencyEvidence {
+  repositoryId: string;
+  revision: ArchitectureRevision;
+  fromModuleKey: string;
+  toModuleKey: string;
+  relationTypes: SymbolRelationType[];
+  supportingRelationCount: number;
+  confidence: DependencyConfidence;
+  items: DependencyEvidenceItem[];
+  bounds: BoundDisclosure;
+  limitations: string[];
+}
+
+export type ArchitectureSearchIntent =
+  | 'DEPENDENTS_OF'
+  | 'DEPENDENCIES_OF'
+  | 'CONNECTED_TO'
+  | 'MODULE_REFERENCES'
+  | 'SOURCE_EXPLANATION'
+  | 'NOT_ESTABLISHABLE'
+  | 'UNSUPPORTED';
+
+export type EpistemicLabel = 'OBSERVED' | 'INTERPRETED' | 'NOT_ESTABLISHABLE';
+
+export interface ArchitectureSearchModuleRef {
+  key: string;
+  name: string;
+  path: string;
+}
+
+export interface ArchitectureSearchEvidence {
+  repositoryId: string;
+  filePath: string;
+  startLine: number | null;
+  endLine: number | null;
+  name: string | null;
+  qualifiedName: string | null;
+  relationType: SymbolRelationType;
+}
+
+export interface ArchitectureSearchFinding {
+  direction: 'DEPENDENCY' | 'DEPENDENT';
+  moduleKey: string;
+  moduleName: string;
+  relatedModuleKey: string;
+  relatedModuleName: string;
+  relationTypes: SymbolRelationType[];
+  supportingRelationCount: number;
+  confidence: 'RESOLVED';
+  epistemic: 'OBSERVED';
+  evidence: ArchitectureSearchEvidence[];
+}
+
+export interface ArchitectureSearchEntityResolution {
+  outcome: 'RESOLVED' | 'AMBIGUOUS' | 'NOT_FOUND' | 'NONE';
+  query: string | null;
+  module: ArchitectureSearchModuleRef | null;
+  candidates: ArchitectureSearchModuleRef[];
+  candidateBounds: BoundDisclosure;
+}
+
+export interface ArchitectureSearchRetrievedEvidence {
+  repositoryId: string;
+  filePath: string;
+  startLine: number | null;
+  endLine: number | null;
+  name: string | null;
+  qualifiedName: string | null;
+  epistemic: 'INTERPRETED';
+}
+
+export interface ArchitectureSearchAnswer {
+  conversationId: string;
+  userMessageId: string;
+  assistantMessageId: string;
+  repositoryId: string;
+  repositoryStatus: RepositoryStatus;
+  revision: ArchitectureRevision;
+  rebuildInProgress: boolean;
+  historical: boolean;
+  intent: ArchitectureSearchIntent;
+  epistemic: EpistemicLabel;
+  content: string;
+  truncated: boolean;
+  contextTruncated: boolean;
+  findings: ArchitectureSearchFinding[];
+  dependencyBounds: BoundDisclosure;
+  dependentBounds: BoundDisclosure;
+  entityResolution: ArchitectureSearchEntityResolution;
+  retrievedEvidence: ArchitectureSearchRetrievedEvidence[];
+  limitations: string[];
+  feedbackRating: 'HELPFUL' | 'NOT_HELPFUL' | null;
+}
+
+export interface ArchitectureSearchTurn {
+  question: string;
+  askedAt: string;
+  answer: ArchitectureSearchAnswer | null;
+}
+
+export interface ArchitectureSearchThread {
+  conversationId: string | null;
+  repositoryId: string;
+  repositoryStatus: RepositoryStatus;
+  indexingAvailable: boolean;
+  latestRevision: ArchitectureRevision | null;
+  rebuildInProgress: boolean;
+  turns: ArchitectureSearchTurn[];
+}
+
+export type ArchitectureOverviewGenerationStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+
+export type ArchitectureOverviewGenerationTrigger = 'MANUAL_GENERATE' | 'MANUAL_REGENERATE';
+
+export interface ArchitectureOverviewDocument {
+  id: string;
+  title: string;
+  markdown: string;
+  summary: string | null;
+  revision: ArchitectureRevision;
+  generatedAt: string;
+  generationVersion: number;
+  stale: boolean;
+  citedPaths: string[];
+  partial: boolean;
+  modulesAbsent: boolean;
+}
+
+export interface ArchitectureOverviewRun {
+  id: string;
+  status: ArchitectureOverviewGenerationStatus;
+  trigger: ArchitectureOverviewGenerationTrigger;
+  completedStep: number;
+  totalSteps: number;
+  error: string | null;
+  revision: ArchitectureRevision | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface SystemOverview {
+  repositoryId: string;
+  repositoryStatus: RepositoryStatus;
+  indexingAvailable: boolean;
+  generationAllowed: boolean;
+  rebuildInProgress: boolean;
+  latestRevision: ArchitectureRevision | null;
+  overview: ArchitectureOverviewDocument | null;
+  run: ArchitectureOverviewRun | null;
+}

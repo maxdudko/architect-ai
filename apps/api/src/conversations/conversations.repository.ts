@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { Conversation, Message, MessageRole, Prisma } from '@prisma/client';
+import {
+  Conversation,
+  ConversationPurpose,
+  Message,
+  MessageRole,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type ConversationWithMessages = Conversation & {
@@ -15,6 +21,7 @@ export class ConversationsRepository {
     createdById: string;
     repositoryId?: string | null;
     title?: string | null;
+    purpose?: ConversationPurpose;
   }): Promise<Conversation> {
     return this.prisma.conversation.create({
       data: {
@@ -22,8 +29,74 @@ export class ConversationsRepository {
         createdById: data.createdById,
         repositoryId: data.repositoryId ?? null,
         title: data.title ?? null,
+        purpose: data.purpose ?? ConversationPurpose.CHAT,
       },
     });
+  }
+
+  /**
+   * The caller's architecture-search thread for one repository, if they have
+   * asked a question there. Chat listing never returns this row.
+   */
+  findArchitectureThread(
+    workspaceId: string,
+    repositoryId: string,
+    createdById: string,
+  ): Promise<Conversation | null> {
+    return this.prisma.conversation.findFirst({
+      where: {
+        workspaceId,
+        repositoryId,
+        createdById,
+        purpose: ConversationPurpose.ARCHITECTURE_SEARCH,
+        deletedAt: null,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /**
+   * Opens the single architecture thread for this author and repository.
+   * A concurrent request that loses the unique index race re-reads the winner.
+   */
+  async findOrCreateArchitectureThread(data: {
+    workspaceId: string;
+    repositoryId: string;
+    createdById: string;
+  }): Promise<Conversation> {
+    const existing = await this.findArchitectureThread(
+      data.workspaceId,
+      data.repositoryId,
+      data.createdById,
+    );
+    if (existing) {
+      return existing;
+    }
+
+    try {
+      return await this.create({
+        workspaceId: data.workspaceId,
+        createdById: data.createdById,
+        repositoryId: data.repositoryId,
+        title: 'Architecture search',
+        purpose: ConversationPurpose.ARCHITECTURE_SEARCH,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const winner = await this.findArchitectureThread(
+          data.workspaceId,
+          data.repositoryId,
+          data.createdById,
+        );
+        if (winner) {
+          return winner;
+        }
+      }
+      throw error;
+    }
   }
 
   findById(
@@ -62,8 +135,16 @@ export class ConversationsRepository {
       where: {
         workspaceId,
         deletedAt: null,
+        purpose: ConversationPurpose.CHAT,
       },
       orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  listMessages(conversationId: string): Promise<Message[]> {
+    return this.prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'asc' },
     });
   }
 

@@ -13,11 +13,12 @@ Architect AI is currently a multi-tenant codebase onboarding application. A user
 - browse indexed files and symbols;
 - ask repository-scoped or workspace-scoped questions and receive source citations;
 - generate and browse evidence-backed onboarding guides;
+- explore a module-level dependency map, ask architecture-oriented questions, and generate a system overview;
 - use hosted AI or a workspace-owned API key for OpenAI, Anthropic, Grok, or Gemini;
 - subscribe to a paid plan through Stripe or stay on Free;
 - view usage, while platform admins manage limits and inspect analytics and logs.
 
-The MVP does **not** yet implement architecture visualization, decision memory, impact analysis, GitLab or Bitbucket ingestion, repository webhooks, incremental indexing, or a knowledge graph.
+The application does **not** yet implement decision memory, impact analysis, GitLab or Bitbucket ingestion, repository webhooks, incremental indexing, or a knowledge graph.
 
 ## 2. System shape
 
@@ -90,7 +91,7 @@ Implemented user surfaces include:
 - workspace settings, members (including role updates), invitations (including resend), usage, billing, and AI provider keys;
 - separate platform-admin authentication, analytics, users, plans, and logs.
 
-Personal `/settings` remains a placeholder. Architecture Explorer and Decision Memory appear on the dashboard as later-phase placeholders.
+Personal `/settings` remains a placeholder. Decision Memory appears on the dashboard as a later-phase placeholder. Architecture Explorer ships Dependency Mapping, Architecture Search, and System Overview.
 
 The browser sends access tokens as bearer tokens. Refresh tokens are rotated by the API and stored in an HTTP-only cookie. Next.js middleware uses a lightweight access-token cookie to route users; API guards remain the authorization boundary.
 
@@ -102,7 +103,7 @@ The browser sends access tokens as bearer tokens. Refresh tokens are rotated by 
 - `integrations/github` and `repositories`;
 - `modules/code-intelligence`, `modules/retrieval`, and `modules/llm`;
 - `conversations` and `chat`;
-- `modules/onboarding`;
+- `modules/onboarding` and `modules/architecture`;
 - `workspace-ai`, `usage`, `billing`, `analytics`, `system-logs`, and `admin`.
 
 Controllers expose REST endpoints; chat additionally exposes Server-Sent Events (SSE). Swagger is available at `/docs` outside production, and `/health` is the container health endpoint.
@@ -111,10 +112,11 @@ Global API behavior includes DTO validation, CORS with credentials, request IDs,
 
 ### 4.3 Background worker
 
-`apps/api/src/indexing-worker.ts` starts a NestJS application context. It consumes two BullMQ queues:
+`apps/api/src/indexing-worker.ts` starts a NestJS application context. It consumes three BullMQ queues:
 
 - `repository-indexing` for clone, parse, chunk, and embed stages;
-- `onboarding-guide-generation` for post-index or manually requested guides.
+- `onboarding-guide-generation` for post-index or manually requested guides;
+- `architecture-overview-generation` for manually requested system overviews.
 
 Jobs use retries and exponential backoff. Repository status and run records make progress and failures visible to the UI. The API only enqueues jobs; repository indexing is not performed in an HTTP request.
 
@@ -275,6 +277,27 @@ Implemented guide types are executive summary, project overview, folder, module,
 
 Generation writes a new guide set only after all requested targets succeed. Existing guides remain readable during regeneration and survive a failed run. `generationVersion` is a revision counter; immutable guide history is not stored.
 
+### 5.8 Architecture Explorer
+
+Architecture Explorer reads the existing indexing result. It adds no parsing stage, no second index, and no new relationship type.
+
+The dependency map is derived on demand from the `RepositoryFile`, `CodeSymbol`, and `SymbolRelation` rows of one `IndexingRun`, then cached in Redis by indexing run ID. Modules are folder groupings of at most two path segments; only `IMPORTS` relationships whose target resolves to a file in the same revision produce a module-to-module edge.
+
+```text
+succeeded IndexingRun
+  → group indexed files into modules
+  → resolve import targets to files in the same revision
+  → aggregate resolved imports into directed module edges
+  → classify each relationship resolved, unresolved, or external
+  → cache the bounded graph per revision
+```
+
+Every view is bounded, states its bounds, and reports the revision it was derived from. Relationships that cannot be attributed to a target module are reported as unresolved with a stated reason rather than dropped.
+
+Architecture Search classifies a question into a closed intent set with one structured LLM call, resolves the named entities against the dependency graph in code, queries the graph for the structural answer, optionally retrieves supporting source context, and generates prose constrained to those facts. Questions are persisted as messages on a conversation whose `purpose` is `ARCHITECTURE_SEARCH`, which keeps them out of chat listings while still consuming the existing `AI_QUESTIONS` allowance.
+
+System Overview is asynchronous and has its own document, generation run, and queue rather than being a `GuideType`, because post-index guide generation requests every declared type and returns any active run for the repository. Generated Markdown is normalized into required sections and its cited paths are checked against the revision before it replaces the current overview, in the same transaction that marks the run succeeded.
+
 ## 6. Persistence model
 
 ### PostgreSQL: system of record
@@ -286,7 +309,7 @@ Prisma manages relational data in these main groups:
 - commercial controls: `Plan`, `PlanPrice`, `PlanLimit`, `WorkspaceSubscription`, `WorkspaceAiSettings`;
 - repositories: `Repository`, `IndexingRun`;
 - code knowledge: `RepositoryFile`, `CodeSymbol`, `SymbolRelation`, `Chunk`;
-- generated knowledge: `Guide`, `GuideGenerationRun`;
+- generated knowledge: `Guide`, `GuideGenerationRun`, `ArchitectureOverview`, `ArchitectureOverviewGenerationRun`;
 - conversations: `Conversation`, `Message`, `MessageSourceCitation`, `AnswerFeedback`;
 - operations and product data: `AnalyticsEvent`, `SystemLog`, `StripeWebhookEvent`.
 
@@ -302,7 +325,8 @@ Redis is used for:
 
 - BullMQ queues and worker coordination;
 - rotating refresh-token sessions;
-- retrieval query/context caches.
+- retrieval query/context caches;
+- derived dependency graphs, keyed by indexing run.
 
 Redis is not the source of truth for users, repositories, indexed code, messages, or guides.
 
@@ -405,7 +429,7 @@ The next architecture work should extend the current boundaries rather than clai
 4. remove the global repository/workspace uniqueness constraint;
 5. move rate limiting and all session behavior to shared infrastructure;
 6. add durable guide revisions and richer repository provenance;
-7. build architecture exploration on `CodeSymbol` and `SymbolRelation`;
+7. validate generated architecture content against the structural facts instead of relying on prompt instructions, and carry the selected indexing revision into file and symbol browsing;
 8. add decision sources and impact analysis only after their data models are implemented.
 
 Detailed implementation notes:
@@ -416,6 +440,9 @@ Detailed implementation notes:
 - [Code intelligence](features/code-intelligence.md)
 - [Retrieval](features/retrieval.md)
 - [Living onboarding guides](features/onboarding-guides.md)
+- [Dependency mapping](features/dependency-mapping.md)
+- [Architecture search](features/architecture-search.md)
+- [System overview](features/system-overview.md)
 - [Usage limits, billing, and AI providers](features/usage-and-ai-providers.md)
 - [Hostinger / VPS deployment](features/deploy-hostinger.md)
 - [EC2 deployment](features/deploy-ec2.md)

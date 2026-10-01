@@ -1,4 +1,5 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConversationPurpose } from '@prisma/client';
 import { RepositoryAccessValidationService } from '../repositories/repository-access-validation.service';
 import { ConversationsRepository } from './conversations.repository';
 import { ConversationsService } from './conversations.service';
@@ -15,6 +16,7 @@ describe('ConversationsService', () => {
     repositoryId,
     createdById: userId,
     title: 'Auth flow',
+    purpose: ConversationPurpose.CHAT,
     createdAt: new Date('2026-06-24T00:00:00.000Z'),
     updatedAt: new Date('2026-06-24T00:00:00.000Z'),
     deletedAt: null,

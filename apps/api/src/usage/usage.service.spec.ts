@@ -20,6 +20,7 @@ describe('UsageService', () => {
     repository: { count: jest.Mock };
     indexingRun: { count: jest.Mock };
     guideGenerationRun: { count: jest.Mock };
+    architectureOverviewGenerationRun: { count: jest.Mock };
     message: { count: jest.Mock };
     membership: { count: jest.Mock };
     invitation: { count: jest.Mock };
@@ -34,6 +35,9 @@ describe('UsageService', () => {
       repository: { count: jest.fn() },
       indexingRun: { count: jest.fn() },
       guideGenerationRun: { count: jest.fn() },
+      architectureOverviewGenerationRun: {
+        count: jest.fn().mockResolvedValue(0),
+      },
       message: { count: jest.fn() },
       membership: { count: jest.fn() },
       invitation: { count: jest.fn() },
@@ -157,6 +161,24 @@ describe('UsageService', () => {
     await expect(
       service.assertWithinLimit(workspaceId, UsageMetric.AI_QUESTIONS),
     ).resolves.toBeUndefined();
+  });
+
+  it('counts architecture overview runs toward guide generations', async () => {
+    prisma.workspace.findFirst.mockResolvedValue({
+      id: workspaceId,
+      planId: FREE_PLAN_ID,
+    });
+    prisma.planLimit.findUnique.mockResolvedValue({
+      metric: UsageMetric.GUIDE_GENERATIONS,
+      period: UsagePeriod.MONTHLY,
+      maxValue: 3,
+    });
+    prisma.guideGenerationRun.count.mockResolvedValue(1);
+    prisma.architectureOverviewGenerationRun.count.mockResolvedValue(2);
+
+    await expect(
+      service.assertWithinLimit(workspaceId, UsageMetric.GUIDE_GENERATIONS),
+    ).rejects.toBeInstanceOf(UsageLimitExceededException);
   });
 
   it('treats onboarding guides as unlimited when BYOK is active', async () => {

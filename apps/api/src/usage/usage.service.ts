@@ -236,13 +236,18 @@ export class UsageService {
             },
           },
         });
-      case UsageMetric.GUIDE_GENERATIONS:
-        return this.prisma.guideGenerationRun.count({
-          where: {
-            workspaceId,
-            ...(monthStart ? { createdAt: { gte: monthStart } } : {}),
-          },
-        });
+      case UsageMetric.GUIDE_GENERATIONS: {
+        const createdAt = monthStart ? { gte: monthStart } : undefined;
+        const [guideRuns, overviewRuns] = await Promise.all([
+          this.prisma.guideGenerationRun.count({
+            where: { workspaceId, ...(createdAt ? { createdAt } : {}) },
+          }),
+          this.prisma.architectureOverviewGenerationRun.count({
+            where: { workspaceId, ...(createdAt ? { createdAt } : {}) },
+          }),
+        ]);
+        return guideRuns + overviewRuns;
+      }
       case UsageMetric.AI_QUESTIONS:
         return this.prisma.message.count({
           where: {
