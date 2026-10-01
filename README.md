@@ -4,7 +4,7 @@
 
 Architect AI is an Agentic RAG and codebase intelligence system that helps your team understand how systems work, preserve why they were built, and onboard without relying on tribal knowledge. It connects to GitHub, indexes source code, and provides repository chat and generated onboarding guides backed by file and line references.
 
-This repository currently implements the **AI Onboarding Assistant** phase. Architecture exploration, decision memory, and impact analysis remain roadmap items.
+This repository currently implements the **AI Onboarding Assistant** and **Architecture Explorer**. Decision memory and impact analysis remain roadmap items.
 
 ## What works today
 
@@ -20,6 +20,7 @@ This repository currently implements the **AI Onboarding Assistant** phase. Arch
 - Repository-scoped and workspace-scoped chat with SSE streaming
 - Persisted conversations, source citations, and answer feedback
 - Generated onboarding guides for overviews, folders, modules, services, stack, reading order, glossary, and pitfalls
+- Architecture Explorer: folder-level dependency map, closed-intent architecture search, and a generated system overview
 - Mock, OpenAI, Anthropic, Grok, and Gemini LLM adapters
 - Model-agnostic workspace BYOK (OpenAI, Anthropic, Grok, or Gemini) for chat and guide generation, with instant provider switching
 - Plan-based usage limits plus admin analytics and system logs
@@ -32,7 +33,7 @@ Not implemented yet:
 - GitHub webhooks or incremental indexing
 - Languages other than TypeScript, JavaScript, Python, and PHP
 - Hybrid/lexical search, model reranking, or knowledge-graph retrieval
-- Architecture diagrams/explorer
+- Package, service, or runtime architecture graphs (the shipped map is folder-level imports)
 - ADR and decision-memory ingestion
 - Change-impact analysis
 - SSO, SCIM, or multi-node production orchestration
@@ -190,6 +191,7 @@ docker compose logs -f api indexing-worker web
 5. Browse indexed files and symbols.
 6. Ask questions from Chat and inspect source citations.
 7. Open the repository's Guides section. Initial guide generation is queued after indexing; it can also be run manually.
+8. Open Architecture for the dependency map, structural search, or a generated system overview.
 
 If indexing ends in `FAILED`, the repository page exposes retry/reindex actions and the stored error.
 
@@ -311,6 +313,9 @@ Index: [docs/README.md](docs/README.md).
 - [Code intelligence](docs/features/code-intelligence.md)
 - [Retrieval](docs/features/retrieval.md)
 - [Living onboarding guides](docs/features/onboarding-guides.md)
+- [Dependency mapping](docs/features/dependency-mapping.md)
+- [Architecture search](docs/features/architecture-search.md)
+- [System overview](docs/features/system-overview.md)
 - [Usage limits, billing, and AI providers](docs/features/usage-and-ai-providers.md)
 - [Hostinger / VPS deployment](docs/features/deploy-hostinger.md)
 - [EC2 deployment](docs/features/deploy-ec2.md)
@@ -323,7 +328,7 @@ Index: [docs/README.md](docs/README.md).
 - Rate limiting is in-process and is not coordinated across API replicas.
 - The production Compose topology is single-host.
 - Mock AI providers validate integration behavior but not answer quality.
-- Personal `/settings` and Decision Memory remain placeholders (`/profile` name updates are shipped). Architecture Explorer ships Dependency Mapping and Architecture Search.
+- Personal `/settings` and Decision Memory remain placeholders (`/profile` name updates are shipped). Architecture Explorer ships Dependency Mapping, Architecture Search, and System Overview. The map is folder-level imports, not packages, services, or a runtime call graph.
 
 These constraints are documented in more detail in [MVP Architecture](docs/Architecture.md).
 

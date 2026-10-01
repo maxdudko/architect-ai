@@ -1,13 +1,13 @@
 # Documentation index
 
-Implementation-first notes for the shipped Architect AI MVP. Later product phases live in the [roadmap](./Roadmap.md) and must not be read as deployed capabilities.
+Implementation-first notes for what is shipped. Phases 1 and 2 are deployed. Later product phases live in the [roadmap](./Roadmap.md) and must not be read as deployed capabilities.
 
 ## Start here
 
 | Doc                               | What it is                                                                               |
 | --------------------------------- | ---------------------------------------------------------------------------------------- |
 | [Architecture](./Architecture.md) | Current system shape, tenancy, indexing, retrieval, security, and production constraints |
-| [Roadmap](./Roadmap.md)           | Product direction after Phase 1                                                          |
+| [Roadmap](./Roadmap.md)           | Product direction after Phase 2                                                          |
 
 ## Feature notes
 

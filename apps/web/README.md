@@ -58,7 +58,7 @@ The codebase uses **feature-based architecture** — files are organized by prod
 ```
 src/
 ├── app/          # Next.js routes, layouts, error boundaries
-├── features/     # auth, profile, workspace, repository, onboarding, chat, dashboard, landing, admin, invitation, settings
+├── features/     # auth, profile, workspace, repository, onboarding, chat, architecture, dashboard, landing, admin, invitation, settings
 ├── shared/       # Reusable UI components and primitives
 ├── entities/     # Domain types (User, Workspace, Membership, …)
 ├── widgets/      # Composed blocks (app shell, navigation)
@@ -83,9 +83,11 @@ Each feature under `src/features/` contains:
 
 **Phase 1 (shipped):** `auth`, `profile`, `workspace`, `repository`, `onboarding`, `chat`, `dashboard`, `landing`, `admin`, `invitation`
 
+**Phase 2 (shipped):** `architecture` (dependency map, architecture search, system overview)
+
 **Placeholder:** `settings` (personal account preferences beyond `/profile` name updates are not implemented)
 
-Decision Memory appears on the dashboard as a later-phase placeholder. Architecture Explorer ships Dependency Mapping and Architecture Search.
+Decision Memory appears on the dashboard as a later-phase placeholder. Architecture Explorer ships Dependency Mapping, Architecture Search, and System Overview. The map is folder-level imports, not packages, services, or a runtime call graph.
 
 ### API layer
 

@@ -1,6 +1,6 @@
 # Architect AI API
 
-Backend service for authentication, workspaces, GitHub indexing, retrieval, chat, onboarding guides, billing, and platform admin.
+Backend service for authentication, workspaces, GitHub indexing, retrieval, chat, onboarding guides, architecture exploration, billing, and platform admin.
 
 ## Architecture
 
@@ -19,6 +19,7 @@ This service follows a modular DDD-inspired structure:
 - `src/modules/llm`: hosted LLM provider adapters
 - `src/conversations` / `src/chat`: persisted conversations, answers, SSE streaming
 - `src/modules/onboarding`: living onboarding guide generation, storage, and worker
+- `src/modules/architecture`: dependency map, architecture search, and system overview
 - `src/workspace-ai`: Hosted vs BYOK generation provider resolution
 - `src/usage`: plan-limit enforcement and workspace usage
 - `src/billing`: Stripe Checkout, portal, subscriptions, and webhooks
@@ -66,6 +67,10 @@ Swagger is available at `GET /docs` outside production.
   - `GET /workspaces/:id/repositories/:repositoryId/guides/:guideId`
   - `POST /workspaces/:id/repositories/:repositoryId/guides/generate`
   - `POST /workspaces/:id/repositories/:repositoryId/guides/regenerate`
+- Architecture Explorer, under `/workspaces/:id/repositories/:repositoryId/architecture`:
+  - `GET .../dependency-map`, `GET .../dependency-map/module`, `GET .../dependency-map/evidence`
+  - `GET .../search`, `POST .../search/messages`, `POST .../search/messages/stream`
+  - `GET .../overview`, `POST .../overview/generations`, `POST .../overview/generations/regenerate`
 - Usage and AI settings: `GET /workspaces/:id/usage`, `/workspaces/:id/ai-settings/*`
 - Billing: `GET /plans`, `/workspaces/:id/billing` (checkout, portal, downgrade, resume), `POST /billing/webhook`
 - Admin: separate admin JWT routes under `/admin/*`
